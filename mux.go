@@ -617,8 +617,10 @@ func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{})
 	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
 	wrappedHandler = wrapMiddlewares(wrappedHandler, appMiddlewares)
 
-	i18nMdwr := I18nMiddleware(i18n.Configuration().FS)
-	wrappedHandler = i18nMdwr(wrappedHandler)
+	if i18nConfig, ok := i18n.Configuration(); ok && i18nConfig.FS != nil {
+		i18nMdwr := I18nMiddleware(i18nConfig.FS)
+		wrappedHandler = i18nMdwr(wrappedHandler)
+	}
 
 	m.ServeMux.Handle(pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		wrappedHandler.ServeHTTP(ResponseWriter{w, nil}, &Request{r})
@@ -634,8 +636,10 @@ func (m *ServeMux) HandleFunc(pattern string, handler HandlerFunc, mdwrs ...inte
 	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
 	wrappedHandler = wrapMiddlewares(wrappedHandler, appMiddlewares)
 
-	i18nMdwr := I18nMiddleware(i18n.Configuration().FS)
-	wrappedHandler = i18nMdwr(wrappedHandler)
+	if i18nConfig, ok := i18n.Configuration(); ok && i18nConfig.FS != nil {
+		i18nMdwr := I18nMiddleware(i18nConfig.FS)
+		wrappedHandler = i18nMdwr(wrappedHandler)
+	}
 
 	m.ServeMux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		wrappedHandler.ServeHTTP(ResponseWriter{w, nil}, &Request{r})

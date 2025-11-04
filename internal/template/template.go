@@ -52,8 +52,11 @@ func Configure(cfg *Config) {
 	layoutsCache = nil
 }
 
-func Configuration() Config {
-	return *config
+func Configuration() (Config, bool) {
+	if config == nil {
+		return Config{}, false
+	}
+	return *config, true
 }
 
 func LookupTemplate(path string, absolute bool) (*htmlTemplate.Template, bool) {

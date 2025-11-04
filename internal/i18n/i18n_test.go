@@ -50,7 +50,12 @@ func TestConfiguration(t *testing.T) {
 
 	Configure(cfg)
 
-	result := Configuration()
+	result, ok := Configuration()
+
+	if !ok {
+		t.Error("Expected valid configuration")
+		return
+	}
 
 	if result.FS == nil {
 		t.Error("Expected non-nil FS in configuration")

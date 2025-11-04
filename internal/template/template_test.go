@@ -71,7 +71,11 @@ func TestConfiguration(t *testing.T) {
 
 	Configure(cfg)
 
-	result := Configuration()
+	result, ok := Configuration()
+
+	if !ok {
+		t.Fatal("Expected valid configuration")
+	}
 
 	if result.TemplatesPath != cfg.TemplatesPath {
 		t.Errorf("Expected TemplatesPath %q, got %q", cfg.TemplatesPath, result.TemplatesPath)

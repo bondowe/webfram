@@ -58,8 +58,11 @@ func Configure(cfg *Config) {
 	loadI18nCatalogs()
 }
 
-func Configuration() Config {
-	return *config
+func Configuration() (Config, bool) {
+	if config == nil {
+		return Config{}, false
+	}
+	return *config, true
 }
 
 // GetI18nPrinter creates a message printer for the given language tag

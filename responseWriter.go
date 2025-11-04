@@ -134,12 +134,17 @@ func (w *ResponseWriter) HTMLString(s string, data any) error {
 }
 
 func (w *ResponseWriter) HTML(path string, data any) error {
+	tmplConfig, ok := template.Configuration()
+	if !ok {
+		return fmt.Errorf("template configuration not set")
+	}
+
 	w.Header().Set("Content-Type", "text/html")
 
-	if tmpl, ok := template.LookupTemplate(path+template.Configuration().HTMLTemplateExtension, false); ok {
+	if tmpl, ok := template.LookupTemplate(path+tmplConfig.HTMLTemplateExtension, false); ok {
 		if msgPrinter, ok := i18n.I18nPrinterFromContext(w.context); ok {
 			funcs := htmlTemplate.FuncMap{
-				template.Configuration().I18nFuncName: i18nPrinterFunc(msgPrinter),
+				tmplConfig.I18nFuncName: i18nPrinterFunc(msgPrinter),
 			}
 			return template.Must(tmpl.Clone()).Funcs(funcs).Execute(w.ResponseWriter, data)
 		}
@@ -160,12 +165,18 @@ func (w *ResponseWriter) TextString(s string, data any) error {
 }
 
 func (w *ResponseWriter) Text(path string, data any) error {
+	tmplConfig, ok := template.Configuration()
+	if !ok {
+		return fmt.Errorf("template configuration not set")
+	}
+
 	w.Header().Set("Content-Type", "text/plain")
 
-	if tmpl, ok := template.LookupTemplate(path+template.Configuration().TextTemplateExtension, false); ok {
+	if tmpl, ok := template.LookupTemplate(path+tmplConfig.TextTemplateExtension, false); ok {
 		if msgPrinter, ok := i18n.I18nPrinterFromContext(w.context); ok {
 			funcs := textTemplate.FuncMap{
-				template.Configuration().I18nFuncName: i18nPrinterFunc(msgPrinter),
+
+				tmplConfig.I18nFuncName: i18nPrinterFunc(msgPrinter),
 			}
 			return template.Must(tmpl.Clone()).Funcs(funcs).Execute(w.ResponseWriter, data)
 		}
@@ -217,12 +228,19 @@ func (rw *ResponseWriter) Redirect(req *Request, urlStr string, code int) {
 }
 
 func (rw *ResponseWriter) ServeFile(req *Request, name string, inline bool) {
+	tmplConfig, ok := template.Configuration()
+	if !ok {
+		http.Error(rw.ResponseWriter, "template configuration not set", http.StatusInternalServerError)
+		return
+	}
+
 	var disposition string
 	if inline {
 		disposition = "inline"
 	} else {
 		disposition = "attachment"
 	}
+
 	rw.Header().Set("Content-Disposition", disposition+"; filename=\""+filepath.Base(name)+"\"")
-	http.ServeFileFS(rw.ResponseWriter, req.Request, template.Configuration().FS, name)
+	http.ServeFileFS(rw.ResponseWriter, req.Request, tmplConfig.FS, name)
 }
