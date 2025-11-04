@@ -1,0 +1,30 @@
+{
+  "language": "fr",
+  "messages": [
+    {
+      "id": "Hello",
+      "message": "Hello",
+      "translation": "Bonjour"
+    },
+    {
+      "id": "Hello %s",
+      "message": "Hello %s",
+      "translation": "Bonjour %s",
+      "placeholders": {
+        "arg_1": {
+          "id": "arg_1",
+          "string": "%s",
+          "type": "string",
+          "underlyingType": "string",
+          "argNum": 1,
+          "expr": "arg1"
+        }
+      }
+    },
+    {
+      "id": "Goodbye",
+      "message": "Goodbye",
+      "translation": "Au revoir"
+    }
+  ]
+}

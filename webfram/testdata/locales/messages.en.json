@@ -1,0 +1,10 @@
+{
+  "language": "en",
+  "messages": [
+    {
+      "id": "Test message",
+      "message": "Test message",
+      "translation": "Test message"
+    }
+  ]
+}

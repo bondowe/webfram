@@ -1,0 +1,4 @@
+{{define "content"}}
+Text content with layout
+Name: {{.Name}}
+{{end}}

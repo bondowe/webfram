@@ -1,0 +1,3 @@
+<!-- filepath: c:\Code\playground\go\webfram\webfram\internal\template\testdata\simple.go.txt -->
+Hello {{.Name}}
+This is a simple text template.

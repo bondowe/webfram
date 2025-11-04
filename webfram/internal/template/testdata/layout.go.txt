@@ -1,0 +1,4 @@
+<!-- filepath: c:\Code\playground\go\webfram\webfram\internal\template\testdata\layout.go.txt -->
+Text Layout
+{{template "content" .}}
+End Layout

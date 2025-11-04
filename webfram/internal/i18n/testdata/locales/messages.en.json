@@ -1,0 +1,58 @@
+{
+  "language": "en",
+  "messages": [
+    {
+      "id": "Hello",
+      "message": "Hello",
+      "translation": "Hello"
+    },
+    {
+      "id": "Hello %s",
+      "message": "Hello %s",
+      "translation": "Hello %s",
+      "placeholders": {
+        "arg_1": {
+          "id": "arg_1",
+          "string": "%s",
+          "type": "string",
+          "underlyingType": "string",
+          "argNum": 1,
+          "expr": "arg1"
+        }
+      }
+    },
+    {
+      "id": "Hello %s, you have %d messages",
+      "message": "Hello %s, you have %d messages",
+      "translation": "Hello %s, you have %d messages",
+      "placeholders": {
+        "arg_1": {
+          "id": "arg_1",
+          "string": "%s",
+          "type": "string",
+          "underlyingType": "string",
+          "argNum": 1,
+          "expr": "arg1"
+        },
+        "arg_2": {
+          "id": "arg_2",
+          "string": "%d",
+          "type": "int",
+          "underlyingType": "int",
+          "argNum": 2,
+          "expr": "arg2"
+        }
+      }
+    },
+    {
+      "id": "Goodbye",
+      "message": "Goodbye",
+      "translation": "Goodbye"
+    },
+    {
+      "id": "Test message",
+      "message": "Test message",
+      "translation": "Test message"
+    }
+  ]
+}

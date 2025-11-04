@@ -1,0 +1,799 @@
+package webfram
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"embed"
+	"encoding/json"
+	"encoding/xml"
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/bondowe/webfram/internal/i18n"
+	"golang.org/x/text/language"
+	yaml "sigs.k8s.io/yaml/goyaml.v2"
+)
+
+//go:embed testdata/templates/*.go.html
+//go:embed testdata/templates/*.go.txt
+var testTemplatesFS embed.FS
+
+func setupResponseWriterTests() {
+	if appConfigured {
+		appConfigured = false
+	}
+
+	Configure(&Config{
+		Templates: &TemplateConfig{
+			FS:            testTemplatesFS,
+			TemplatesPath: "testdata/templates",
+		},
+		I18n: &I18nConfig{
+			FS: testI18nFS,
+		},
+	})
+}
+
+func TestResponseWriter_Context(t *testing.T) {
+	w := httptest.NewRecorder()
+	ctx := context.WithValue(context.Background(), "test-key", "test-value")
+	rw := ResponseWriter{
+		ResponseWriter: w,
+		context:        ctx,
+	}
+
+	result := rw.Context()
+	if result == nil {
+		t.Fatal("Context() returned nil")
+	}
+
+	val := result.Value("test-key")
+	if val != "test-value" {
+		t.Errorf("Expected context value 'test-value', got %v", val)
+	}
+}
+
+func TestResponseWriter_Error(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	rw.Error(http.StatusBadRequest, "Bad request error")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status code %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	body := strings.TrimSpace(w.Body.String())
+	if !strings.Contains(body, "Bad request error") {
+		t.Errorf("Expected body to contain 'Bad request error', got %q", body)
+	}
+}
+
+func TestResponseWriter_Header(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	rw.Header().Set("X-Custom-Header", "custom-value")
+
+	if val := w.Header().Get("X-Custom-Header"); val != "custom-value" {
+		t.Errorf("Expected header 'custom-value', got %q", val)
+	}
+}
+
+func TestResponseWriter_Write(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	data := []byte("Hello, World!")
+	n, err := rw.Write(data)
+
+	if err != nil {
+		t.Fatalf("Write() returned error: %v", err)
+	}
+
+	if n != len(data) {
+		t.Errorf("Write() returned %d bytes, want %d", n, len(data))
+	}
+
+	if w.Body.String() != "Hello, World!" {
+		t.Errorf("Expected body 'Hello, World!', got %q", w.Body.String())
+	}
+}
+
+func TestResponseWriter_WriteHeader(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	rw.WriteHeader(http.StatusCreated)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
+	}
+}
+
+func TestResponseWriter_Flush(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	// Should not panic even if underlying writer doesn't support Flush
+	rw.Flush()
+
+	// With a flusher
+	flusher := &mockFlusher{ResponseRecorder: w}
+	rw.ResponseWriter = flusher
+
+	rw.Flush()
+
+	if !flusher.flushed {
+		t.Error("Expected Flush to be called")
+	}
+}
+
+func TestResponseWriter_Hijack(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	// httptest.ResponseRecorder doesn't support Hijack
+	conn, buf, err := rw.Hijack()
+
+	if !errors.Is(err, http.ErrNotSupported) {
+		t.Errorf("Expected http.ErrNotSupported, got %v", err)
+	}
+
+	if conn != nil {
+		t.Error("Expected nil conn")
+	}
+
+	if buf != nil {
+		t.Error("Expected nil buffer")
+	}
+}
+
+func TestResponseWriter_Push(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	// httptest.ResponseRecorder doesn't support Push
+	err := rw.Push("/resource", nil)
+
+	if !errors.Is(err, http.ErrNotSupported) {
+		t.Errorf("Expected http.ErrNotSupported, got %v", err)
+	}
+}
+
+func TestResponseWriter_CloseNotify(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	// httptest.ResponseRecorder doesn't support CloseNotify
+	ch := rw.CloseNotify()
+
+	if ch != nil {
+		t.Error("Expected nil channel for unsupported CloseNotify")
+	}
+}
+
+func TestResponseWriter_ReadFrom(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	reader := strings.NewReader("test data")
+
+	// httptest.ResponseRecorder doesn't support ReadFrom
+	n, err := rw.ReadFrom(reader)
+
+	if !errors.Is(err, http.ErrNotSupported) {
+		t.Errorf("Expected http.ErrNotSupported, got %v", err)
+	}
+
+	if n != 0 {
+		t.Errorf("Expected 0 bytes read, got %d", n)
+	}
+}
+
+func TestResponseWriter_Unwrap(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	unwrapped := rw.Unwrap()
+
+	if unwrapped != w {
+		t.Error("Unwrap() did not return the underlying ResponseWriter")
+	}
+}
+
+func TestResponseWriter_JSON(t *testing.T) {
+	type TestData struct {
+		Name  string `json:"name"`
+		Value int    `json:"value"`
+	}
+
+	tests := []struct {
+		name     string
+		data     TestData
+		expected string
+	}{
+		{
+			name:     "simple object",
+			data:     TestData{Name: "test", Value: 42},
+			expected: `{"name":"test","value":42}`,
+		},
+		{
+			name:     "empty object",
+			data:     TestData{},
+			expected: `{"name":"","value":0}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			rw := ResponseWriter{
+				ResponseWriter: w,
+				context:        context.Background(),
+			}
+
+			err := rw.JSON(tt.data)
+			if err != nil {
+				t.Fatalf("JSON() returned error: %v", err)
+			}
+
+			contentType := w.Header().Get("Content-Type")
+			if contentType != "application/json" {
+				t.Errorf("Expected Content-Type 'application/json', got %q", contentType)
+			}
+
+			var result TestData
+			if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+				t.Fatalf("Failed to unmarshal response: %v", err)
+			}
+
+			if result.Name != tt.data.Name || result.Value != tt.data.Value {
+				t.Errorf("Expected %+v, got %+v", tt.data, result)
+			}
+		})
+	}
+}
+
+func TestResponseWriter_JSON_JSONP(t *testing.T) {
+	setupResponseWriterTests()
+
+	type TestData struct {
+		Message string `json:"message"`
+	}
+
+	w := httptest.NewRecorder()
+	ctx := context.WithValue(context.Background(), jsonpCallbackMethodNameKey, "myCallback")
+	rw := ResponseWriter{
+		ResponseWriter: w,
+		context:        ctx,
+	}
+
+	data := TestData{Message: "hello"}
+	err := rw.JSON(data)
+
+	if err != nil {
+		t.Fatalf("JSON() returned error: %v", err)
+	}
+
+	contentType := w.Header().Get("Content-Type")
+	if contentType != "application/javascript" {
+		t.Errorf("Expected Content-Type 'application/javascript', got %q", contentType)
+	}
+
+	body := w.Body.String()
+	if !strings.HasPrefix(body, "myCallback(") {
+		t.Errorf("Expected JSONP response to start with 'myCallback(', got %q", body)
+	}
+	if !strings.HasSuffix(body, ");") {
+		t.Errorf("Expected JSONP response to end with ');', got %q", body)
+	}
+}
+
+func TestResponseWriter_XML(t *testing.T) {
+	type TestData struct {
+		XMLName xml.Name `xml:"data"`
+		Name    string   `xml:"name"`
+		Value   int      `xml:"value"`
+	}
+
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	data := TestData{Name: "test", Value: 42}
+	err := rw.XML(data)
+
+	if err != nil {
+		t.Fatalf("XML() returned error: %v", err)
+	}
+
+	contentType := w.Header().Get("Content-Type")
+	if contentType != "application/xml" {
+		t.Errorf("Expected Content-Type 'application/xml', got %q", contentType)
+	}
+
+	var result TestData
+	if err := xml.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if result.Name != data.Name || result.Value != data.Value {
+		t.Errorf("Expected %+v, got %+v", data, result)
+	}
+}
+
+func TestResponseWriter_YAML(t *testing.T) {
+	type TestData struct {
+		Name  string `yaml:"name"`
+		Value int    `yaml:"value"`
+	}
+
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	data := TestData{Name: "test", Value: 42}
+	err := rw.YAML(data)
+
+	if err != nil {
+		t.Fatalf("YAML() returned error: %v", err)
+	}
+
+	contentType := w.Header().Get("Content-Type")
+	if contentType != "text/x-yaml" {
+		t.Errorf("Expected Content-Type 'text/x-yaml', got %q", contentType)
+	}
+
+	var result TestData
+	if err := yaml.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if result.Name != data.Name || result.Value != data.Value {
+		t.Errorf("Expected %+v, got %+v", data, result)
+	}
+}
+
+func TestResponseWriter_Bytes(t *testing.T) {
+	tests := []struct {
+		name        string
+		data        []byte
+		contentType string
+		expected    string
+	}{
+		{
+			name:        "with explicit content type",
+			data:        []byte("Hello"),
+			contentType: "text/plain",
+			expected:    "text/plain",
+		},
+		{
+			name:        "auto-detect content type",
+			data:        []byte("<html>"),
+			contentType: "",
+			expected:    "text/html; charset=utf-8",
+		},
+		{
+			name:        "json content type",
+			data:        []byte(`{"key":"value"}`),
+			contentType: "application/json",
+			expected:    "application/json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			rw := ResponseWriter{ResponseWriter: w}
+
+			err := rw.Bytes(tt.data, tt.contentType)
+			if err != nil {
+				t.Fatalf("Bytes() returned error: %v", err)
+			}
+
+			contentType := w.Header().Get("Content-Type")
+			if contentType != tt.expected {
+				t.Errorf("Expected Content-Type %q, got %q", tt.expected, contentType)
+			}
+
+			if !bytes.Equal(w.Body.Bytes(), tt.data) {
+				t.Errorf("Expected body %q, got %q", string(tt.data), w.Body.String())
+			}
+		})
+	}
+}
+
+func TestResponseWriter_NoContent(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	rw.NoContent()
+
+	if w.Code != http.StatusNoContent {
+		t.Errorf("Expected status %d, got %d", http.StatusNoContent, w.Code)
+	}
+}
+
+func TestResponseWriter_Redirect(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		code     int
+		expected int
+	}{
+		{
+			name:     "permanent redirect",
+			url:      "/new-location",
+			code:     http.StatusMovedPermanently,
+			expected: http.StatusMovedPermanently,
+		},
+		{
+			name:     "temporary redirect",
+			url:      "/temp-location",
+			code:     http.StatusTemporaryRedirect,
+			expected: http.StatusTemporaryRedirect,
+		},
+		{
+			name:     "see other",
+			url:      "/other",
+			code:     http.StatusSeeOther,
+			expected: http.StatusSeeOther,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			rw := ResponseWriter{ResponseWriter: w}
+
+			req := httptest.NewRequest("GET", "/original", nil)
+			r := &Request{Request: req}
+
+			rw.Redirect(r, tt.url, tt.code)
+
+			if w.Code != tt.expected {
+				t.Errorf("Expected status %d, got %d", tt.expected, w.Code)
+			}
+
+			location := w.Header().Get("Location")
+			if location != tt.url {
+				t.Errorf("Expected Location %q, got %q", tt.url, location)
+			}
+		})
+	}
+}
+
+func TestResponseWriter_HTMLString(t *testing.T) {
+	tests := []struct {
+		name     string
+		template string
+		data     map[string]string
+		contains string
+	}{
+		{
+			name:     "simple template",
+			template: "<h1>{{.Title}}</h1>",
+			data:     map[string]string{"Title": "Hello"},
+			contains: "<h1>Hello</h1>",
+		},
+		{
+			name:     "template with multiple values",
+			template: "<p>{{.Name}} - {{.Value}}</p>",
+			data:     map[string]string{"Name": "Test", "Value": "123"},
+			contains: "<p>Test - 123</p>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			rw := ResponseWriter{ResponseWriter: w}
+
+			err := rw.HTMLString(tt.template, tt.data)
+			if err != nil {
+				t.Fatalf("HTMLString() returned error: %v", err)
+			}
+
+			contentType := w.Header().Get("Content-Type")
+			if contentType != "text/html" {
+				t.Errorf("Expected Content-Type 'text/html', got %q", contentType)
+			}
+
+			body := w.Body.String()
+			if body != tt.contains {
+				t.Errorf("Expected body %q, got %q", tt.contains, body)
+			}
+		})
+	}
+}
+
+func TestResponseWriter_HTMLString_InvalidTemplate(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	err := rw.HTMLString("{{.Invalid", nil)
+	if err == nil {
+		t.Error("Expected error for invalid template")
+	}
+}
+
+func TestResponseWriter_TextString(t *testing.T) {
+	tests := []struct {
+		name     string
+		template string
+		data     map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "simple text",
+			template: "Hello {{.Name}}",
+			data:     map[string]interface{}{"Name": "World"},
+			expected: "Hello World",
+		},
+		{
+			name:     "multiple values",
+			template: "{{.A}} + {{.B}} = {{.C}}",
+			data:     map[string]interface{}{"A": "1", "B": "2", "C": "3"},
+			expected: "1 + 2 = 3",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			rw := ResponseWriter{ResponseWriter: w}
+
+			err := rw.TextString(tt.template, tt.data)
+			if err != nil {
+				t.Fatalf("TextString() returned error: %v", err)
+			}
+
+			contentType := w.Header().Get("Content-Type")
+			if contentType != "text/plain" {
+				t.Errorf("Expected Content-Type 'text/plain', got %q", contentType)
+			}
+
+			body := w.Body.String()
+			if body != tt.expected {
+				t.Errorf("Expected body %q, got %q", tt.expected, body)
+			}
+		})
+	}
+}
+
+func TestResponseWriter_TextString_InvalidTemplate(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	err := rw.TextString("{{.Invalid", nil)
+	if err == nil {
+		t.Error("Expected error for invalid template")
+	}
+}
+
+func TestResponseWriter_ServeFile(t *testing.T) {
+	setupResponseWriterTests()
+
+	tests := []struct {
+		name                string
+		filename            string
+		inline              bool
+		expectedDisposition string
+	}{
+		{
+			name:                "inline file",
+			filename:            "testdata/templates/test.go.html",
+			inline:              true,
+			expectedDisposition: "inline",
+		},
+		{
+			name:                "attachment file",
+			filename:            "testdata/templates/test.go.html",
+			inline:              false,
+			expectedDisposition: "attachment",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			rw := ResponseWriter{ResponseWriter: w}
+
+			req := httptest.NewRequest("GET", "/file", nil)
+			r := &Request{Request: req}
+
+			rw.ServeFile(r, tt.filename, tt.inline)
+
+			disposition := w.Header().Get("Content-Disposition")
+			if !strings.HasPrefix(disposition, tt.expectedDisposition) {
+				t.Errorf("Expected Content-Disposition to start with %q, got %q",
+					tt.expectedDisposition, disposition)
+			}
+		})
+	}
+}
+
+func TestI18nPrinterFunc(t *testing.T) {
+	setupResponseWriterTests()
+
+	printer := i18n.GetI18nPrinter(language.English)
+	fn := i18nPrinterFunc(printer)
+
+	result := fn("Hello %s", "World")
+	if result != "Hello World" {
+		t.Errorf("Expected 'Hello World', got %q", result)
+	}
+}
+
+// Mock types for testing interfaces
+
+type mockFlusher struct {
+	*httptest.ResponseRecorder
+	flushed bool
+}
+
+func (m *mockFlusher) Flush() {
+	m.flushed = true
+}
+
+type mockHijacker struct {
+	*httptest.ResponseRecorder
+	hijacked bool
+}
+
+func (m *mockHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	m.hijacked = true
+	return nil, nil, nil
+}
+
+type mockPusher struct {
+	*httptest.ResponseRecorder
+	pushed bool
+	target string
+}
+
+func (m *mockPusher) Push(target string, opts *http.PushOptions) error {
+	m.pushed = true
+	m.target = target
+	return nil
+}
+
+type mockCloseNotifier struct {
+	*httptest.ResponseRecorder
+	ch chan bool
+}
+
+func (m *mockCloseNotifier) CloseNotify() <-chan bool {
+	return m.ch
+}
+
+type mockReaderFrom struct {
+	*httptest.ResponseRecorder
+	readBytes int64
+}
+
+func (m *mockReaderFrom) ReadFrom(r io.Reader) (int64, error) {
+	n, err := io.Copy(m.ResponseRecorder, r)
+	m.readBytes = n
+	return n, err
+}
+
+func TestResponseWriter_Hijack_Supported(t *testing.T) {
+	w := httptest.NewRecorder()
+	hijacker := &mockHijacker{ResponseRecorder: w}
+	rw := ResponseWriter{ResponseWriter: hijacker}
+
+	_, _, err := rw.Hijack()
+	if err != nil {
+		t.Errorf("Hijack() returned error: %v", err)
+	}
+
+	if !hijacker.hijacked {
+		t.Error("Expected Hijack to be called")
+	}
+}
+
+func TestResponseWriter_Push_Supported(t *testing.T) {
+	w := httptest.NewRecorder()
+	pusher := &mockPusher{ResponseRecorder: w}
+	rw := ResponseWriter{ResponseWriter: pusher}
+
+	err := rw.Push("/resource", nil)
+	if err != nil {
+		t.Errorf("Push() returned error: %v", err)
+	}
+
+	if !pusher.pushed {
+		t.Error("Expected Push to be called")
+	}
+
+	if pusher.target != "/resource" {
+		t.Errorf("Expected target '/resource', got %q", pusher.target)
+	}
+}
+
+func TestResponseWriter_CloseNotify_Supported(t *testing.T) {
+	w := httptest.NewRecorder()
+	ch := make(chan bool, 1)
+	cn := &mockCloseNotifier{ResponseRecorder: w, ch: ch}
+	rw := ResponseWriter{ResponseWriter: cn}
+
+	result := rw.CloseNotify()
+	if result == nil {
+		t.Error("Expected non-nil channel")
+	}
+}
+
+func TestResponseWriter_ReadFrom_Supported(t *testing.T) {
+	w := httptest.NewRecorder()
+	rf := &mockReaderFrom{ResponseRecorder: w}
+	rw := ResponseWriter{ResponseWriter: rf}
+
+	data := "test data"
+	reader := strings.NewReader(data)
+
+	n, err := rw.ReadFrom(reader)
+	if err != nil {
+		t.Errorf("ReadFrom() returned error: %v", err)
+	}
+
+	if n != int64(len(data)) {
+		t.Errorf("Expected %d bytes read, got %d", len(data), n)
+	}
+
+	if rf.readBytes != int64(len(data)) {
+		t.Errorf("Expected %d bytes in mockReaderFrom, got %d", len(data), rf.readBytes)
+	}
+}
+
+func BenchmarkResponseWriter_JSON(b *testing.B) {
+	type Data struct {
+		Name  string
+		Value int
+	}
+
+	data := Data{Name: "benchmark", Value: 123}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w := httptest.NewRecorder()
+		rw := ResponseWriter{
+			ResponseWriter: w,
+			context:        context.Background(),
+		}
+		rw.JSON(data)
+	}
+}
+
+func BenchmarkResponseWriter_XML(b *testing.B) {
+	type Data struct {
+		XMLName xml.Name `xml:"data"`
+		Name    string   `xml:"name"`
+		Value   int      `xml:"value"`
+	}
+
+	data := Data{Name: "benchmark", Value: 123}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w := httptest.NewRecorder()
+		rw := ResponseWriter{ResponseWriter: w}
+		rw.XML(data)
+	}
+}
+
+func BenchmarkResponseWriter_Bytes(b *testing.B) {
+	data := []byte("benchmark data")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w := httptest.NewRecorder()
+		rw := ResponseWriter{ResponseWriter: w}
+		rw.Bytes(data, "text/plain")
+	}
+}
