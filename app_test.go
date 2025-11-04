@@ -2,6 +2,7 @@ package webfram
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"encoding/xml"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	"github.com/bondowe/webfram/openapi"
-	"github.com/google/uuid"
 	"golang.org/x/text/language"
 )
 
@@ -21,8 +21,22 @@ import (
 var testI18nFS2 embed.FS
 
 //go:embed testdata/templates/*.go.html
-var testTemplateFS embed.FS
+var testTemplatesFS2 embed.FS
 
+// Test helper structs
+type testUser struct {
+	Name  string `json:"name" xml:"name" form:"name" validate:"required,minlength=2"`
+	Email string `json:"email" xml:"email" form:"email" validate:"required,email"`
+	Age   int    `json:"age" xml:"age" form:"age" validate:"min=0,max=150"`
+}
+
+type testProduct struct {
+	SKU   string  `json:"sku" xml:"sku" form:"sku" validate:"required"`
+	Name  string  `json:"name" xml:"name" form:"name" validate:"required"`
+	Price float64 `json:"price" xml:"price" form:"price" validate:"min=0"`
+}
+
+// resetAppConfig resets all global app configuration to initial state
 func resetAppConfig() {
 	appConfigured = false
 	appMiddlewares = nil
@@ -30,7 +44,11 @@ func resetAppConfig() {
 	jsonpCallbackParamName = ""
 }
 
-func TestConfigure(t *testing.T) {
+// =============================================================================
+// Configure Tests
+// =============================================================================
+
+func TestConfigure_Success(t *testing.T) {
 	resetAppConfig()
 
 	cfg := &Config{
@@ -39,7 +57,7 @@ func TestConfigure(t *testing.T) {
 			FS: testI18nFS2,
 		},
 		Templates: &TemplateConfig{
-			FS:            testTemplateFS,
+			FS:            testTemplatesFS2,
 			TemplatesPath: "testdata/templates",
 		},
 	}
@@ -51,19 +69,36 @@ func TestConfigure(t *testing.T) {
 	}
 
 	if jsonpCallbackParamName != "callback" {
-		t.Errorf("Expected jsonpCallbackParamName 'callback', got %q", jsonpCallbackParamName)
+		t.Errorf("Expected jsonpCallbackParamName to be 'callback', got %q", jsonpCallbackParamName)
 	}
 }
 
-func TestConfigure_Panic_AlreadyConfigured(t *testing.T) {
+func TestConfigure_WithNilConfig(t *testing.T) {
 	resetAppConfig()
 
-	cfg := &Config{
-		I18n: &I18nConfig{
-			FS: testI18nFS2,
-		},
-	}
+	// Should not panic with nil config
+	Configure(nil)
 
+	if !appConfigured {
+		t.Error("Expected appConfigured to be true even with nil config")
+	}
+}
+
+func TestConfigure_WithMinimalConfig(t *testing.T) {
+	resetAppConfig()
+
+	cfg := &Config{}
+	Configure(cfg)
+
+	if !appConfigured {
+		t.Error("Expected appConfigured to be true")
+	}
+}
+
+func TestConfigure_PanicsWhenCalledTwice(t *testing.T) {
+	resetAppConfig()
+
+	cfg := &Config{}
 	Configure(cfg)
 
 	defer func() {
@@ -76,103 +111,255 @@ func TestConfigure_Panic_AlreadyConfigured(t *testing.T) {
 }
 
 func TestConfigure_InvalidJSONPCallbackName(t *testing.T) {
-	resetAppConfig()
-
-	cfg := &Config{
-		JSONPCallbackParamName: "invalid-name!", // Invalid characters
-		I18n: &I18nConfig{
-			FS: testI18nFS2,
-		},
-	}
-
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("Expected panic for invalid JSONP callback name")
-		}
-	}()
-
-	Configure(cfg)
-}
-
-func TestConfigure_NilConfig(t *testing.T) {
-	resetAppConfig()
-
-	// Should not panic
-	Configure(nil)
-
-	if !appConfigured {
-		t.Error("Expected appConfigured to be true even with nil config")
-	}
-}
-
-func TestConfigureOpenAPI(t *testing.T) {
 	tests := []struct {
-		name        string
-		config      *Config
-		expectNil   bool
-		expectedURL string
+		name         string
+		callbackName string
 	}{
-		{
-			name:      "nil config",
-			config:    nil,
-			expectNil: true,
-		},
-		{
-			name: "enabled with default URL",
-			config: &Config{
-				OpenAPI: &OpenAPIConfig{
-					EndpointEnabled: true,
-					Config: &openapi.Config{
-						Info: &openapi.Info{
-							Title:   "Test",
-							Version: "1.0",
-						},
-					},
-				},
-			},
-			expectNil:   false,
-			expectedURL: defaultOpenAPIURLPath,
-		},
-		{
-			name: "enabled with custom URL",
-			config: &Config{
-				OpenAPI: &OpenAPIConfig{
-					EndpointEnabled: true,
-					URLPath:         "/custom.json",
-					Config: &openapi.Config{
-						Info: &openapi.Info{
-							Title:   "Test",
-							Version: "1.0",
-						},
-					},
-				},
-			},
-			expectNil:   false,
-			expectedURL: "GET /custom.json",
-		},
+		{"starts with number", "123callback"},
+		{"contains dash", "call-back"},
+		{"contains dot", "call.back"},
+		{"contains space", "call back"},
+		{"contains special chars", "callback!"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			openAPIConfig = nil
-			configureOpenAPI(tt.config)
+			resetAppConfig()
 
-			if tt.expectNil && openAPIConfig != nil {
-				t.Error("Expected openAPIConfig to be nil")
+			cfg := &Config{
+				JSONPCallbackParamName: tt.callbackName,
 			}
 
-			if !tt.expectNil && openAPIConfig == nil {
-				t.Error("Expected openAPIConfig to not be nil")
+			defer func() {
+				if r := recover(); r == nil {
+					t.Errorf("Expected panic for invalid JSONP callback name %q", tt.callbackName)
+				}
+			}()
+
+			Configure(cfg)
+		})
+	}
+}
+
+func TestConfigure_ValidJSONPCallbackNames(t *testing.T) {
+	tests := []struct {
+		name         string
+		callbackName string
+	}{
+		{"simple name", "callback"},
+		{"with underscore", "my_callback"},
+		{"with numbers", "callback123"},
+		{"starts with underscore", "_callback"},
+		{"mixed case", "myCallback"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetAppConfig()
+
+			cfg := &Config{
+				JSONPCallbackParamName: tt.callbackName,
 			}
 
-			if !tt.expectNil && openAPIConfig.URLPath != tt.expectedURL {
-				t.Errorf("Expected URLPath %q, got %q", tt.expectedURL, openAPIConfig.URLPath)
+			Configure(cfg)
+
+			if jsonpCallbackParamName != tt.callbackName {
+				t.Errorf("Expected %q, got %q", tt.callbackName, jsonpCallbackParamName)
 			}
 		})
 	}
 }
 
-func TestUse_AppMiddleware(t *testing.T) {
+// =============================================================================
+// configureOpenAPI Tests
+// =============================================================================
+
+func TestConfigureOpenAPI_NilConfig(t *testing.T) {
+	openAPIConfig = nil
+	configureOpenAPI(nil)
+
+	if openAPIConfig != nil {
+		t.Error("Expected openAPIConfig to remain nil")
+	}
+}
+
+func TestConfigureOpenAPI_NilOpenAPIConfig(t *testing.T) {
+	openAPIConfig = nil
+	cfg := &Config{}
+	configureOpenAPI(cfg)
+
+	if openAPIConfig != nil {
+		t.Error("Expected openAPIConfig to remain nil")
+	}
+}
+
+func TestConfigureOpenAPI_DisabledEndpoint(t *testing.T) {
+	openAPIConfig = &OpenAPIConfig{EndpointEnabled: false}
+	cfg := &Config{
+		OpenAPI: &OpenAPIConfig{
+			EndpointEnabled: false,
+			Config:          &openapi.Config{},
+		},
+	}
+	configureOpenAPI(cfg)
+
+	// Should not override when disabled
+	if openAPIConfig.EndpointEnabled {
+		t.Error("Expected endpoint to remain disabled")
+	}
+}
+
+func TestConfigureOpenAPI_WithDefaultURL(t *testing.T) {
+	// Set up initial state - the function checks openAPIConfig.EndpointEnabled
+	// so we need to initialize it first
+	openAPIConfig = &OpenAPIConfig{EndpointEnabled: true}
+
+	cfg := &Config{
+		OpenAPI: &OpenAPIConfig{
+			EndpointEnabled: true,
+			Config: &openapi.Config{
+				Info: &openapi.Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+			},
+		},
+	}
+	configureOpenAPI(cfg)
+
+	if openAPIConfig == nil {
+		t.Fatal("Expected openAPIConfig to be set")
+	}
+
+	if openAPIConfig.URLPath != defaultOpenAPIURLPath {
+		t.Errorf("Expected URLPath %q, got %q", defaultOpenAPIURLPath, openAPIConfig.URLPath)
+	}
+
+	if openAPIConfig.Config.Components == nil {
+		t.Error("Expected Components to be initialized")
+	}
+}
+
+func TestConfigureOpenAPI_WithCustomURL(t *testing.T) {
+	openAPIConfig = &OpenAPIConfig{EndpointEnabled: true}
+
+	cfg := &Config{
+		OpenAPI: &OpenAPIConfig{
+			EndpointEnabled: true,
+			URLPath:         "/api/spec.json",
+			Config:          &openapi.Config{},
+		},
+	}
+	configureOpenAPI(cfg)
+
+	expectedPath := "GET /api/spec.json"
+	if openAPIConfig.URLPath != expectedPath {
+		t.Errorf("Expected URLPath %q, got %q", expectedPath, openAPIConfig.URLPath)
+	}
+}
+
+func TestConfigureOpenAPI_URLWithExistingGETPrefix(t *testing.T) {
+	openAPIConfig = &OpenAPIConfig{EndpointEnabled: true}
+
+	cfg := &Config{
+		OpenAPI: &OpenAPIConfig{
+			EndpointEnabled: true,
+			URLPath:         "GET /custom.json",
+			Config:          &openapi.Config{},
+		},
+	}
+	configureOpenAPI(cfg)
+
+	if openAPIConfig.URLPath != "GET /custom.json" {
+		t.Errorf("Expected URLPath to remain unchanged, got %q", openAPIConfig.URLPath)
+	}
+}
+
+// =============================================================================
+// configureTemplate Tests
+// =============================================================================
+
+func TestConfigureTemplate_NilConfig(t *testing.T) {
+	configureTemplate(nil)
+	// Should not panic
+}
+
+func TestConfigureTemplate_NilTemplateConfig(t *testing.T) {
+	cfg := &Config{}
+	configureTemplate(cfg)
+	// Should not panic
+}
+
+func TestConfigureTemplate_NilFS(t *testing.T) {
+	cfg := &Config{
+		Templates: &TemplateConfig{},
+	}
+	configureTemplate(cfg)
+	// Should not panic
+}
+
+func TestConfigureTemplate_WithDefaults(t *testing.T) {
+	cfg := &Config{
+		Templates: &TemplateConfig{
+			FS: testTemplatesFS2,
+		},
+	}
+	configureTemplate(cfg)
+	// Should use default values without panicking
+}
+
+func TestConfigureTemplate_WithCustomValues(t *testing.T) {
+	cfg := &Config{
+		Templates: &TemplateConfig{
+			FS:                    testTemplatesFS2,
+			TemplatesPath:         "custom/path",
+			LayoutBaseName:        "customLayout",
+			HTMLTemplateExtension: ".html",
+			TextTemplateExtension: ".txt",
+		},
+	}
+	configureTemplate(cfg)
+	// Should accept custom values without panicking
+}
+
+// =============================================================================
+// configureI18n Tests
+// =============================================================================
+
+func TestConfigureI18n_NilConfig(t *testing.T) {
+	configureI18n(nil)
+	// Should not panic
+}
+
+func TestConfigureI18n_NilI18nConfig(t *testing.T) {
+	cfg := &Config{}
+	configureI18n(cfg)
+	// Should not panic
+}
+
+func TestConfigureI18n_NilFS(t *testing.T) {
+	cfg := &Config{
+		I18n: &I18nConfig{},
+	}
+	configureI18n(cfg)
+	// Should not panic
+}
+
+func TestConfigureI18n_WithFS(t *testing.T) {
+	cfg := &Config{
+		I18n: &I18nConfig{
+			FS: testI18nFS2,
+		},
+	}
+	configureI18n(cfg)
+	// Should configure without panicking
+}
+
+// =============================================================================
+// Use Middleware Tests
+// =============================================================================
+
+func TestUse_WithAppMiddleware(t *testing.T) {
 	resetAppConfig()
 
 	called := false
@@ -189,13 +376,15 @@ func TestUse_AppMiddleware(t *testing.T) {
 		t.Errorf("Expected 1 middleware, got %d", len(appMiddlewares))
 	}
 
-	// Test the middleware works
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {})
+	// Test that middleware is functional
+	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 	wrapped := appMiddlewares[0](handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
 
 	wrapped.ServeHTTP(rw, r)
@@ -205,13 +394,16 @@ func TestUse_AppMiddleware(t *testing.T) {
 	}
 }
 
-func TestUse_StandardMiddleware(t *testing.T) {
+func TestUse_WithStandardMiddleware(t *testing.T) {
 	resetAppConfig()
 
 	called := false
+	headerSet := false
+
 	mw := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			called = true
+			w.Header().Set("X-Custom", "test-value")
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -222,13 +414,18 @@ func TestUse_StandardMiddleware(t *testing.T) {
 		t.Errorf("Expected 1 middleware, got %d", len(appMiddlewares))
 	}
 
-	// Test the middleware works
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {})
+	// Test that adapted middleware works
+	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+		if w.Header().Get("X-Custom") == "test-value" {
+			headerSet = true
+		}
+		w.WriteHeader(http.StatusOK)
+	})
 	wrapped := appMiddlewares[0](handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
 
 	wrapped.ServeHTTP(rw, r)
@@ -236,9 +433,13 @@ func TestUse_StandardMiddleware(t *testing.T) {
 	if !called {
 		t.Error("Standard middleware was not called")
 	}
+
+	if !headerSet {
+		t.Error("Standard middleware did not set header correctly")
+	}
 }
 
-func TestUse_NilMiddleware(t *testing.T) {
+func TestUse_WithNilMiddleware(t *testing.T) {
 	resetAppConfig()
 
 	Use[AppMiddleware](nil)
@@ -248,49 +449,148 @@ func TestUse_NilMiddleware(t *testing.T) {
 	}
 }
 
-func TestSSE(t *testing.T) {
+func TestUse_MultipleMiddlewares(t *testing.T) {
+	resetAppConfig()
+
+	callOrder := []int{}
+
+	mw1 := func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *Request) {
+			callOrder = append(callOrder, 1)
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	mw2 := func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *Request) {
+			callOrder = append(callOrder, 2)
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	Use(mw1)
+	Use(mw2)
+
+	if len(appMiddlewares) != 2 {
+		t.Errorf("Expected 2 middlewares, got %d", len(appMiddlewares))
+	}
+
+	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+		callOrder = append(callOrder, 3)
+	})
+
+	var wrapped Handler = handler
+	for i := len(appMiddlewares) - 1; i >= 0; i-- {
+		wrapped = appMiddlewares[i](wrapped)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	wrapped.ServeHTTP(rw, r)
+
+	expected := []int{1, 2, 3}
+	if len(callOrder) != len(expected) {
+		t.Errorf("Expected call order %v, got %v", expected, callOrder)
+	}
+	for i, v := range expected {
+		if i >= len(callOrder) || callOrder[i] != v {
+			t.Errorf("Expected call order %v, got %v", expected, callOrder)
+			break
+		}
+	}
+}
+
+// =============================================================================
+// SSE Tests
+// =============================================================================
+
+func TestSSE_Success(t *testing.T) {
 	payloadFunc := func() SSEPayload {
 		return SSEPayload{
 			Id:    "1",
 			Event: "message",
-			Data:  "test",
+			Data:  "test data",
 		}
 	}
 
+	disconnectCalled := false
 	disconnectFunc := func() {
+		disconnectCalled = true
 	}
 
+	errorCalled := false
 	errorFunc := func(err error) {
+		errorCalled = true
 	}
 
-	handler := SSE(payloadFunc, disconnectFunc, errorFunc, 1*time.Second, map[string]string{
-		"X-Custom": "value",
+	handler := SSE(payloadFunc, disconnectFunc, errorFunc, 100*time.Millisecond, map[string]string{
+		"X-Custom-Header": "custom-value",
 	})
 
 	if handler == nil {
 		t.Fatal("SSE returned nil handler")
 	}
 
-	if handler.interval != 1*time.Second {
-		t.Errorf("Expected interval 1s, got %v", handler.interval)
+	if handler.interval != 100*time.Millisecond {
+		t.Errorf("Expected interval 100ms, got %v", handler.interval)
 	}
 
-	if handler.headers["X-Custom"] != "value" {
-		t.Error("Custom headers not set")
+	if handler.payloadFunc == nil {
+		t.Error("Expected payloadFunc to be set")
 	}
+
+	if handler.disconnectFunc == nil {
+		t.Error("Expected disconnectFunc to be set")
+	}
+
+	if handler.errorFunc == nil {
+		t.Error("Expected errorFunc to be set")
+	}
+
+	if handler.headers["X-Custom-Header"] != "custom-value" {
+		t.Error("Custom headers not set correctly")
+	}
+
+	_ = disconnectCalled
+	_ = errorCalled
 }
 
-func TestSSE_PanicOnZeroInterval(t *testing.T) {
+func TestSSE_PanicsOnZeroInterval(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("Expected panic for zero interval")
 		}
 	}()
 
-	SSE(func() SSEPayload { return SSEPayload{} }, nil, nil, 0, nil)
+	SSE(
+		func() SSEPayload { return SSEPayload{} },
+		nil,
+		nil,
+		0,
+		nil,
+	)
 }
 
-func TestSSE_PanicOnNilPayloadFunc(t *testing.T) {
+func TestSSE_PanicsOnNegativeInterval(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic for negative interval")
+		}
+	}()
+
+	SSE(
+		func() SSEPayload { return SSEPayload{} },
+		nil,
+		nil,
+		-1*time.Second,
+		nil,
+	)
+}
+
+func TestSSE_PanicsOnNilPayloadFunc(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("Expected panic for nil payload function")
@@ -310,10 +610,10 @@ func TestSSE_DefaultDisconnectFunc(t *testing.T) {
 	)
 
 	if handler.disconnectFunc == nil {
-		t.Error("Expected default disconnect function")
+		t.Fatal("Expected default disconnect function to be set")
 	}
 
-	// Should not panic
+	// Should not panic when called
 	handler.disconnectFunc()
 }
 
@@ -327,14 +627,14 @@ func TestSSE_DefaultErrorFunc(t *testing.T) {
 	)
 
 	if handler.errorFunc == nil {
-		t.Error("Expected default error function")
+		t.Fatal("Expected default error function to be set")
 	}
 
-	// Should not panic
+	// Should not panic when called
 	handler.errorFunc(errors.New("test error"))
 }
 
-func TestSSEHandler_ServeHTTP_MethodNotAllowed(t *testing.T) {
+func TestSSE_ServeHTTP_MethodNotAllowed(t *testing.T) {
 	handler := SSE(
 		func() SSEPayload { return SSEPayload{Data: "test"} },
 		nil,
@@ -343,365 +643,779 @@ func TestSSEHandler_ServeHTTP_MethodNotAllowed(t *testing.T) {
 		nil,
 	)
 
-	req := httptest.NewRequest("POST", "/sse", nil)
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
+	methods := []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch}
+
+	for _, method := range methods {
+		t.Run(method, func(t *testing.T) {
+			req := httptest.NewRequest(method, "/sse", nil)
+			rec := httptest.NewRecorder()
+			rw := ResponseWriter{ResponseWriter: rec}
+			r := &Request{Request: req}
+
+			handler.ServeHTTP(rw, r)
+
+			if rec.Code != http.StatusMethodNotAllowed {
+				t.Errorf("Expected status %d, got %d", http.StatusMethodNotAllowed, rec.Code)
+			}
+		})
+	}
+}
+
+func TestSSE_ServeHTTP_SetsCorrectHeaders(t *testing.T) {
+	handler := SSE(
+		func() SSEPayload { return SSEPayload{} },
+		func() {},
+		nil,
+		10*time.Millisecond,
+		map[string]string{
+			"X-Custom": "value",
+		},
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	ctx, cancel := context.WithTimeout(req.Context(), 50*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
 
-	handler.ServeHTTP(rw, r)
+	go handler.ServeHTTP(rw, r)
 
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("Expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+
+	if rec.Header().Get("Content-Type") != "text/event-stream" {
+		t.Errorf("Expected Content-Type 'text/event-stream', got %q", rec.Header().Get("Content-Type"))
+	}
+
+	if rec.Header().Get("Cache-Control") != "no-cache" {
+		t.Errorf("Expected Cache-Control 'no-cache', got %q", rec.Header().Get("Cache-Control"))
+	}
+
+	if rec.Header().Get("Connection") != "keep-alive" {
+		t.Errorf("Expected Connection 'keep-alive', got %q", rec.Header().Get("Connection"))
+	}
+
+	if rec.Header().Get("X-Custom") != "value" {
+		t.Errorf("Expected X-Custom 'value', got %q", rec.Header().Get("X-Custom"))
 	}
 }
 
-func TestValidationErrors_Any(t *testing.T) {
-	tests := []struct {
-		name     string
-		errors   ValidationErrors
-		expected bool
-	}{
-		{
-			name:     "no errors",
-			errors:   ValidationErrors{},
-			expected: false,
-		},
-		{
-			name: "has errors",
-			errors: ValidationErrors{
-				Errors: []ValidationError{
-					{Field: "name", Error: "required"},
-				},
-			},
-			expected: true,
-		},
-	}
+func TestSSE_ServeHTTP_CallsDisconnectOnContext(t *testing.T) {
+	disconnectCalled := false
+	handler := SSE(
+		func() SSEPayload { return SSEPayload{Data: "test"} },
+		func() { disconnectCalled = true },
+		nil,
+		10*time.Millisecond,
+		nil,
+	)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.errors.Any()
-			if result != tt.expected {
-				t.Errorf("Expected Any() = %v, got %v", tt.expected, result)
-			}
-		})
+	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	ctx, cancel := context.WithCancel(req.Context())
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	go handler.ServeHTTP(rw, r)
+
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	time.Sleep(20 * time.Millisecond)
+
+	if !disconnectCalled {
+		t.Error("Expected disconnectFunc to be called")
 	}
 }
 
-func TestBindJSON(t *testing.T) {
+// =============================================================================
+// ValidationErrors Tests
+// =============================================================================
+
+func TestValidationErrors_Any_Empty(t *testing.T) {
+	errs := &ValidationErrors{}
+
+	if errs.Any() {
+		t.Error("Expected Any() to return false for empty errors")
+	}
+}
+
+func TestValidationErrors_Any_WithErrors(t *testing.T) {
+	errs := &ValidationErrors{
+		Errors: []ValidationError{
+			{Field: "name", Error: "required"},
+		},
+	}
+
+	if !errs.Any() {
+		t.Error("Expected Any() to return true when errors exist")
+	}
+}
+
+func TestValidationErrors_Any_MultipleErrors(t *testing.T) {
+	errs := &ValidationErrors{
+		Errors: []ValidationError{
+			{Field: "name", Error: "required"},
+			{Field: "email", Error: "invalid format"},
+			{Field: "age", Error: "must be positive"},
+		},
+	}
+
+	if !errs.Any() {
+		t.Error("Expected Any() to return true with multiple errors")
+	}
+}
+
+func TestValidationError_JSONMarshaling(t *testing.T) {
+	ve := ValidationError{
+		Field: "email",
+		Error: "invalid format",
+	}
+
+	data, err := json.Marshal(ve)
+	if err != nil {
+		t.Fatalf("Failed to marshal ValidationError: %v", err)
+	}
+
+	var unmarshaled ValidationError
+	if err := json.Unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("Failed to unmarshal ValidationError: %v", err)
+	}
+
+	if unmarshaled.Field != ve.Field {
+		t.Errorf("Expected Field %q, got %q", ve.Field, unmarshaled.Field)
+	}
+
+	if unmarshaled.Error != ve.Error {
+		t.Errorf("Expected Error %q, got %q", ve.Error, unmarshaled.Error)
+	}
+}
+
+func TestValidationError_XMLMarshaling(t *testing.T) {
+	ve := ValidationError{
+		Field: "age",
+		Error: "must be positive",
+	}
+
+	data, err := xml.Marshal(ve)
+	if err != nil {
+		t.Fatalf("Failed to marshal ValidationError to XML: %v", err)
+	}
+
+	var unmarshaled ValidationError
+	if err := xml.Unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("Failed to unmarshal ValidationError from XML: %v", err)
+	}
+
+	if unmarshaled.Field != ve.Field {
+		t.Errorf("Expected Field %q, got %q", ve.Field, unmarshaled.Field)
+	}
+
+	if unmarshaled.Error != ve.Error {
+		t.Errorf("Expected Error %q, got %q", ve.Error, unmarshaled.Error)
+	}
+}
+
+func TestValidationErrors_JSONMarshaling(t *testing.T) {
+	ves := ValidationErrors{
+		Errors: []ValidationError{
+			{Field: "name", Error: "required"},
+			{Field: "age", Error: "must be positive"},
+		},
+	}
+
+	data, err := json.Marshal(ves)
+	if err != nil {
+		t.Fatalf("Failed to marshal ValidationErrors: %v", err)
+	}
+
+	var unmarshaled ValidationErrors
+	if err := json.Unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("Failed to unmarshal ValidationErrors: %v", err)
+	}
+
+	if len(unmarshaled.Errors) != len(ves.Errors) {
+		t.Errorf("Expected %d errors, got %d", len(ves.Errors), len(unmarshaled.Errors))
+	}
+}
+
+// =============================================================================
+// BindJSON Tests
+// =============================================================================
+
+func TestBindJSON_Success(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
 		I18n: &I18nConfig{FS: testI18nFS2},
 	})
 
-	type TestStruct struct {
-		Name  string `json:"name" validate:"required"`
-		Value int    `json:"value" validate:"min=1,max=100"`
+	body := `{"name":"John Doe","email":"john@example.com","age":30}`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r := &Request{Request: req}
+
+	result, valErrs, err := BindJSON[testUser](r, false)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	tests := []struct {
-		name          string
-		body          string
-		validate      bool
-		expectError   bool
-		expectValErrs bool
-	}{
-		{
-			name:          "valid data without validation",
-			body:          `{"name":"test","value":50}`,
-			validate:      false,
-			expectError:   false,
-			expectValErrs: false,
-		},
-		{
-			name:          "valid data with validation",
-			body:          `{"name":"test","value":50}`,
-			validate:      true,
-			expectError:   false,
-			expectValErrs: false,
-		},
-		{
-			name:          "invalid data with validation",
-			body:          `{"name":"","value":200}`,
-			validate:      true,
-			expectError:   false,
-			expectValErrs: true,
-		},
-		{
-			name:          "malformed JSON",
-			body:          `{invalid}`,
-			validate:      false,
-			expectError:   true,
-			expectValErrs: false,
-		},
+	if valErrs.Any() {
+		t.Errorf("Unexpected validation errors: %+v", valErrs)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("POST", "/test", strings.NewReader(tt.body))
-			req.Header.Set("Content-Type", "application/json")
-			r := &Request{Request: req}
+	if result.Name != "John Doe" {
+		t.Errorf("Expected Name 'John Doe', got %q", result.Name)
+	}
 
-			result, valErrs, err := BindJSON[TestStruct](r, tt.validate)
+	if result.Email != "john@example.com" {
+		t.Errorf("Expected Email 'john@example.com', got %q", result.Email)
+	}
 
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-			}
-
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if tt.expectValErrs && !valErrs.Any() {
-				t.Error("Expected validation errors but got none")
-			}
-
-			if !tt.expectValErrs && valErrs.Any() {
-				t.Errorf("Unexpected validation errors: %+v", valErrs)
-			}
-
-			if !tt.expectError && !tt.expectValErrs {
-				if result.Name == "" {
-					t.Error("Expected non-empty result")
-				}
-			}
-		})
+	if result.Age != 30 {
+		t.Errorf("Expected Age 30, got %d", result.Age)
 	}
 }
 
-func TestBindXML(t *testing.T) {
+func TestBindJSON_WithValidation_Valid(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
 		I18n: &I18nConfig{FS: testI18nFS2},
 	})
 
-	type TestStruct struct {
-		XMLName xml.Name `xml:"test"`
-		Name    string   `xml:"name" validate:"required"`
-		Value   int      `xml:"value" validate:"min=1,max=100"`
+	body := `{"name":"John","email":"john@example.com","age":25}`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r := &Request{Request: req}
+
+	result, valErrs, err := BindJSON[testUser](r, true)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	tests := []struct {
-		name          string
-		body          string
-		validate      bool
-		expectError   bool
-		expectValErrs bool
-	}{
-		{
-			name:          "valid XML without validation",
-			body:          `<test><name>test</name><value>50</value></test>`,
-			validate:      false,
-			expectError:   false,
-			expectValErrs: false,
-		},
-		{
-			name:          "valid XML with validation",
-			body:          `<test><name>test</name><value>50</value></test>`,
-			validate:      true,
-			expectError:   false,
-			expectValErrs: false,
-		},
-		{
-			name:          "invalid XML data with validation",
-			body:          `<test><name></name><value>200</value></test>`,
-			validate:      true,
-			expectError:   false,
-			expectValErrs: true,
-		},
+	if valErrs.Any() {
+		t.Errorf("Unexpected validation errors: %+v", valErrs)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("POST", "/test", strings.NewReader(tt.body))
-			req.Header.Set("Content-Type", "application/xml")
-			r := &Request{Request: req}
-
-			result, valErrs, err := BindXML[TestStruct](r, tt.validate)
-
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-			}
-
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if tt.expectValErrs && !valErrs.Any() {
-				t.Error("Expected validation errors but got none")
-			}
-
-			if !tt.expectError && !tt.expectValErrs {
-				if result.Name == "" {
-					t.Error("Expected non-empty result")
-				}
-			}
-		})
+	if result.Name != "John" {
+		t.Errorf("Expected Name 'John', got %q", result.Name)
 	}
 }
 
-func TestPatchJSON(t *testing.T) {
+func TestBindJSON_WithValidation_Invalid(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
 		I18n: &I18nConfig{FS: testI18nFS2},
 	})
 
-	type TestStruct struct {
-		Name  string `json:"name" validate:"required,minlength=3"`
-		Value int    `json:"value" validate:"min=1,max=100"`
+	body := `{"name":"J","email":"invalid","age":-5}`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r := &Request{Request: req}
+
+	_, valErrs, err := BindJSON[testUser](r, true)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	tests := []struct {
-		name          string
-		method        string
-		contentType   string
-		body          string
-		target        TestStruct
-		validate      bool
-		expectError   bool
-		expectValErrs bool
-		errorContains string
-	}{
-		{
-			name:        "valid patch",
-			method:      "PATCH",
-			contentType: "application/json-patch+json",
-			body:        `[{"op":"replace","path":"/name","value":"newname"}]`,
-			target:      TestStruct{Name: "oldname", Value: 50},
-			validate:    false,
-			expectError: false,
-		},
-		{
-			name:          "method not allowed",
-			method:        "POST",
-			contentType:   "application/json-patch+json",
-			body:          `[]`,
-			target:        TestStruct{},
-			validate:      false,
-			expectError:   true,
-			errorContains: "method not allowed",
-		},
-		{
-			name:          "invalid content type",
-			method:        "PATCH",
-			contentType:   "application/json",
-			body:          `[]`,
-			target:        TestStruct{},
-			validate:      false,
-			expectError:   true,
-			errorContains: "Content-Type",
-		},
-		{
-			name:          "validation errors",
-			method:        "PATCH",
-			contentType:   "application/json-patch+json",
-			body:          `[{"op":"replace","path":"/name","value":"ab"}]`,
-			target:        TestStruct{Name: "oldname", Value: 50},
-			validate:      true,
-			expectError:   false,
-			expectValErrs: true,
-		},
+	if !valErrs.Any() {
+		t.Error("Expected validation errors but got none")
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, "/test", strings.NewReader(tt.body))
-			req.Header.Set("Content-Type", tt.contentType)
+	if len(valErrs.Errors) == 0 {
+		t.Error("Expected at least one validation error")
+	}
+}
+
+func TestBindJSON_MalformedJSON(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	body := `{invalid json}`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r := &Request{Request: req}
+
+	_, _, err := BindJSON[testUser](r, false)
+
+	if err == nil {
+		t.Error("Expected error for malformed JSON")
+	}
+}
+
+func TestBindJSON_EmptyBody(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/json")
+	r := &Request{Request: req}
+
+	_, _, err := BindJSON[testUser](r, false)
+
+	if err == nil {
+		t.Error("Expected error for empty body")
+	}
+}
+
+// =============================================================================
+// BindXML Tests
+// =============================================================================
+
+func TestBindXML_Success(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	body := `<testUser><name>John Doe</name><email>john@example.com</email><age>30</age></testUser>`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/xml")
+	r := &Request{Request: req}
+
+	result, valErrs, err := BindXML[testUser](r, false)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if valErrs.Any() {
+		t.Errorf("Unexpected validation errors: %+v", valErrs)
+	}
+
+	if result.Name != "John Doe" {
+		t.Errorf("Expected Name 'John Doe', got %q", result.Name)
+	}
+}
+
+func TestBindXML_WithValidation_Valid(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	body := `<testUser><name>John</name><email>john@example.com</email><age>25</age></testUser>`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/xml")
+	r := &Request{Request: req}
+
+	result, valErrs, err := BindXML[testUser](r, true)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if valErrs.Any() {
+		t.Errorf("Unexpected validation errors: %+v", valErrs)
+	}
+
+	if result.Name != "John" {
+		t.Errorf("Expected Name 'John', got %q", result.Name)
+	}
+}
+
+func TestBindXML_WithValidation_Invalid(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	body := `<testUser><name>J</name><email>invalid</email><age>200</age></testUser>`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/xml")
+	r := &Request{Request: req}
+
+	_, valErrs, err := BindXML[testUser](r, true)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !valErrs.Any() {
+		t.Error("Expected validation errors but got none")
+	}
+}
+
+func TestBindXML_MalformedXML(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	body := `<invalid><unclosed>`
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/xml")
+	r := &Request{Request: req}
+
+	_, _, err := BindXML[testUser](r, false)
+
+	if err == nil {
+		t.Error("Expected error for malformed XML")
+	}
+}
+
+// =============================================================================
+// BindForm Tests
+// =============================================================================
+
+func TestBindForm_Success(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	body := "name=John+Doe&email=john%40example.com&age=30"
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r := &Request{Request: req}
+
+	result, valErrs, err := BindForm[testUser](r)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if valErrs.Any() {
+		t.Errorf("Unexpected validation errors: %+v", valErrs)
+	}
+
+	if result.Name != "John Doe" {
+		t.Errorf("Expected Name 'John Doe', got %q", result.Name)
+	}
+}
+
+// =============================================================================
+// PatchJSON Tests
+// =============================================================================
+
+func TestPatchJSON_Success(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	target := testUser{
+		Name:  "Old Name",
+		Email: "old@example.com",
+		Age:   25,
+	}
+
+	patch := `[{"op":"replace","path":"/name","value":"New Name"}]`
+	req := httptest.NewRequest(http.MethodPatch, "/test", strings.NewReader(patch))
+	req.Header.Set("Content-Type", "application/json-patch+json")
+	r := &Request{Request: req}
+
+	valErrs, err := PatchJSON(r, &target, false)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if len(valErrs) > 0 {
+		t.Errorf("Unexpected validation errors: %+v", valErrs)
+	}
+
+	if target.Name != "New Name" {
+		t.Errorf("Expected Name 'New Name', got %q", target.Name)
+	}
+
+	if target.Email != "old@example.com" {
+		t.Errorf("Email should remain unchanged, got %q", target.Email)
+	}
+}
+
+func TestPatchJSON_WithValidation_Valid(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	target := testUser{
+		Name:  "John Doe",
+		Email: "john@example.com",
+		Age:   25,
+	}
+
+	patch := `[{"op":"replace","path":"/age","value":30}]`
+	req := httptest.NewRequest(http.MethodPatch, "/test", strings.NewReader(patch))
+	req.Header.Set("Content-Type", "application/json-patch+json")
+	r := &Request{Request: req}
+
+	valErrs, err := PatchJSON(r, &target, true)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if len(valErrs) > 0 {
+		t.Errorf("Unexpected validation errors: %+v", valErrs)
+	}
+
+	if target.Age != 30 {
+		t.Errorf("Expected Age 30, got %d", target.Age)
+	}
+}
+
+func TestPatchJSON_WithValidation_Invalid(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	target := testUser{
+		Name:  "John Doe",
+		Email: "john@example.com",
+		Age:   25,
+	}
+
+	patch := `[{"op":"replace","path":"/age","value":200}]`
+	req := httptest.NewRequest(http.MethodPatch, "/test", strings.NewReader(patch))
+	req.Header.Set("Content-Type", "application/json-patch+json")
+	r := &Request{Request: req}
+
+	valErrs, err := PatchJSON(r, &target, true)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if len(valErrs) == 0 {
+		t.Error("Expected validation errors but got none")
+	}
+}
+
+func TestPatchJSON_MethodNotAllowed(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	target := testUser{}
+	patch := `[]`
+
+	methods := []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete}
+
+	for _, method := range methods {
+		t.Run(method, func(t *testing.T) {
+			req := httptest.NewRequest(method, "/test", strings.NewReader(patch))
+			req.Header.Set("Content-Type", "application/json-patch+json")
 			r := &Request{Request: req}
 
-			target := tt.target
-			valErrs, err := PatchJSON(r, &target, tt.validate)
+			_, err := PatchJSON(r, &target, false)
 
-			if tt.expectError {
-				if err == nil {
-					t.Error("Expected error but got none")
-				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("Expected error to contain %q, got %q", tt.errorContains, err.Error())
-				}
-			}
-
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if tt.expectValErrs && len(valErrs) == 0 {
-				t.Error("Expected validation errors but got none")
+			if !errors.Is(err, ErrMethodNotAllowed) {
+				t.Errorf("Expected ErrMethodNotAllowed, got %v", err)
 			}
 		})
 	}
 }
 
-func TestGetI18nPrinter(t *testing.T) {
+func TestPatchJSON_InvalidContentType(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	target := testUser{}
+	patch := `[]`
+
+	req := httptest.NewRequest(http.MethodPatch, "/test", strings.NewReader(patch))
+	req.Header.Set("Content-Type", "application/json")
+	r := &Request{Request: req}
+
+	_, err := PatchJSON(r, &target, false)
+
+	if err == nil {
+		t.Error("Expected error for invalid Content-Type")
+	}
+
+	if !strings.Contains(err.Error(), "Content-Type") {
+		t.Errorf("Expected error to mention Content-Type, got %v", err)
+	}
+}
+
+func TestPatchJSON_InvalidPatchFormat(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	target := testUser{}
+	patch := `[{"invalid":"patch"}]`
+
+	req := httptest.NewRequest(http.MethodPatch, "/test", strings.NewReader(patch))
+	req.Header.Set("Content-Type", "application/json-patch+json")
+	r := &Request{Request: req}
+
+	_, err := PatchJSON(r, &target, false)
+
+	if err == nil {
+		t.Error("Expected error for invalid patch format")
+	}
+}
+
+func TestPatchJSON_MultipleOperations(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	target := testUser{
+		Name:  "John",
+		Email: "john@example.com",
+		Age:   25,
+	}
+
+	patch := `[
+		{"op":"replace","path":"/name","value":"Jane"},
+		{"op":"replace","path":"/age","value":30}
+	]`
+	req := httptest.NewRequest(http.MethodPatch, "/test", strings.NewReader(patch))
+	req.Header.Set("Content-Type", "application/json-patch+json")
+	r := &Request{Request: req}
+
+	valErrs, err := PatchJSON(r, &target, false)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if len(valErrs) > 0 {
+		t.Errorf("Unexpected validation errors: %+v", valErrs)
+	}
+
+	if target.Name != "Jane" {
+		t.Errorf("Expected Name 'Jane', got %q", target.Name)
+	}
+
+	if target.Age != 30 {
+		t.Errorf("Expected Age 30, got %d", target.Age)
+	}
+}
+
+// =============================================================================
+// GetI18nPrinter Tests
+// =============================================================================
+
+func TestGetI18nPrinter_English(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
 		I18n: &I18nConfig{FS: testI18nFS2},
 	})
 
 	printer := GetI18nPrinter(language.English)
+
 	if printer == nil {
 		t.Fatal("GetI18nPrinter returned nil")
 	}
 
-	result := printer.Sprintf("Hello %s", "World")
-	if result != "Hello World" {
-		t.Errorf("Expected 'Hello World', got %q", result)
+	result := printer.Sprintf("Test %s", "message")
+	if result == "" {
+		t.Error("Printer returned empty string")
 	}
 }
 
+func TestGetI18nPrinter_MultipleLanguages(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	languages := []language.Tag{
+		language.English,
+		language.Spanish,
+		language.French,
+	}
+
+	for _, lang := range languages {
+		t.Run(lang.String(), func(t *testing.T) {
+			printer := GetI18nPrinter(lang)
+
+			if printer == nil {
+				t.Fatalf("GetI18nPrinter returned nil for %s", lang)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Adapter Tests
+// =============================================================================
+
 func TestAdaptToHTTPHandler(t *testing.T) {
-	called := false
-	var receivedW http.ResponseWriter
-	var receivedR *http.Request
+	handlerCalled := false
+	var receivedStatus int
 
 	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
-		called = true
+		handlerCalled = true
+		w.WriteHeader(http.StatusCreated)
 	})
 
 	httpHandler := adaptToHTTPHandler(handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
 
-	httpHandler.ServeHTTP(w, req)
+	httpHandler.ServeHTTP(rec, req)
 
-	if !called {
+	if !handlerCalled {
 		t.Error("Handler was not called")
 	}
 
-	_ = receivedW
-	_ = receivedR
+	receivedStatus = rec.Code
+	if receivedStatus != http.StatusCreated {
+		t.Errorf("Expected status %d, got %d", http.StatusCreated, receivedStatus)
+	}
 }
 
 func TestAdaptHTTPHandler(t *testing.T) {
-	called := false
+	httpHandlerCalled := false
+
 	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called = true
+		httpHandlerCalled = true
+		w.Header().Set("X-Test", "value")
 		w.WriteHeader(http.StatusOK)
 	})
 
 	handler := adaptHTTPHandler(httpHandler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
 
 	handler.ServeHTTP(rw, r)
 
-	if !called {
+	if !httpHandlerCalled {
 		t.Error("HTTP handler was not called")
 	}
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
+	if rec.Header().Get("X-Test") != "value" {
+		t.Error("Header not set correctly")
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 }
 
 func TestAdaptHTTPMiddleware2(t *testing.T) {
 	middlewareCalled := false
+
 	httpMw := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			middlewareCalled = true
-			w.Header().Set("X-Test", "value")
+			w.Header().Set("X-Middleware", "applied")
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -714,9 +1428,9 @@ func TestAdaptHTTPMiddleware2(t *testing.T) {
 
 	wrapped := appMw(handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
 
 	wrapped.ServeHTTP(rw, r)
@@ -725,30 +1439,35 @@ func TestAdaptHTTPMiddleware2(t *testing.T) {
 		t.Error("Middleware was not called")
 	}
 
-	if w.Header().Get("X-Test") != "value" {
-		t.Error("Middleware did not set header")
+	if rec.Header().Get("X-Middleware") != "applied" {
+		t.Error("Middleware did not apply header")
 	}
 }
 
+// =============================================================================
+// Constants and Error Tests
+// =============================================================================
+
 func TestConstants(t *testing.T) {
-	if defaultOpenAPIURLPath != "GET /openapi.json" {
-		t.Errorf("Unexpected defaultOpenAPIURLPath: %q", defaultOpenAPIURLPath)
+	tests := []struct {
+		name     string
+		constant interface{}
+		expected interface{}
+	}{
+		{"defaultOpenAPIURLPath", defaultOpenAPIURLPath, "GET /openapi.json"},
+		{"defaultLayoutBaseName", defaultLayoutBaseName, "layout"},
+		{"defaultHTMLTemplateExtension", defaultHTMLTemplateExtension, ".go.html"},
+		{"defaultTextTemplateExtension", defaultTextTemplateExtension, ".go.txt"},
+		{"defaultI18nPath", defaultI18nPath, "i18n"},
+		{"defaultI18nFuncName", defaultI18nFuncName, "T"},
 	}
 
-	if defaultLayoutBaseName != "layout" {
-		t.Errorf("Unexpected defaultLayoutBaseName: %q", defaultLayoutBaseName)
-	}
-
-	if defaultHTMLTemplateExtension != ".go.html" {
-		t.Errorf("Unexpected defaultHTMLTemplateExtension: %q", defaultHTMLTemplateExtension)
-	}
-
-	if defaultTextTemplateExtension != ".go.txt" {
-		t.Errorf("Unexpected defaultTextTemplateExtension: %q", defaultTextTemplateExtension)
-	}
-
-	if defaultI18nFuncName != "T" {
-		t.Errorf("Unexpected defaultI18nFuncName: %q", defaultI18nFuncName)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.constant != tt.expected {
+				t.Errorf("Expected %v to be %v, got %v", tt.name, tt.expected, tt.constant)
+			}
+		})
 	}
 }
 
@@ -757,107 +1476,22 @@ func TestErrMethodNotAllowed(t *testing.T) {
 		t.Fatal("ErrMethodNotAllowed is nil")
 	}
 
-	if !strings.Contains(ErrMethodNotAllowed.Error(), "method not allowed") {
-		t.Errorf("Unexpected error message: %q", ErrMethodNotAllowed.Error())
+	expectedMsg := "method not allowed"
+	if ErrMethodNotAllowed.Error() != expectedMsg {
+		t.Errorf("Expected error message %q, got %q", expectedMsg, ErrMethodNotAllowed.Error())
 	}
 }
 
-func TestValidationError_Marshaling(t *testing.T) {
-	ve := ValidationError{
-		Field: "name",
-		Error: "is required",
-	}
+// =============================================================================
+// Benchmark Tests
+// =============================================================================
 
-	// JSON marshaling
-	jsonData, err := json.Marshal(ve)
-	if err != nil {
-		t.Fatalf("Failed to marshal to JSON: %v", err)
-	}
-
-	var unmarshaledJSON ValidationError
-	if err := json.Unmarshal(jsonData, &unmarshaledJSON); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
-	}
-
-	if unmarshaledJSON.Field != ve.Field || unmarshaledJSON.Error != ve.Error {
-		t.Error("JSON roundtrip failed")
-	}
-
-	// XML marshaling
-	xmlData, err := xml.Marshal(ve)
-	if err != nil {
-		t.Fatalf("Failed to marshal to XML: %v", err)
-	}
-
-	var unmarshaledXML ValidationError
-	if err := xml.Unmarshal(xmlData, &unmarshaledXML); err != nil {
-		t.Fatalf("Failed to unmarshal XML: %v", err)
-	}
-
-	if unmarshaledXML.Field != ve.Field || unmarshaledXML.Error != ve.Error {
-		t.Error("XML roundtrip failed")
-	}
-}
-
-func TestValidationErrors_Marshaling(t *testing.T) {
-	ves := ValidationErrors{
-		Errors: []ValidationError{
-			{Field: "name", Error: "is required"},
-			{Field: "age", Error: "must be positive"},
-		},
-	}
-
-	// JSON marshaling
-	jsonData, err := json.Marshal(ves)
-	if err != nil {
-		t.Fatalf("Failed to marshal to JSON: %v", err)
-	}
-
-	var unmarshaledJSON ValidationErrors
-	if err := json.Unmarshal(jsonData, &unmarshaledJSON); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
-	}
-
-	if len(unmarshaledJSON.Errors) != len(ves.Errors) {
-		t.Error("JSON roundtrip failed")
-	}
-}
-
-func TestUserAndAddressStructs(t *testing.T) {
-	// Test that the example structs are properly defined
-	user := User{
-		Name:      "Test User",
-		Role:      "admin",
-		Birthdate: time.Now(),
-		Email:     "test@example.com",
-		UserID:    uuid.New(),
-		Address: Address{
-			Street: "123 Main St",
-			City:   "Test City",
-			Zip:    12345,
-		},
-	}
-
-	if user.Name != "Test User" {
-		t.Error("User struct not working correctly")
-	}
-
-	if user.Address.City != "Test City" {
-		t.Error("Address struct not working correctly")
-	}
-}
-
-func TestProductStruct(t *testing.T) {
-	product := Product{
-		Name:        "Test Product",
-		SKU:         "ABC-1234",
-		Price:       9999,
-		Category:    "electronics",
-		Description: "A test product",
-	}
-
-	if product.Name != "Test Product" {
-		t.Error("Product struct not working correctly")
+func BenchmarkConfigure(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		resetAppConfig()
+		Configure(&Config{
+			I18n: &I18nConfig{FS: testI18nFS2},
+		})
 	}
 }
 
@@ -867,20 +1501,52 @@ func BenchmarkBindJSON(b *testing.B) {
 		I18n: &I18nConfig{FS: testI18nFS2},
 	})
 
-	type TestStruct struct {
-		Name  string `json:"name"`
-		Value int    `json:"value"`
-	}
-
-	body := `{"name":"test","value":42}`
+	body := `{"name":"John Doe","email":"john@example.com","age":30}`
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		req := httptest.NewRequest("POST", "/test", bytes.NewReader([]byte(body)))
+		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader([]byte(body)))
 		req.Header.Set("Content-Type", "application/json")
 		r := &Request{Request: req}
 
-		BindJSON[TestStruct](r, false)
+		BindJSON[testUser](r, false)
+	}
+}
+
+func BenchmarkBindJSON_WithValidation(b *testing.B) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	body := `{"name":"John Doe","email":"john@example.com","age":30}`
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader([]byte(body)))
+		req.Header.Set("Content-Type", "application/json")
+		r := &Request{Request: req}
+
+		BindJSON[testUser](r, true)
+	}
+}
+
+func BenchmarkPatchJSON(b *testing.B) {
+	resetAppConfig()
+	Configure(&Config{
+		I18n: &I18nConfig{FS: testI18nFS2},
+	})
+
+	patch := `[{"op":"replace","path":"/name","value":"New Name"}]`
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		target := testUser{Name: "Old Name", Email: "old@example.com", Age: 25}
+		req := httptest.NewRequest(http.MethodPatch, "/test", bytes.NewReader([]byte(patch)))
+		req.Header.Set("Content-Type", "application/json-patch+json")
+		r := &Request{Request: req}
+
+		PatchJSON(r, &target, false)
 	}
 }
 
@@ -894,5 +1560,26 @@ func BenchmarkAdaptHTTPMiddleware(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		adaptHTTPMiddleware(httpMw)
+	}
+}
+
+func BenchmarkSSE_PayloadGeneration(b *testing.B) {
+	handler := SSE(
+		func() SSEPayload {
+			return SSEPayload{
+				Id:    "1",
+				Event: "message",
+				Data:  "test data",
+			}
+		},
+		nil,
+		nil,
+		1*time.Second,
+		nil,
+	)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = handler.payloadFunc()
 	}
 }

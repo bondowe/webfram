@@ -35,7 +35,7 @@ func setupResponseWriterTests() {
 			TemplatesPath: "testdata/templates",
 		},
 		I18n: &I18nConfig{
-			FS: testI18nFS,
+			FS: testMuxI18nFS,
 		},
 	})
 }

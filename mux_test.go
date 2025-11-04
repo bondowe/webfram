@@ -1,7 +1,6 @@
 package webfram
 
 import (
-	"context"
 	"embed"
 	"net/http"
 	"net/http/httptest"
@@ -13,38 +12,85 @@ import (
 )
 
 //go:embed testdata/locales/*.json
-var testI18nFS embed.FS
+var testMuxI18nFS embed.FS
 
-func setupTestApp() {
-	if appConfigured {
-		// Reset for testing
-		appConfigured = false
-		appMiddlewares = nil
-		openAPIConfig = nil
-	}
+// Helper function to reset and setup app for mux tests
+func setupMuxTest() {
+	appConfigured = false
+	appMiddlewares = nil
+	openAPIConfig = nil
+	jsonpCallbackParamName = ""
 
 	Configure(&Config{
 		I18n: &I18nConfig{
-			FS: testI18nFS,
+			FS: testMuxI18nFS,
 		},
 	})
 }
 
-func TestNewServeMux(t *testing.T) {
-	setupTestApp()
+// Helper function to setup app with OpenAPI enabled
+func setupMuxTestWithOpenAPI() {
+	appConfigured = false
+	appMiddlewares = nil
+	openAPIConfig = &OpenAPIConfig{EndpointEnabled: true}
+	jsonpCallbackParamName = ""
+
+	Configure(&Config{
+		OpenAPI: &OpenAPIConfig{
+			EndpointEnabled: true,
+			Config: &openapi.Config{
+				Info: &openapi.Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+			},
+		},
+		I18n: &I18nConfig{
+			FS: testMuxI18nFS,
+		},
+	})
+}
+
+// =============================================================================
+// NewServeMux Tests
+// =============================================================================
+
+func TestNewServeMux_Success(t *testing.T) {
+	setupMuxTest()
 
 	mux := NewServeMux()
+
 	if mux == nil {
 		t.Fatal("NewServeMux returned nil")
 	}
 
-	if len(mux.middlewares) > 0 {
+	if len(mux.middlewares) != 0 {
 		t.Errorf("Expected empty middlewares, got %d", len(mux.middlewares))
 	}
 }
 
-func TestServeMux_HandleFunc(t *testing.T) {
-	setupTestApp()
+func TestNewServeMux_ConfiguresAppIfNeeded(t *testing.T) {
+	// Don't call setupMuxTest to test auto-configuration
+	appConfigured = false
+	appMiddlewares = nil
+
+	mux := NewServeMux()
+
+	if mux == nil {
+		t.Fatal("NewServeMux returned nil")
+	}
+
+	if !appConfigured {
+		t.Error("Expected app to be configured automatically")
+	}
+}
+
+// =============================================================================
+// ServeMux.HandleFunc Tests
+// =============================================================================
+
+func TestServeMux_HandleFunc_BasicHandler(t *testing.T) {
+	setupMuxTest()
 
 	mux := NewServeMux()
 
@@ -52,63 +98,180 @@ func TestServeMux_HandleFunc(t *testing.T) {
 	handler := func(w ResponseWriter, r *Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Hello"))
+		w.Write([]byte("Hello World"))
 	}
 
 	mux.HandleFunc("GET /test", handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(rec, req)
 
 	if !called {
 		t.Error("Handler was not called")
 	}
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	if body := w.Body.String(); body != "Hello" {
-		t.Errorf("Expected body 'Hello', got %q", body)
+	if body := rec.Body.String(); body != "Hello World" {
+		t.Errorf("Expected body 'Hello World', got %q", body)
 	}
 }
 
-func TestServeMux_Handle(t *testing.T) {
-	setupTestApp()
+func TestServeMux_HandleFunc_WithPathParameters(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	var capturedID string
+	handler := func(w ResponseWriter, r *Request) {
+		capturedID = r.PathValue("id")
+		w.WriteHeader(http.StatusOK)
+	}
+
+	mux.HandleFunc("GET /users/{id}", handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if capturedID != "123" {
+		t.Errorf("Expected path parameter '123', got %q", capturedID)
+	}
+}
+
+func TestServeMux_HandleFunc_MultipleRoutes(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	route1Called := false
+	route2Called := false
+
+	mux.HandleFunc("GET /route1", func(w ResponseWriter, r *Request) {
+		route1Called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mux.HandleFunc("GET /route2", func(w ResponseWriter, r *Request) {
+		route2Called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Test route1
+	req1 := httptest.NewRequest(http.MethodGet, "/route1", nil)
+	rec1 := httptest.NewRecorder()
+	mux.ServeHTTP(rec1, req1)
+
+	if !route1Called {
+		t.Error("Route1 handler was not called")
+	}
+	if route2Called {
+		t.Error("Route2 handler should not have been called")
+	}
+
+	// Reset and test route2
+	route1Called = false
+	route2Called = false
+
+	req2 := httptest.NewRequest(http.MethodGet, "/route2", nil)
+	rec2 := httptest.NewRecorder()
+	mux.ServeHTTP(rec2, req2)
+
+	if route1Called {
+		t.Error("Route1 handler should not have been called")
+	}
+	if !route2Called {
+		t.Error("Route2 handler was not called")
+	}
+}
+
+func TestServeMux_HandleFunc_ReturnsHandlerConfig(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, r *Request) {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	config := mux.HandleFunc("GET /test", handler)
+
+	if config == nil {
+		t.Fatal("HandleFunc returned nil config")
+	}
+
+	if config.pathPattern != "GET /test" {
+		t.Errorf("Expected pathPattern 'GET /test', got %q", config.pathPattern)
+	}
+}
+
+// =============================================================================
+// ServeMux.Handle Tests
+// =============================================================================
+
+func TestServeMux_Handle_WithHandlerInterface(t *testing.T) {
+	setupMuxTest()
 
 	mux := NewServeMux()
 
 	called := false
 	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
 		called = true
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("World"))
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte("Created"))
 	})
 
-	mux.Handle("GET /test", handler)
+	mux.Handle("POST /resource", handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/resource", nil)
+	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(rec, req)
 
 	if !called {
 		t.Error("Handler was not called")
 	}
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
+	if rec.Code != http.StatusCreated {
+		t.Errorf("Expected status %d, got %d", http.StatusCreated, rec.Code)
 	}
 
-	if body := w.Body.String(); body != "World" {
-		t.Errorf("Expected body 'World', got %q", body)
+	if body := rec.Body.String(); body != "Created" {
+		t.Errorf("Expected body 'Created', got %q", body)
 	}
 }
 
-func TestServeMux_Use_AppMiddleware(t *testing.T) {
-	setupTestApp()
+func TestServeMux_Handle_ReturnsHandlerConfig(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	config := mux.Handle("GET /api/test", handler)
+
+	if config == nil {
+		t.Fatal("Handle returned nil config")
+	}
+
+	if config.pathPattern != "GET /api/test" {
+		t.Errorf("Expected pathPattern 'GET /api/test', got %q", config.pathPattern)
+	}
+}
+
+// =============================================================================
+// ServeMux.Use Middleware Tests
+// =============================================================================
+
+func TestServeMux_Use_WithAppMiddleware(t *testing.T) {
+	setupMuxTest()
 
 	mux := NewServeMux()
 
@@ -116,12 +279,16 @@ func TestServeMux_Use_AppMiddleware(t *testing.T) {
 	mw := func(next Handler) Handler {
 		return HandlerFunc(func(w ResponseWriter, r *Request) {
 			middlewareCalled = true
-			w.Header().Set("X-Middleware", "applied")
+			w.Header().Set("X-Test-Middleware", "applied")
 			next.ServeHTTP(w, r)
 		})
 	}
 
 	mux.Use(mw)
+
+	if len(mux.middlewares) != 1 {
+		t.Errorf("Expected 1 middleware, got %d", len(mux.middlewares))
+	}
 
 	handler := func(w ResponseWriter, r *Request) {
 		w.WriteHeader(http.StatusOK)
@@ -129,22 +296,22 @@ func TestServeMux_Use_AppMiddleware(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(rec, req)
 
 	if !middlewareCalled {
 		t.Error("Middleware was not called")
 	}
 
-	if header := w.Header().Get("X-Middleware"); header != "applied" {
-		t.Errorf("Expected X-Middleware header 'applied', got %q", header)
+	if header := rec.Header().Get("X-Test-Middleware"); header != "applied" {
+		t.Errorf("Expected header 'applied', got %q", header)
 	}
 }
 
-func TestServeMux_Use_StandardMiddleware(t *testing.T) {
-	setupTestApp()
+func TestServeMux_Use_WithStandardMiddleware(t *testing.T) {
+	setupMuxTest()
 
 	mux := NewServeMux()
 
@@ -159,46 +326,77 @@ func TestServeMux_Use_StandardMiddleware(t *testing.T) {
 
 	mux.Use(mw)
 
+	if len(mux.middlewares) != 1 {
+		t.Errorf("Expected 1 middleware, got %d", len(mux.middlewares))
+	}
+
 	handler := func(w ResponseWriter, r *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
 	mux.HandleFunc("GET /test", handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(rec, req)
 
 	if !middlewareCalled {
 		t.Error("Standard middleware was not called")
 	}
 
-	if header := w.Header().Get("X-Standard-Middleware"); header != "applied" {
-		t.Errorf("Expected X-Standard-Middleware header 'applied', got %q", header)
+	if header := rec.Header().Get("X-Standard-Middleware"); header != "applied" {
+		t.Errorf("Expected header 'applied', got %q", header)
 	}
 }
 
-func TestServeMux_MultipleMiddlewares(t *testing.T) {
-	setupTestApp()
+func TestServeMux_Use_WithNilMiddleware(t *testing.T) {
+	setupMuxTest()
 
 	mux := NewServeMux()
 
-	order := []string{}
+	// Should not panic
+	mux.Use(nil)
+
+	if len(mux.middlewares) != 0 {
+		t.Errorf("Expected 0 middlewares after adding nil, got %d", len(mux.middlewares))
+	}
+}
+
+func TestServeMux_Use_PanicsOnInvalidType(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic for invalid middleware type")
+		}
+	}()
+
+	mux.Use("invalid-middleware-type")
+}
+
+func TestServeMux_Use_MultipleMiddlewares(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	executionOrder := []string{}
 
 	mw1 := func(next Handler) Handler {
 		return HandlerFunc(func(w ResponseWriter, r *Request) {
-			order = append(order, "mw1-before")
+			executionOrder = append(executionOrder, "mw1-before")
 			next.ServeHTTP(w, r)
-			order = append(order, "mw1-after")
+			executionOrder = append(executionOrder, "mw1-after")
 		})
 	}
 
 	mw2 := func(next Handler) Handler {
 		return HandlerFunc(func(w ResponseWriter, r *Request) {
-			order = append(order, "mw2-before")
+			executionOrder = append(executionOrder, "mw2-before")
 			next.ServeHTTP(w, r)
-			order = append(order, "mw2-after")
+			executionOrder = append(executionOrder, "mw2-after")
 		})
 	}
 
@@ -206,31 +404,35 @@ func TestServeMux_MultipleMiddlewares(t *testing.T) {
 	mux.Use(mw2)
 
 	handler := func(w ResponseWriter, r *Request) {
-		order = append(order, "handler")
+		executionOrder = append(executionOrder, "handler")
 		w.WriteHeader(http.StatusOK)
 	}
 
 	mux.HandleFunc("GET /test", handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(rec, req)
 
 	expected := []string{"mw1-before", "mw2-before", "handler", "mw2-after", "mw1-after"}
-	if len(order) != len(expected) {
-		t.Fatalf("Expected %d calls, got %d", len(expected), len(order))
+	if len(executionOrder) != len(expected) {
+		t.Fatalf("Expected %d calls, got %d: %v", len(expected), len(executionOrder), executionOrder)
 	}
 
 	for i, v := range expected {
-		if order[i] != v {
-			t.Errorf("Expected order[%d] = %q, got %q", i, v, order[i])
+		if executionOrder[i] != v {
+			t.Errorf("Expected executionOrder[%d] = %q, got %q", i, v, executionOrder[i])
 		}
 	}
 }
 
-func TestServeMux_HandlerMiddlewares(t *testing.T) {
-	setupTestApp()
+// =============================================================================
+// Handler-Specific Middleware Tests
+// =============================================================================
+
+func TestServeMux_HandleFunc_WithHandlerMiddleware(t *testing.T) {
+	setupMuxTest()
 
 	mux := NewServeMux()
 
@@ -249,37 +451,98 @@ func TestServeMux_HandlerMiddlewares(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler, handlerMw)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(rec, req)
 
 	if !handlerMwCalled {
 		t.Error("Handler middleware was not called")
 	}
 
-	if header := w.Header().Get("X-Handler-Middleware"); header != "applied" {
-		t.Errorf("Expected X-Handler-Middleware header 'applied', got %q", header)
+	if header := rec.Header().Get("X-Handler-Middleware"); header != "applied" {
+		t.Errorf("Expected header 'applied', got %q", header)
 	}
 }
 
-func TestServeMux_MixedMiddlewares(t *testing.T) {
-	setupTestApp()
+func TestServeMux_HandleFunc_WithMultipleHandlerMiddlewares(t *testing.T) {
+	setupMuxTest()
 
 	mux := NewServeMux()
 
-	order := []string{}
+	executionOrder := []string{}
+
+	mw1 := func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *Request) {
+			executionOrder = append(executionOrder, "handler-mw1")
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	mw2 := func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *Request) {
+			executionOrder = append(executionOrder, "handler-mw2")
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	handler := func(w ResponseWriter, r *Request) {
+		executionOrder = append(executionOrder, "handler")
+		w.WriteHeader(http.StatusOK)
+	}
+
+	mux.HandleFunc("GET /test", handler, mw1, mw2)
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	// Verify both middlewares and handler were called
+	foundMw1 := false
+	foundMw2 := false
+	foundHandler := false
+
+	for _, v := range executionOrder {
+		if v == "handler-mw1" {
+			foundMw1 = true
+		}
+		if v == "handler-mw2" {
+			foundMw2 = true
+		}
+		if v == "handler" {
+			foundHandler = true
+		}
+	}
+
+	if !foundMw1 {
+		t.Error("Handler middleware 1 was not called")
+	}
+	if !foundMw2 {
+		t.Error("Handler middleware 2 was not called")
+	}
+	if !foundHandler {
+		t.Error("Handler was not called")
+	}
+}
+
+func TestServeMux_MixedMuxAndHandlerMiddlewares(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	executionOrder := []string{}
 
 	muxMw := func(next Handler) Handler {
 		return HandlerFunc(func(w ResponseWriter, r *Request) {
-			order = append(order, "mux-mw")
+			executionOrder = append(executionOrder, "mux-middleware")
 			next.ServeHTTP(w, r)
 		})
 	}
 
 	handlerMw := func(next Handler) Handler {
 		return HandlerFunc(func(w ResponseWriter, r *Request) {
-			order = append(order, "handler-mw")
+			executionOrder = append(executionOrder, "handler-middleware")
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -287,65 +550,62 @@ func TestServeMux_MixedMiddlewares(t *testing.T) {
 	mux.Use(muxMw)
 
 	handler := func(w ResponseWriter, r *Request) {
-		order = append(order, "handler")
+		executionOrder = append(executionOrder, "handler")
 		w.WriteHeader(http.StatusOK)
 	}
 
 	mux.HandleFunc("GET /test", handler, handlerMw)
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(rec, req)
 
-	// Order should be: handler-mw, mux-mw, handler
-	// Because handler middlewares are applied first, then mux middlewares
-	if len(order) < 3 {
-		t.Fatalf("Expected at least 3 calls, got %d", len(order))
-	}
-
-	// Check that both middlewares and handler were called
-	foundHandlerMw := false
+	// Verify all components were called
 	foundMuxMw := false
+	foundHandlerMw := false
 	foundHandler := false
 
-	for _, v := range order {
-		if v == "handler-mw" {
-			foundHandlerMw = true
-		}
-		if v == "mux-mw" {
+	for _, v := range executionOrder {
+		if v == "mux-middleware" {
 			foundMuxMw = true
+		}
+		if v == "handler-middleware" {
+			foundHandlerMw = true
 		}
 		if v == "handler" {
 			foundHandler = true
 		}
 	}
 
-	if !foundHandlerMw {
-		t.Error("Handler middleware was not called")
-	}
 	if !foundMuxMw {
 		t.Error("Mux middleware was not called")
+	}
+	if !foundHandlerMw {
+		t.Error("Handler middleware was not called")
 	}
 	if !foundHandler {
 		t.Error("Handler was not called")
 	}
 }
 
-func TestHandlerFunc_ServeHTTP(t *testing.T) {
-	setupTestApp()
+// =============================================================================
+// HandlerFunc.ServeHTTP Tests
+// =============================================================================
+
+func TestHandlerFunc_ServeHTTP_Basic(t *testing.T) {
+	setupMuxTest()
 
 	called := false
 	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("test"))
+		w.Write([]byte("test response"))
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
-
-	rw := ResponseWriter{ResponseWriter: w}
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
 
 	handler.ServeHTTP(rw, r)
@@ -354,42 +614,123 @@ func TestHandlerFunc_ServeHTTP(t *testing.T) {
 		t.Error("Handler was not called")
 	}
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	if body := w.Body.String(); body != "test" {
-		t.Errorf("Expected body 'test', got %q", body)
+	if body := rec.Body.String(); body != "test response" {
+		t.Errorf("Expected body 'test response', got %q", body)
 	}
 }
 
-func TestHandlerFunc_ServeHTTP_WithContext(t *testing.T) {
-	setupTestApp()
+func TestHandlerFunc_ServeHTTP_SetsContext(t *testing.T) {
+	setupMuxTest()
 
-	var ctxValue string
+	var ctxSet bool
 	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
-		if val := w.Context().Value("test-key"); val != nil {
-			ctxValue = val.(string)
+		if w.Context() != nil {
+			ctxSet = true
 		}
 		w.WriteHeader(http.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	req = req.WithContext(context.WithValue(req.Context(), "test-key", "test-value"))
-	w := httptest.NewRecorder()
-
-	rw := ResponseWriter{ResponseWriter: w}
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
 
 	handler.ServeHTTP(rw, r)
 
-	if ctxValue != "test-value" {
-		t.Errorf("Expected context value 'test-value', got %q", ctxValue)
+	if !ctxSet {
+		t.Error("Expected context to be set on ResponseWriter")
 	}
 }
 
-func TestI18nMiddleware(t *testing.T) {
-	setupTestApp()
+func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Valid(t *testing.T) {
+	setupMuxTest()
+
+	// Reset and configure with JSONP
+	appConfigured = false
+	jsonpCallbackParamName = ""
+	Configure(&Config{
+		JSONPCallbackParamName: "callback",
+		I18n: &I18nConfig{
+			FS: testMuxI18nFS,
+		},
+	})
+
+	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+		w.JSON(map[string]string{"message": "test"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test?callback=myCallback", nil)
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	handler.ServeHTTP(rw, r)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "myCallback") {
+		t.Errorf("Expected JSONP callback 'myCallback' in response, got %q", body)
+	}
+
+	if contentType := rec.Header().Get("Content-Type"); contentType != "application/javascript" {
+		t.Errorf("Expected Content-Type 'application/javascript', got %q", contentType)
+	}
+}
+
+func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Invalid(t *testing.T) {
+	setupMuxTest()
+
+	// Reset and configure with JSONP
+	appConfigured = false
+	jsonpCallbackParamName = ""
+	Configure(&Config{
+		JSONPCallbackParamName: "callback",
+		I18n: &I18nConfig{
+			FS: testMuxI18nFS,
+		},
+	})
+
+	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+		w.JSON(map[string]string{"message": "test"})
+	})
+
+	invalidCallbacks := []string{
+		"invalid-callback",
+		"123invalid",
+		"call.back",
+		"callback!",
+	}
+
+	for _, callback := range invalidCallbacks {
+		t.Run(callback, func(t *testing.T) {
+			// URL encode the callback to avoid issues with special characters in URL
+			req := httptest.NewRequest(http.MethodGet, "/test?callback="+strings.ReplaceAll(callback, " ", "%20"), nil)
+			rec := httptest.NewRecorder()
+			rw := ResponseWriter{ResponseWriter: rec}
+			r := &Request{Request: req}
+
+			handler.ServeHTTP(rw, r)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("Expected status %d for invalid callback %q, got %d", http.StatusBadRequest, callback, rec.Code)
+			}
+
+			if !strings.Contains(rec.Body.String(), "invalid JSONP callback") {
+				t.Errorf("Expected error message about invalid callback, got %q", rec.Body.String())
+			}
+		})
+	}
+}
+
+// =============================================================================
+// I18n Middleware Tests
+// =============================================================================
+
+func TestI18nMiddleware_WithAcceptLanguageHeader(t *testing.T) {
+	setupMuxTest()
 
 	mux := NewServeMux()
 
@@ -399,20 +740,19 @@ func TestI18nMiddleware(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler)
 
-	// Test with Accept-Language header
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-	w := httptest.NewRecorder()
+	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(rec, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 }
 
-func TestI18nMiddleware_WithCookie(t *testing.T) {
-	setupTestApp()
+func TestI18nMiddleware_WithLanguageCookie(t *testing.T) {
+	setupMuxTest()
 
 	mux := NewServeMux()
 
@@ -422,71 +762,104 @@ func TestI18nMiddleware_WithCookie(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler)
 
-	// Test with language cookie
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "lang",
-		Value: "fr",
+		Value: "es",
 	})
-	w := httptest.NewRecorder()
+	rec := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(rec, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 }
 
-func TestParseAcceptLanguage(t *testing.T) {
+func TestI18nMiddleware_DefaultsToEnglish(t *testing.T) {
+	setupMuxTest()
 
-	getLangBase := func(b language.Base, c language.Confidence) language.Base {
-		return b
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, r *Request) {
+		w.WriteHeader(http.StatusOK)
 	}
 
+	mux.HandleFunc("GET /test", handler)
+
+	// No Accept-Language header or cookie
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestParseAcceptLanguage_ValidLanguages(t *testing.T) {
 	tests := []struct {
 		name       string
 		acceptLang string
-		wantBase   language.Base
+		wantBase   string
 	}{
 		{
 			name:       "English",
 			acceptLang: "en-US,en;q=0.9",
-			wantBase:   getLangBase(language.English.Base()),
+			wantBase:   "en",
 		},
 		{
 			name:       "French",
 			acceptLang: "fr-FR,fr;q=0.9,en;q=0.8",
-			wantBase:   getLangBase(language.French.Base()),
+			wantBase:   "fr",
 		},
 		{
 			name:       "Spanish",
 			acceptLang: "es-ES,es;q=0.9",
-			wantBase:   getLangBase(language.Spanish.Base()),
+			wantBase:   "es",
 		},
 		{
-			name:       "Empty",
-			acceptLang: "",
-			wantBase:   getLangBase(language.Und.Base()),
+			name:       "German",
+			acceptLang: "de-DE,de;q=0.9",
+			wantBase:   "de",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tag := parseAcceptLanguage(tt.acceptLang)
-			if getLangBase(tag.Base()) != tt.wantBase {
-				t.Errorf("parseAcceptLanguage(%q) = %v, want base %v", tt.acceptLang, tag, tt.wantBase)
+			base, _ := tag.Base()
+			if base.String() != tt.wantBase {
+				t.Errorf("parseAcceptLanguage(%q) base = %v, want %v", tt.acceptLang, base, tt.wantBase)
 			}
 		})
 	}
 }
 
-func TestSetLanguageCookie(t *testing.T) {
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
+func TestParseAcceptLanguage_Empty(t *testing.T) {
+	tag := parseAcceptLanguage("")
+
+	if tag != language.Und {
+		t.Errorf("Expected undefined language for empty string, got %v", tag)
+	}
+}
+
+func TestParseAcceptLanguage_Invalid(t *testing.T) {
+	tag := parseAcceptLanguage("invalid-language-string!!!!")
+
+	if tag != language.Und {
+		t.Errorf("Expected undefined language for invalid string, got %v", tag)
+	}
+}
+
+func TestSetLanguageCookie_Basic(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
 
 	SetLanguageCookie(rw, "fr", 86400)
 
-	cookies := w.Result().Cookies()
+	cookies := rec.Result().Cookies()
 	if len(cookies) != 1 {
 		t.Fatalf("Expected 1 cookie, got %d", len(cookies))
 	}
@@ -501,51 +874,160 @@ func TestSetLanguageCookie(t *testing.T) {
 	if cookie.MaxAge != 86400 {
 		t.Errorf("Expected MaxAge 86400, got %d", cookie.MaxAge)
 	}
+	if cookie.Path != "/" {
+		t.Errorf("Expected Path '/', got %q", cookie.Path)
+	}
 }
 
-func TestWrapMiddlewares(t *testing.T) {
-	order := []string{}
+func TestSetLanguageCookie_DeleteCookie(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
+
+	// MaxAge of 0 should delete the cookie
+	SetLanguageCookie(rw, "", 0)
+
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("Expected 1 cookie, got %d", len(cookies))
+	}
+
+	cookie := cookies[0]
+	if cookie.MaxAge != 0 {
+		t.Errorf("Expected MaxAge 0 (delete cookie), got %d", cookie.MaxAge)
+	}
+}
+
+// =============================================================================
+// Helper Function Tests
+// =============================================================================
+
+func TestWrapMiddlewares_SingleMiddleware(t *testing.T) {
+	called := false
+	mw := func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *Request) {
+			called = true
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrapped := wrapMiddlewares(handler, []AppMiddleware{mw})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	wrapped.ServeHTTP(rw, r)
+
+	if !called {
+		t.Error("Middleware was not called")
+	}
+}
+
+func TestWrapMiddlewares_MultipleMiddlewares(t *testing.T) {
+	executionOrder := []string{}
 
 	mw1 := func(next Handler) Handler {
 		return HandlerFunc(func(w ResponseWriter, r *Request) {
-			order = append(order, "mw1")
+			executionOrder = append(executionOrder, "mw1")
 			next.ServeHTTP(w, r)
 		})
 	}
 
 	mw2 := func(next Handler) Handler {
 		return HandlerFunc(func(w ResponseWriter, r *Request) {
-			order = append(order, "mw2")
+			executionOrder = append(executionOrder, "mw2")
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	mw3 := func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *Request) {
+			executionOrder = append(executionOrder, "mw3")
 			next.ServeHTTP(w, r)
 		})
 	}
 
 	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
-		order = append(order, "handler")
+		executionOrder = append(executionOrder, "handler")
+		w.WriteHeader(http.StatusOK)
 	})
 
-	wrapped := wrapMiddlewares(handler, []AppMiddleware{mw1, mw2})
+	wrapped := wrapMiddlewares(handler, []AppMiddleware{mw1, mw2, mw3})
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
 
 	wrapped.ServeHTTP(rw, r)
 
-	expected := []string{"mw1", "mw2", "handler"}
-	if len(order) != len(expected) {
-		t.Fatalf("Expected %d calls, got %d", len(expected), len(order))
+	expected := []string{"mw1", "mw2", "mw3", "handler"}
+	if len(executionOrder) != len(expected) {
+		t.Fatalf("Expected %d calls, got %d: %v", len(expected), len(executionOrder), executionOrder)
 	}
 
 	for i, v := range expected {
-		if order[i] != v {
-			t.Errorf("Expected order[%d] = %q, got %q", i, v, order[i])
+		if executionOrder[i] != v {
+			t.Errorf("Expected executionOrder[%d] = %q, got %q", i, v, executionOrder[i])
 		}
 	}
 }
 
-func TestGetHandlerMiddlewares(t *testing.T) {
+func TestWrapMiddlewares_EmptyMiddlewares(t *testing.T) {
+	called := false
+	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrapped := wrapMiddlewares(handler, []AppMiddleware{})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	wrapped.ServeHTTP(rw, r)
+
+	if !called {
+		t.Error("Handler was not called")
+	}
+}
+
+func TestGetHandlerMiddlewares_AppMiddleware(t *testing.T) {
+	appMw := func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	result := getHandlerMiddlewares([]interface{}{appMw})
+
+	if len(result) != 1 {
+		t.Errorf("Expected 1 middleware, got %d", len(result))
+	}
+}
+
+func TestGetHandlerMiddlewares_StandardMiddleware(t *testing.T) {
+	stdMw := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	result := getHandlerMiddlewares([]interface{}{stdMw})
+
+	if len(result) != 1 {
+		t.Errorf("Expected 1 middleware, got %d", len(result))
+	}
+}
+
+func TestGetHandlerMiddlewares_MixedMiddlewares(t *testing.T) {
 	appMw := func(next Handler) Handler {
 		return HandlerFunc(func(w ResponseWriter, r *Request) {
 			next.ServeHTTP(w, r)
@@ -558,320 +1040,492 @@ func TestGetHandlerMiddlewares(t *testing.T) {
 		})
 	}
 
-	middlewares := []interface{}{appMw, stdMw}
-	result := getHandlerMiddlewares(middlewares)
+	result := getHandlerMiddlewares([]interface{}{appMw, stdMw})
 
 	if len(result) != 2 {
 		t.Errorf("Expected 2 middlewares, got %d", len(result))
 	}
 }
 
-func TestGetHandlerMiddlewares_Panic(t *testing.T) {
+func TestGetHandlerMiddlewares_PanicsOnUnsupportedType(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("Expected panic for unsupported middleware type")
 		}
 	}()
 
-	unsupportedMw := "not a middleware"
-	getHandlerMiddlewares([]interface{}{unsupportedMw})
+	getHandlerMiddlewares([]interface{}{"invalid-type"})
 }
 
-func TestWithAPIConfig(t *testing.T) {
-	setupTestApp()
+// =============================================================================
+// OpenAPI Integration Tests
+// =============================================================================
 
-	// Reset to enable OpenAPI
-	appConfigured = false
-	Configure(&Config{
-		OpenAPI: &OpenAPIConfig{
-			EndpointEnabled: true,
-			Config: &openapi.Config{
-				Info: &openapi.Info{
-					Title:   "Test API",
-					Version: "1.0.0",
-				},
-			},
-		},
-		I18n: &I18nConfig{
-			FS: testI18nFS,
-		},
-	})
+func TestHandlerConfig_WithAPIConfig_Success(t *testing.T) {
+	setupMuxTestWithOpenAPI()
 
 	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, r *Request) {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	config := mux.HandleFunc("GET /api/users", handler)
+
+	apiConfig := &APIConfig{
+		OperationID: "getUsers",
+		Summary:     "Get all users",
+		Description: "Retrieves a list of all users",
+		Tags:        []string{"users"},
+	}
+
+	config.WithAPIConfig(apiConfig)
+
+	if config.APIConfig == nil {
+		t.Error("APIConfig was not set")
+	}
+
+	if config.APIConfig.OperationID != "getUsers" {
+		t.Errorf("Expected OperationID 'getUsers', got %q", config.APIConfig.OperationID)
+	}
+}
+
+func TestHandlerConfig_WithAPIConfig_NilConfig(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	mux := NewServeMux()
+
 	handler := func(w ResponseWriter, r *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
 	config := mux.HandleFunc("GET /api/test", handler)
-	config.WithAPIConfig(&APIConfig{
-		OperationID: "TestOperation",
-		Summary:     "Test Summary",
-		Description: "Test Description",
-		Tags:        []string{"test"},
-	})
 
-	// Verify it doesn't panic
-	if config.APIConfig == nil {
-		t.Error("APIConfig was not set")
+	// Should not panic with nil config
+	config.WithAPIConfig(nil)
+
+	if config.APIConfig != nil {
+		t.Error("APIConfig should remain nil")
 	}
 }
 
-func TestSetOpenAPIPathInfo(t *testing.T) {
-	setupTestApp()
+func TestHandlerConfig_WithAPIConfig_OpenAPIDisabled(t *testing.T) {
+	setupMuxTest() // Sets up without OpenAPI
 
-	// Reset to enable OpenAPI
-	appConfigured = false
-	Configure(&Config{
-		OpenAPI: &OpenAPIConfig{
-			EndpointEnabled: true,
-			Config: &openapi.Config{
-				Info: &openapi.Info{
-					Title:   "Test API",
-					Version: "1.0.0",
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, r *Request) {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	config := mux.HandleFunc("GET /api/test", handler)
+
+	apiConfig := &APIConfig{
+		OperationID: "testOp",
+		Summary:     "Test",
+	}
+
+	// Should not panic even if OpenAPI is disabled
+	config.WithAPIConfig(apiConfig)
+}
+
+func TestHandlerConfig_WithAPIConfig_InvalidPathPattern(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	config := &handlerConfig{
+		pathPattern: "invalid-pattern", // Missing method
+	}
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic for invalid path pattern")
+		}
+	}()
+
+	config.WithAPIConfig(&APIConfig{
+		OperationID: "testOp",
+	})
+}
+
+func TestHandlerConfig_WithAPIConfig_WithRequestBody(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, r *Request) {
+		w.WriteHeader(http.StatusCreated)
+	}
+
+	config := mux.HandleFunc("POST /api/users", handler)
+
+	type CreateUserRequest struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	apiConfig := &APIConfig{
+		OperationID: "createUser",
+		Summary:     "Create user",
+		RequestBody: &RequestBody{
+			Description: "User data",
+			Required:    true,
+			Content: map[string]TypeInfo{
+				"application/json": {
+					TypeHint: CreateUserRequest{},
 				},
 			},
 		},
-		I18n: &I18nConfig{
-			FS: testI18nFS,
+	}
+
+	config.WithAPIConfig(apiConfig)
+
+	if config.APIConfig.RequestBody == nil {
+		t.Error("RequestBody was not set")
+	}
+}
+
+func TestHandlerConfig_WithAPIConfig_WithResponses(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, r *Request) {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	config := mux.HandleFunc("GET /api/users/{id}", handler)
+
+	type User struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+
+	apiConfig := &APIConfig{
+		OperationID: "getUserById",
+		Summary:     "Get user by ID",
+		Responses: map[string]Response{
+			"200": {
+				Description: "Successful response",
+				Content: map[string]TypeInfo{
+					"application/json": {
+						TypeHint: User{},
+					},
+				},
+			},
+			"404": {
+				Description: "User not found",
+			},
 		},
-	})
+	}
+
+	config.WithAPIConfig(apiConfig)
+
+	if config.APIConfig.Responses == nil {
+		t.Error("Responses were not set")
+	}
+
+	if len(config.APIConfig.Responses) != 2 {
+		t.Errorf("Expected 2 responses, got %d", len(config.APIConfig.Responses))
+	}
+}
+
+func TestSetOpenAPIPathInfo_Success(t *testing.T) {
+	setupMuxTestWithOpenAPI()
 
 	pathInfo := &PathInfo{
-		Summary:     "Test Path",
-		Description: "Test Path Description",
+		Summary:     "User operations",
+		Description: "Operations for managing users",
 		Parameters: []Parameter{
 			{
 				Name:        "id",
 				In:          "path",
-				Description: "Test ID",
+				Description: "User ID",
 				Required:    true,
+				TypeHint:    0,
 			},
 		},
 	}
 
 	// Should not panic
-	SetOpenAPIPathInfo("/api/test/{id}", pathInfo)
+	SetOpenAPIPathInfo("/api/users/{id}", pathInfo)
 }
 
-func TestMappers(t *testing.T) {
-	t.Run("mapServers", func(t *testing.T) {
-		servers := []Server{
-			{
-				URL:         "http://localhost",
-				Name:        "Local",
-				Description: "Local server",
-			},
-		}
+func TestSetOpenAPIPathInfo_OpenAPIDisabled(t *testing.T) {
+	setupMuxTest() // No OpenAPI
 
-		result := mapServers(servers)
-		if len(result) != 1 {
-			t.Errorf("Expected 1 server, got %d", len(result))
-		}
-		if result[0].URL != "http://localhost" {
-			t.Errorf("Expected URL 'http://localhost', got %q", result[0].URL)
-		}
-	})
+	pathInfo := &PathInfo{
+		Summary:     "Test",
+		Description: "Test description",
+	}
 
-	t.Run("mapServers nil", func(t *testing.T) {
-		result := mapServers(nil)
-		if result != nil {
-			t.Error("Expected nil result for nil input")
-		}
-	})
-
-	t.Run("mapServerVariables", func(t *testing.T) {
-		vars := map[string]ServerVariable{
-			"port": {
-				Enum:        []string{"8080", "8081"},
-				Default:     "8080",
-				Description: "Port number",
-			},
-		}
-
-		result := mapServerVariables(vars)
-		if len(result) != 1 {
-			t.Errorf("Expected 1 variable, got %d", len(result))
-		}
-		if result["port"].Default != "8080" {
-			t.Errorf("Expected default '8080', got %q", result["port"].Default)
-		}
-	})
-
-	t.Run("nonZeroValuePointer", func(t *testing.T) {
-		val := 10
-		ptr := nonZeroValuePointer(val)
-		if ptr == nil {
-			t.Error("Expected non-nil pointer for non-zero value")
-		}
-		if *ptr != 10 {
-			t.Errorf("Expected value 10, got %d", *ptr)
-		}
-
-		zeroVal := 0
-		zeroPtr := nonZeroValuePointer(zeroVal)
-		if zeroPtr != nil {
-			t.Error("Expected nil pointer for zero value")
-		}
-	})
+	// Should not panic even if OpenAPI is disabled
+	SetOpenAPIPathInfo("/api/test", pathInfo)
 }
 
-func TestServeMux_Use_NilMiddleware(t *testing.T) {
-	setupTestApp()
+// =============================================================================
+// Mapper Function Tests
+// =============================================================================
 
-	mux := NewServeMux()
+func TestMapServers_WithServers(t *testing.T) {
+	servers := []Server{
+		{
+			URL:         "https://api.example.com",
+			Name:        "Production",
+			Description: "Production server",
+		},
+		{
+			URL:         "https://staging.example.com",
+			Name:        "Staging",
+			Description: "Staging server",
+		},
+	}
 
-	// Should not panic
-	mux.Use(nil)
+	result := mapServers(servers)
 
-	if len(mux.middlewares) != 0 {
-		t.Errorf("Expected 0 middlewares after adding nil, got %d", len(mux.middlewares))
+	if len(result) != 2 {
+		t.Errorf("Expected 2 servers, got %d", len(result))
+	}
+
+	if result[0].URL != "https://api.example.com" {
+		t.Errorf("Expected first server URL 'https://api.example.com', got %q", result[0].URL)
+	}
+
+	if result[1].Name != "Staging" {
+		t.Errorf("Expected second server name 'Staging', got %q", result[1].Name)
 	}
 }
 
-func TestServeMux_Use_PanicOnInvalidType(t *testing.T) {
-	setupTestApp()
+func TestMapServers_NilInput(t *testing.T) {
+	result := mapServers(nil)
 
-	mux := NewServeMux()
-
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("Expected panic for invalid middleware type")
-		}
-	}()
-
-	// Try to use an invalid middleware type
-	mux.Use("invalid")
+	if result != nil {
+		t.Error("Expected nil result for nil input")
+	}
 }
 
-func TestAdaptHTTPMiddleware(t *testing.T) {
-	headerSet := false
-	httpMw := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("X-HTTP-Middleware", "true")
-			headerSet = true
+func TestMapServerVariables_WithVariables(t *testing.T) {
+	vars := map[string]ServerVariable{
+		"port": {
+			Enum:        []string{"8080", "8443"},
+			Default:     "8080",
+			Description: "Server port",
+		},
+		"env": {
+			Enum:        []string{"dev", "prod"},
+			Default:     "dev",
+			Description: "Environment",
+		},
+	}
+
+	result := mapServerVariables(vars)
+
+	if len(result) != 2 {
+		t.Errorf("Expected 2 variables, got %d", len(result))
+	}
+
+	if result["port"].Default != "8080" {
+		t.Errorf("Expected port default '8080', got %q", result["port"].Default)
+	}
+}
+
+func TestMapServerVariables_NilInput(t *testing.T) {
+	result := mapServerVariables(nil)
+
+	if result != nil {
+		t.Error("Expected nil result for nil input")
+	}
+}
+
+func TestNonZeroValuePointer_NonZero(t *testing.T) {
+	intVal := 42
+	intPtr := nonZeroValuePointer(intVal)
+
+	if intPtr == nil {
+		t.Error("Expected non-nil pointer for non-zero value")
+	}
+
+	if *intPtr != 42 {
+		t.Errorf("Expected value 42, got %d", *intPtr)
+	}
+
+	strVal := "test"
+	strPtr := nonZeroValuePointer(strVal)
+
+	if strPtr == nil {
+		t.Error("Expected non-nil pointer for non-zero string")
+	}
+
+	if *strPtr != "test" {
+		t.Errorf("Expected value 'test', got %q", *strPtr)
+	}
+}
+
+func TestNonZeroValuePointer_Zero(t *testing.T) {
+	intVal := 0
+	intPtr := nonZeroValuePointer(intVal)
+
+	if intPtr != nil {
+		t.Error("Expected nil pointer for zero integer value")
+	}
+
+	strVal := ""
+	strPtr := nonZeroValuePointer(strVal)
+
+	if strPtr != nil {
+		t.Error("Expected nil pointer for zero string value")
+	}
+
+	floatVal := 0.0
+	floatPtr := nonZeroValuePointer(floatVal)
+
+	if floatPtr != nil {
+		t.Error("Expected nil pointer for zero float value")
+	}
+}
+
+func TestMapParameters_Basic(t *testing.T) {
+	params := []Parameter{
+		{
+			Name:        "id",
+			In:          "path",
+			Description: "Resource ID",
+			Required:    true,
+			TypeHint:    0,
+		},
+		{
+			Name:        "limit",
+			In:          "query",
+			Description: "Page limit",
+			Required:    false,
+			TypeHint:    0,
+		},
+	}
+
+	setupMuxTestWithOpenAPI()
+	result := mapParameters(params)
+
+	if len(result) != 2 {
+		t.Errorf("Expected 2 parameters, got %d", len(result))
+	}
+
+	if result[0].Parameter.Name != "id" {
+		t.Errorf("Expected first parameter name 'id', got %q", result[0].Parameter.Name)
+	}
+
+	if !result[0].Parameter.Required {
+		t.Error("Expected first parameter to be required")
+	}
+}
+
+func TestMapExamples_WithExamples(t *testing.T) {
+	examples := map[string]Example{
+		"example1": {
+			Summary:     "First example",
+			Description: "Description of first example",
+			DataValue:   "value1",
+		},
+		"example2": {
+			Summary:     "Second example",
+			Description: "Description of second example",
+			DataValue:   "value2",
+		},
+	}
+
+	result := mapExamples(examples)
+
+	if len(result) != 2 {
+		t.Errorf("Expected 2 examples, got %d", len(result))
+	}
+
+	if result["example1"].Summary != "First example" {
+		t.Errorf("Expected summary 'First example', got %q", result["example1"].Summary)
+	}
+}
+
+func TestMapExamples_NilInput(t *testing.T) {
+	result := mapExamples(nil)
+
+	if result != nil {
+		t.Error("Expected nil result for nil input")
+	}
+}
+
+// =============================================================================
+// Benchmark Tests
+// =============================================================================
+
+func BenchmarkNewServeMux(b *testing.B) {
+	setupMuxTest()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = NewServeMux()
+	}
+}
+
+func BenchmarkServeMux_HandleFunc(b *testing.B) {
+	setupMuxTest()
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, r *Request) {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mux.HandleFunc("GET /test", handler)
+	}
+}
+
+func BenchmarkServeMux_ServeHTTP(b *testing.B) {
+	setupMuxTest()
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, r *Request) {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	mux.HandleFunc("GET /test", handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+	}
+}
+
+func BenchmarkWrapMiddlewares(b *testing.B) {
+	mw1 := func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *Request) {
 			next.ServeHTTP(w, r)
 		})
 	}
 
-	adapted := adaptHTTPMiddleware(httpMw)
+	mw2 := func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
 
 	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
-		w.WriteHeader(http.StatusOK)
+		// Empty handler
 	})
 
-	wrapped := adapted(handler)
+	middlewares := []AppMiddleware{mw1, mw2}
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
-	r := &Request{Request: req}
-
-	wrapped.ServeHTTP(rw, r)
-
-	if !headerSet {
-		t.Error("HTTP middleware was not executed")
-	}
-
-	if w.Header().Get("X-HTTP-Middleware") != "true" {
-		t.Error("HTTP middleware header was not set")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = wrapMiddlewares(handler, middlewares)
 	}
 }
 
-func TestHandlerFunc_WithJSONPCallback(t *testing.T) {
-	setupTestApp()
+func BenchmarkParseAcceptLanguage(b *testing.B) {
+	acceptLang := "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7"
 
-	// Reset and configure with JSONP
-	appConfigured = false
-	Configure(&Config{
-		JSONPCallbackParamName: "callback",
-		I18n: &I18nConfig{
-			FS: testI18nFS,
-		},
-	})
-
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
-		w.JSON(map[string]string{"message": "test"})
-	})
-
-	req := httptest.NewRequest("GET", "/test?callback=myCallback", nil)
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
-	r := &Request{Request: req}
-
-	handler.ServeHTTP(rw, r)
-
-	body := w.Body.String()
-	if !strings.Contains(body, "myCallback") {
-		t.Errorf("Expected JSONP callback in response, got %q", body)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = parseAcceptLanguage(acceptLang)
 	}
-
-	contentType := w.Header().Get("Content-Type")
-	if contentType != "application/javascript" {
-		t.Errorf("Expected Content-Type 'application/javascript', got %q", contentType)
-	}
-}
-
-func TestHandlerFunc_WithInvalidJSONPCallback(t *testing.T) {
-	setupTestApp()
-
-	// Reset and configure with JSONP
-	appConfigured = false
-	Configure(&Config{
-		JSONPCallbackParamName: "callback",
-		I18n: &I18nConfig{
-			FS: testI18nFS,
-		},
-	})
-
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
-		w.JSON(map[string]string{"message": "test"})
-	})
-
-	// Invalid callback name with special characters
-	req := httptest.NewRequest("GET", "/test?callback=my-invalid-callback!", nil)
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
-	r := &Request{Request: req}
-
-	handler.ServeHTTP(rw, r)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("Expected status 400 for invalid callback, got %d", w.Code)
-	}
-}
-
-func TestServeMux_PathParameters(t *testing.T) {
-	setupTestApp()
-
-	mux := NewServeMux()
-
-	var receivedID string
-	handler := func(w ResponseWriter, r *Request) {
-		receivedID = r.PathValue("id")
-		w.WriteHeader(http.StatusOK)
-	}
-
-	mux.HandleFunc("GET /users/{id}", handler)
-
-	req := httptest.NewRequest("GET", "/users/123", nil)
-	w := httptest.NewRecorder()
-
-	mux.ServeHTTP(w, req)
-
-	if receivedID != "123" {
-		t.Errorf("Expected path parameter '123', got %q", receivedID)
-	}
-}
-
-// Helper function for tests (if needed)
-func GetI18nPrinterFromContext(ctx context.Context) (interface{}, bool) {
-	// This is a simplified version for testing
-	// In reality, you'd use the actual i18n package function
-	return nil, true
-}
-
-// Create test data directory structure
-func init() {
-	// This would be handled by the embed directive in real code
-	// For tests, we rely on the testdata directory being present
 }

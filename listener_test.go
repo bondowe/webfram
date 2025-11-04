@@ -114,7 +114,7 @@ func TestListenAndServe_ServerStartsSuccessfully(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	setupTestApp()
+	setupMuxTest()
 	mux := NewServeMux()
 
 	// Add a simple handler
@@ -193,7 +193,7 @@ func TestListenAndServe_WithCustomConfig(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	setupTestApp()
+	setupMuxTest()
 	mux := NewServeMux()
 
 	mux.HandleFunc("GET /test", func(w ResponseWriter, r *Request) {
@@ -275,7 +275,7 @@ func TestListenAndServe_WithOpenAPIEndpoint(t *testing.T) {
 			},
 		},
 		I18n: &I18nConfig{
-			FS: testI18nFS,
+			FS: testMuxI18nFS,
 		},
 	})
 
@@ -405,7 +405,7 @@ func TestServerConfig_AllFields(t *testing.T) {
 }
 
 func TestServerConfig_PartialOverrides(t *testing.T) {
-	setupTestApp()
+	setupMuxTest()
 
 	customCfg := &ServerConfig{
 		ReadTimeout: 25 * time.Second,
@@ -432,7 +432,7 @@ func TestListenAndServe_HandlesMultipleRequests(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	setupTestApp()
+	setupMuxTest()
 	mux := NewServeMux()
 
 	requestCount := 0

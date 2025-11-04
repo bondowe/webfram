@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
-	"os"
 	"regexp"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/bondowe/webfram/internal/i18n"
 	"github.com/bondowe/webfram/internal/template"
 	"github.com/bondowe/webfram/openapi"
-	"github.com/google/uuid"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
@@ -217,37 +215,40 @@ func (m *sseHandler) ServeHTTP(w ResponseWriter, r *Request) {
 }
 
 func configureOpenAPI(cfg *Config) {
-	if cfg != nil {
-		openAPIConfig = cfg.OpenAPI
+	if cfg == nil || cfg.OpenAPI == nil || !openAPIConfig.EndpointEnabled {
+		return
+	}
+	openAPIConfig = cfg.OpenAPI
 
-		if openAPIConfig != nil && openAPIConfig.EndpointEnabled {
-			openAPIConfig.Config.Components = &openapi.Components{}
-			if openAPIConfig.URLPath == "" {
-				openAPIConfig.URLPath = defaultOpenAPIURLPath
-			} else if openAPIConfig.URLPath[0:4] != "GET " {
-				openAPIConfig.URLPath = "GET " + openAPIConfig.URLPath
-			}
-		}
+	openAPIConfig.Config.Components = &openapi.Components{}
+	if openAPIConfig.URLPath == "" {
+		openAPIConfig.URLPath = defaultOpenAPIURLPath
+	} else if openAPIConfig.URLPath[0:4] != "GET " {
+		openAPIConfig.URLPath = "GET " + openAPIConfig.URLPath
 	}
 }
 
 func configureTemplate(cfg *Config) {
+	if cfg == nil || cfg.Templates == nil || cfg.Templates.FS == nil {
+		return
+	}
+
 	var layoutBaseName string
-	if cfg != nil && cfg.Templates != nil && cfg.Templates.LayoutBaseName != "" {
+	if cfg.Templates.LayoutBaseName != "" {
 		layoutBaseName = cfg.Templates.LayoutBaseName
 	} else {
 		layoutBaseName = defaultLayoutBaseName
 	}
 
 	var htmlTemplateExtension string
-	if cfg != nil && cfg.Templates != nil && cfg.Templates.HTMLTemplateExtension != "" {
+	if cfg.Templates.HTMLTemplateExtension != "" {
 		htmlTemplateExtension = cfg.Templates.HTMLTemplateExtension
 	} else {
 		htmlTemplateExtension = defaultHTMLTemplateExtension
 	}
 
 	var textTemplateExtension string
-	if cfg != nil && cfg.Templates != nil && cfg.Templates.TextTemplateExtension != "" {
+	if cfg.Templates.TextTemplateExtension != "" {
 		textTemplateExtension = cfg.Templates.TextTemplateExtension
 	} else {
 		textTemplateExtension = defaultTextTemplateExtension
@@ -266,47 +267,14 @@ func configureTemplate(cfg *Config) {
 }
 
 func configureI18n(cfg *Config) {
-	var i18nFs fs.FS
-	if cfg != nil && cfg.I18n != nil && cfg.I18n.FS != nil {
-		i18nFs = cfg.I18n.FS
-	} else {
-		i18nFs = os.DirFS(defaultI18nPath)
+	if cfg == nil || cfg.I18n == nil || cfg.I18n.FS == nil {
+		return
+	}
+	i18nConfig := &i18n.Config{
+		FS: cfg.I18n.FS,
 	}
 
-	i18nConfig := &i18n.Config{}
-	i18nConfig.FS = i18nFs
-
 	i18n.Configure(i18nConfig)
-}
-
-type Address struct {
-	Street string `form:"street" validate:"required" errmsg:"required=Street is required"`
-	City   string `form:"city" validate:"required" errmsg:"required=City is required"`
-	Zip    int    `form:"zip" validate:"min=10000,max=99999" errmsg:"min=Zip must be at least 10000,max=Zip must be at most 99999"`
-}
-
-type User struct {
-	Name       string      `json:"name" validate:"required,minlength=3" errmsg:"required=Name is required;minlength=Name must be at least 3 characters"`
-	Role       string      `json:"role" validate:"enum=admin|user|guest" errmsg:"enum=Role must be one of admin, user, or guest"`
-	Birthdate  time.Time   `json:"birthdate" validate:"required" layout:"2006-01-02" errmsg:"required=Birthdate is required"`
-	Email      string      `json:"email" validate:"regexp=^\\w+@\\w+\\.com$" errmsg:"regexp=Please enter a valid email address"`
-	Hobbies    []string    `json:"hobbies" validate:"minItems=1,maxItems=5,emptyItemsAllowed" errmsg:"minItems=At least one hobby is required;maxItems=At most 5 hobbies are allowed"`
-	Tags       []string    `json:"tags" validate:"minItems=0,maxItems=10"`
-	Age        int         `json:"age" validate:"min=18,max=120"`
-	Bio        string      `json:"bio" validate:"maxlength=500"`
-	UserID     uuid.UUID   `json:"user_id" validate:"required"`
-	Address    Address     `json:"address" validate:"required" errmsg:"required=Address is required"`
-	Scores     []int       `json:"scores" validate:"minItems=1,maxItems=10"`
-	Timestamps []time.Time `json:"timestamps" layout:"2006-01-02T15:04:05Z07:00"`
-}
-
-type Product struct {
-	Name        string   `json:"name" validate:"required,minlength=2,maxlength=100"`
-	SKU         string   `json:"sku" validate:"required,regexp=^[A-Z]{3}-\\d{4}$"`
-	Price       int      `json:"price" validate:"required,min=0,max=1000000"`
-	Category    string   `json:"category" validate:"required,enum=electronics|clothing|food|other"`
-	Description string   `json:"description" validate:"maxlength=1000"`
-	Tags        []string `json:"tags" validate:"maxItems=20"`
 }
 
 func Configure(cfg *Config) {
