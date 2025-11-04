@@ -62,9 +62,9 @@ type PlaceholderInfo struct {
 func main() {
 	// Define command-line flags
 	mode := flag.String("mode", "both", "Extraction mode: templates, code, or both")
-	codeDir := flag.String("code", "../web", "Directory containing Go source files")
-	templatesDir := flag.String("templates", "../web/templates", "Directory containing template files")
-	localesDir := flag.String("locales", "../web/locales", "Directory for message files (input and output)")
+	codeDir := flag.String("code", ".", "Directory containing Go source files")
+	templatesDir := flag.String("templates", "./templates", "Directory containing template files")
+	localesDir := flag.String("locales", "./locales", "Directory for message files (input and output)")
 	languagesFlag := flag.String("languages", "en-GB,en-US", "Comma-separated list of language codes (e.g., en,fr,es,de)")
 	flag.Parse()
 
