@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"os"
 	"regexp"
 	"time"
 
@@ -55,46 +56,52 @@ type (
 		Errors  []ValidationError `json:"errors" xml:"errors" form:"errors"`
 	}
 
-	TemplateConfig struct {
-		FS                    fs.FS
-		TemplatesPath         string
+	Templates struct {
+		Dir                   string
 		LayoutBaseName        string
 		HTMLTemplateExtension string
 		TextTemplateExtension string
 	}
 
-	I18nConfig struct {
-		FS fs.FS
+	I18nMessages struct {
+		Dir string
 	}
 
-	OpenAPIConfig struct {
+	Assets struct {
+		FS           fs.FS
+		Templates    *Templates
+		I18nMessages *I18nMessages
+	}
+
+	OpenAPI struct {
 		EndpointEnabled bool
 		URLPath         string
 		Config          *openapi.Config
 	}
 
 	Config struct {
-		I18n                   *I18nConfig
+		I18nMessages           *I18nMessages
 		JSONPCallbackParamName string
-		Templates              *TemplateConfig
-		OpenAPI                *OpenAPIConfig
+		Assets                 *Assets
+		OpenAPI                *OpenAPI
 	}
 )
 
 const (
 	jsonpCallbackMethodNameKey   contextKey = "jsonpCallbackMethodName"
 	defaultOpenAPIURLPath        string     = "GET /openapi.json"
+	defaultTemplateDir           string     = "templates"
 	defaultLayoutBaseName        string     = "layout"
 	defaultHTMLTemplateExtension string     = ".go.html"
 	defaultTextTemplateExtension string     = ".go.txt"
-	defaultI18nPath              string     = "i18n"
+	defaultI18nMessagesDir       string     = "i18n"
 	defaultI18nFuncName          string     = "T"
 )
 
 var (
 	appConfigured            = false
 	appMiddlewares           []AppMiddleware
-	openAPIConfig            *OpenAPIConfig
+	openAPIConfig            *OpenAPI
 	jsonpCallbackParamName   string
 	jsonpCallbackNamePattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
@@ -215,7 +222,7 @@ func (m *sseHandler) ServeHTTP(w ResponseWriter, r *Request) {
 }
 
 func configureOpenAPI(cfg *Config) {
-	if cfg == nil || cfg.OpenAPI == nil || !openAPIConfig.EndpointEnabled {
+	if cfg == nil || cfg.OpenAPI == nil || !cfg.OpenAPI.EndpointEnabled {
 		return
 	}
 	openAPIConfig = cfg.OpenAPI
@@ -229,34 +236,50 @@ func configureOpenAPI(cfg *Config) {
 }
 
 func configureTemplate(cfg *Config) {
-	if cfg == nil || cfg.Templates == nil || cfg.Templates.FS == nil {
+	var assetsFS fs.FS
+	var dir string
+	var layoutBaseName string
+	var htmlTemplateExtension string
+	var textTemplateExtension string
+
+	if cfg == nil || cfg.Assets == nil {
+		assetsFS = os.DirFS(".")
+		dir = defaultTemplateDir
+		layoutBaseName = defaultLayoutBaseName
+		htmlTemplateExtension = defaultHTMLTemplateExtension
+		textTemplateExtension = defaultTextTemplateExtension
+	} else {
+		if cfg.Assets.FS == nil {
+			assetsFS = os.DirFS(".")
+		} else {
+			assetsFS = cfg.Assets.FS
+		}
+
+		if cfg.Assets.Templates == nil {
+			dir = defaultTemplateDir
+			layoutBaseName = defaultLayoutBaseName
+			htmlTemplateExtension = defaultHTMLTemplateExtension
+			textTemplateExtension = defaultTextTemplateExtension
+		} else {
+			dir = getValueOrDefault(cfg.Assets.Templates.Dir, defaultTemplateDir)
+			layoutBaseName = getValueOrDefault(cfg.Assets.Templates.LayoutBaseName, defaultLayoutBaseName)
+			htmlTemplateExtension = getValueOrDefault(cfg.Assets.Templates.HTMLTemplateExtension, defaultHTMLTemplateExtension)
+			textTemplateExtension = getValueOrDefault(cfg.Assets.Templates.TextTemplateExtension, defaultTextTemplateExtension)
+		}
+	}
+
+	stat, err := fs.Stat(assetsFS, dir)
+	if err != nil || !stat.IsDir() {
+		return
+	}
+	templateFS, err := fs.Sub(assetsFS, dir)
+
+	if err != nil {
 		return
 	}
 
-	var layoutBaseName string
-	if cfg.Templates.LayoutBaseName != "" {
-		layoutBaseName = cfg.Templates.LayoutBaseName
-	} else {
-		layoutBaseName = defaultLayoutBaseName
-	}
-
-	var htmlTemplateExtension string
-	if cfg.Templates.HTMLTemplateExtension != "" {
-		htmlTemplateExtension = cfg.Templates.HTMLTemplateExtension
-	} else {
-		htmlTemplateExtension = defaultHTMLTemplateExtension
-	}
-
-	var textTemplateExtension string
-	if cfg.Templates.TextTemplateExtension != "" {
-		textTemplateExtension = cfg.Templates.TextTemplateExtension
-	} else {
-		textTemplateExtension = defaultTextTemplateExtension
-	}
-
 	tmplConfig := &template.Config{
-		FS:                    cfg.Templates.FS,
-		TemplatesPath:         cfg.Templates.TemplatesPath,
+		FS:                    templateFS,
 		LayoutBaseName:        layoutBaseName,
 		HTMLTemplateExtension: htmlTemplateExtension,
 		TextTemplateExtension: textTemplateExtension,
@@ -267,11 +290,38 @@ func configureTemplate(cfg *Config) {
 }
 
 func configureI18n(cfg *Config) {
-	if cfg == nil || cfg.I18n == nil || cfg.I18n.FS == nil {
+	var assetsFS fs.FS
+	var dir string
+
+	if cfg == nil || cfg.Assets == nil {
+		assetsFS = os.DirFS(".")
+		dir = defaultI18nMessagesDir
+	} else {
+		if cfg.Assets.FS == nil {
+			assetsFS = os.DirFS(".")
+		} else {
+			assetsFS = cfg.Assets.FS
+		}
+
+		if cfg.Assets.I18nMessages == nil {
+			dir = defaultI18nMessagesDir
+		} else {
+			dir = getValueOrDefault(cfg.Assets.I18nMessages.Dir, defaultI18nMessagesDir)
+		}
+	}
+
+	stat, err := fs.Stat(assetsFS, dir)
+	if err != nil || !stat.IsDir() {
 		return
 	}
+	i18nMessagesFS, err := fs.Sub(assetsFS, dir)
+
+	if err != nil {
+		return
+	}
+
 	i18nConfig := &i18n.Config{
-		FS: cfg.I18n.FS,
+		FS: i18nMessagesFS,
 	}
 
 	i18n.Configure(i18nConfig)
@@ -443,4 +493,15 @@ func PatchJSON[T any](r *Request, t *T, validate bool) ([]ValidationError, error
 
 func GetI18nPrinter(tag language.Tag) *message.Printer {
 	return i18n.GetI18nPrinter(tag)
+}
+
+func getValueOrDefault[T comparable](value T, defaultValue T) T {
+	var zero T
+
+	if value == zero {
+		fmt.Printf("Using default value: %v\n", defaultValue)
+		return defaultValue
+	}
+	fmt.Printf("Using provided value: %v\n", value)
+	return value
 }

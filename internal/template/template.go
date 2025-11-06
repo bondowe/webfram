@@ -15,7 +15,6 @@ import (
 
 type Config struct {
 	FS                    fs.FS
-	TemplatesPath         string
 	LayoutBaseName        string
 	HTMLTemplateExtension string
 	TextTemplateExtension string
@@ -61,9 +60,6 @@ func Configuration() (Config, bool) {
 
 func LookupTemplate(path string, absolute bool) (*htmlTemplate.Template, bool) {
 
-	if !absolute {
-		path = config.TemplatesPath + "/" + path
-	}
 	if nv, ok := templatesCache.Load(path); ok {
 		return nv.([2]any)[1].(*htmlTemplate.Template), ok
 	}

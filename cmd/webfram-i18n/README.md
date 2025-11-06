@@ -25,80 +25,83 @@ It generates and maintains JSON catalog files compatible with Go's `golang.org/x
 ## Installation
 
 ```bash
-cd cmd/i18n
+cd cmd/webfram-i18n
 go build -o i18n
 ```
 
 Or run directly:
 
 ```bash
-go run cmd/i18n/main.go [flags]
+go run cmd/webfram-i18n/main.go [flags]
 ```
 
 ## Usage
 
 ### Basic Usage
 
-Extract translations from both templates and code (default):
+Extract translations from both templates and code:
 
 ```bash
-go run cmd/i18n/main.go
+go run cmd/webfram-i18n/main.go -languages "en,fr" -templates ./templates
 ```
 
 ### Command-Line Flags
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-mode` | `both` | Extraction mode: `templates`, `code`, or `both` |
-| `-code` | `../web` | Directory containing Go source files |
-| `-templates` | `../web/templates` | Directory containing template files |
-| `-locales` | `../web/locales` | Directory for message files (input/output) |
-| `-languages` | `en,fr,fr-CA,es,sw,ru` | Comma-separated list of language codes |
+| Flag | Default | Required | Description |
+|------|---------|----------|-------------|
+| `-languages` | _(none)_ | **YES** | Comma-separated list of language codes (e.g., `en,fr,es,de`) |
+| `-templates` | _(none)_ | **YES** for `templates` and `both` modes | Directory containing template files |
+| `-mode` | `both` | No | Extraction mode: `templates`, `code`, or `both` |
+| `-code` | `.` (current directory) | No | Directory containing Go source files |
+| `-locales` | `./locales` | No | Directory for message files (input/output) |
+
+**Note:** The `-languages` flag is always required. The `-templates` flag is required when using `-mode templates` or `-mode both` (default).
 
 ### Examples
 
-#### Extract only from templates
+#### Extract from both templates and code (most common)
 
 ```bash
-go run cmd/i18n/main.go -mode templates
+go run cmd/webfram-i18n/main.go -languages "en,fr" -templates ./templates
 ```
 
 #### Extract only from Go code
 
 ```bash
-go run cmd/i18n/main.go -mode code
+go run cmd/webfram-i18n/main.go -languages "en,fr,es" -mode code
 ```
 
 #### Extract from custom directories
 
 ```bash
-go run cmd/i18n/main.go \
+go run cmd/webfram-i18n/main.go \
+  -languages "en,fr" \
+  -mode both \
   -code ./src \
   -templates ./views \
   -locales ./i18n
 ```
 
-#### Extract with custom languages
+#### Extract for multiple languages
 
 ```bash
-go run cmd/i18n/main.go -languages "en,de,ja,zh"
+go run cmd/webfram-i18n/main.go -languages "en,de,ja,zh" -templates ./templates
 ```
 
 #### Extract for a single language
 
 ```bash
-go run cmd/i18n/main.go -languages "en"
+go run cmd/webfram-i18n/main.go -languages "en" -mode code
 ```
 
-#### Extract with all custom options
+#### Extract from current directory code with custom locales
 
 ```bash
-go run cmd/i18n/main.go \
-  -mode both \
-  -code ./src \
-  -templates ./views \
-  -locales ./i18n \
-  -languages "en,fr,de,es,it,pt"
+go run cmd/webfram-i18n/main.go \
+  -languages "en,fr,de,es,it,pt" \
+  -mode code \
+  -locales ./translations
+```
 ```
 
 ## Using Translations in WebFram Applications
@@ -293,10 +296,10 @@ In templates:
 
 ### 2. Extract Translations
 
-Run the extraction tool:
+Run the extraction tool with required flags:
 
 ```bash
-go run cmd/i18n/main.go
+go run cmd/webfram-i18n/main.go -languages "en,fr,es" -templates ./templates
 ```
 
 Output example:
@@ -308,10 +311,9 @@ Found 12 translations in Go code
 Total unique translations: 15
 
 === Updating Message Catalogs ===
-Updated ../web/locales/messages.en.json: +3 new
-Updated ../web/locales/messages.fr.json: +3 new
-Updated ../web/locales/messages.es.json: +3 new
-Skipped ../web/locales/messages.de.json: no changes detected
+Updated ./locales/messages.en.json: +3 new
+Updated ./locales/messages.fr.json: +3 new
+Updated ./locales/messages.es.json: +3 new
 
 === Translation Summary ===
 Total unique translation strings: 15
@@ -425,17 +427,20 @@ By default, the tool extracts translations for these languages:
 
 ### Custom Languages
 
-You can specify any languages using the `-languages` flag:
+You can specify any languages using the **required** `-languages` flag:
 
 ```bash
-# Extract for specific languages
-go run cmd/i18n/main.go -languages "en-GB,en-US,fr-FR"
+# Extract for specific languages with templates
+go run cmd/webfram-i18n/main.go -languages "en-GB,en-US,fr-FR" -templates ./templates
 
-# Single language only
-go run cmd/i18n/main.go -languages "en-US"
+# Single language from code only
+go run cmd/webfram-i18n/main.go -languages "en-US" -mode code
 
-# Many languages
-go run cmd/i18n/main.go -languages "en-GB,fr-FR,de,es,it,pt,ja,zh,ko,ru,ar,hi"
+# Many languages with custom directories
+go run cmd/webfram-i18n/main.go \
+  -languages "en-GB,fr-FR,de,es,it,pt,ja,zh,ko,ru,ar,hi" \
+  -templates ./views \
+  -code ./src
 ```
 
 The flag accepts a comma-separated list of language codes. Spaces around commas are automatically trimmed.
@@ -539,11 +544,13 @@ languagesFlag := flag.String("languages", "en,fr,de,es,it", "Comma-separated lis
 
 ### Best Practices
 
+- Always specify required languages explicitly with `-languages` flag
 - Run extraction regularly as part of your development workflow
 - Use a consistent naming convention for message IDs
 - Test translations in different languages before deployment
 - Keep your language list consistent across development, staging, and production
 - Use the `-languages` flag in CI/CD pipelines to ensure all required languages are generated
+- For code-only projects, use `-mode code` to skip template extraction
 
 ### Working with Language Variants
 
@@ -551,7 +558,9 @@ When using language variants (like `en-US` vs `en-GB`), consider:
 
 ```bash
 # Generate both base and variant
-go run cmd/i18n/main.go -languages "en,en-US,en-GB"
+go run cmd/webfram-i18n/main.go \
+  -languages "en,en-US,en-GB" \
+  -mode code
 
 # The tool will create:
 # - messages.en.json (base English)
@@ -601,7 +610,7 @@ If expected language files aren't created:
 
 ## Related Files
 
-- [`cmd/i18n/main.go`](main.go) - Extraction tool source code
+- [`cmd/webfram-i18n/main.go`](main.go) - Extraction tool source code
 - [`cmd/web/main.go`](../web/main.go) - Example webfram application
 - [`webfram/internal/i18n/i18n.go`](../../webfram/internal/i18n/i18n.go) - I18n implementation
 - [`cmd/web/locales/`](../web/locales/) - Example message catalogs

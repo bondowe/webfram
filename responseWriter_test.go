@@ -30,12 +30,14 @@ func setupResponseWriterTests() {
 	}
 
 	Configure(&Config{
-		Templates: &TemplateConfig{
-			FS:            testTemplatesFS,
-			TemplatesPath: "testdata/templates",
-		},
-		I18n: &I18nConfig{
-			FS: testMuxI18nFS,
+		Assets: &Assets{
+			FS: testTemplatesFS,
+			Templates: &Templates{
+				Dir: "testdata/templates",
+			},
+			I18nMessages: &I18nMessages{
+				Dir: "testdata/locales",
+			},
 		},
 	})
 }

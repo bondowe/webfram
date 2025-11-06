@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -103,14 +102,4 @@ func NewServerConfig() *ServerConfig {
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    http.DefaultMaxHeaderBytes,
 	}
-}
-
-func getValueOrDefault[T comparable](value T, defaultValue T) T {
-	var zero T
-	if value == zero {
-		fmt.Printf("Using default value: %v\n", defaultValue)
-		return defaultValue
-	}
-	fmt.Printf("Using provided value: %v\n", value)
-	return value
 }

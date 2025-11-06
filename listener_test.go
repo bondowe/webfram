@@ -264,7 +264,7 @@ func TestListenAndServe_WithOpenAPIEndpoint(t *testing.T) {
 	appConfigured = false
 
 	Configure(&Config{
-		OpenAPI: &OpenAPIConfig{
+		OpenAPI: &OpenAPI{
 			EndpointEnabled: true,
 			URLPath:         "GET /openapi.json",
 			Config: &openapi.Config{
@@ -274,8 +274,11 @@ func TestListenAndServe_WithOpenAPIEndpoint(t *testing.T) {
 				},
 			},
 		},
-		I18n: &I18nConfig{
+		Assets: &Assets{
 			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir: "locales",
+			},
 		},
 	})
 

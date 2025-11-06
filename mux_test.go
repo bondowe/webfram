@@ -22,8 +22,11 @@ func setupMuxTest() {
 	jsonpCallbackParamName = ""
 
 	Configure(&Config{
-		I18n: &I18nConfig{
+		Assets: &Assets{
 			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir: "testdata/locales",
+			},
 		},
 	})
 }
@@ -32,11 +35,11 @@ func setupMuxTest() {
 func setupMuxTestWithOpenAPI() {
 	appConfigured = false
 	appMiddlewares = nil
-	openAPIConfig = &OpenAPIConfig{EndpointEnabled: true}
+	openAPIConfig = &OpenAPI{EndpointEnabled: true}
 	jsonpCallbackParamName = ""
 
 	Configure(&Config{
-		OpenAPI: &OpenAPIConfig{
+		OpenAPI: &OpenAPI{
 			EndpointEnabled: true,
 			Config: &openapi.Config{
 				Info: &openapi.Info{
@@ -45,8 +48,11 @@ func setupMuxTestWithOpenAPI() {
 				},
 			},
 		},
-		I18n: &I18nConfig{
+		Assets: &Assets{
 			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir: "testdata/locales",
+			},
 		},
 	})
 }
@@ -654,8 +660,11 @@ func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Valid(t *testing.T) {
 	jsonpCallbackParamName = ""
 	Configure(&Config{
 		JSONPCallbackParamName: "callback",
-		I18n: &I18nConfig{
+		Assets: &Assets{
 			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir: "testdata/locales",
+			},
 		},
 	})
 
@@ -688,8 +697,11 @@ func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Invalid(t *testing.T) {
 	jsonpCallbackParamName = ""
 	Configure(&Config{
 		JSONPCallbackParamName: "callback",
-		I18n: &I18nConfig{
+		Assets: &Assets{
 			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir: "testdata/locales",
+			},
 		},
 	})
 

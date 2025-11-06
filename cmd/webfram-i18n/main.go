@@ -62,16 +62,32 @@ type PlaceholderInfo struct {
 func main() {
 	// Define command-line flags
 	mode := flag.String("mode", "both", "Extraction mode: templates, code, or both")
-	codeDir := flag.String("code", ".", "Directory containing Go source files")
-	templatesDir := flag.String("templates", "./templates", "Directory containing template files")
+	codeDir := flag.String("code", ".", "Directory containing Go source files (default: current directory)")
+	templatesDir := flag.String("templates", "", "Directory containing template files (required for 'templates' and 'both' modes)")
 	localesDir := flag.String("locales", "./locales", "Directory for message files (input and output)")
-	languagesFlag := flag.String("languages", "en-GB,en-US", "Comma-separated list of language codes (e.g., en,fr,es,de)")
+	languagesFlag := flag.String("languages", "", "Comma-separated list of language codes (e.g., en,fr,es,de) - REQUIRED")
 	flag.Parse()
+
+	// Validate languages - required parameter
+	if *languagesFlag == "" {
+		fmt.Fprintf(os.Stderr, "Error: -languages flag is required\n")
+		fmt.Fprintf(os.Stderr, "Example: -languages \"en,fr,es\"\n\n")
+		flag.Usage()
+		os.Exit(1)
+	}
 
 	// Parse languages from comma-separated string
 	languages := parseLanguages(*languagesFlag)
 	if len(languages) == 0 {
 		fmt.Fprintf(os.Stderr, "Error: No valid languages specified\n")
+		os.Exit(1)
+	}
+
+	// Validate templates directory for modes that need it
+	if (*mode == "templates" || *mode == "both") && *templatesDir == "" {
+		fmt.Fprintf(os.Stderr, "Error: -templates flag is required for mode '%s'\n", *mode)
+		fmt.Fprintf(os.Stderr, "Example: -templates \"./templates\"\n\n")
+		flag.Usage()
 		os.Exit(1)
 	}
 
@@ -436,6 +452,12 @@ func createMessage(msgID string, info TranslationInfo) Message {
 // extractTranslationsFromTemplates extracts translations from template files
 func extractTranslationsFromTemplates(dir string) (map[string]TranslationInfo, error) {
 	translations := make(map[string]TranslationInfo)
+
+	// Check if directory exists
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		fmt.Printf("Warning: templates directory %s does not exist, skipping template extraction\n", dir)
+		return translations, nil
+	}
 
 	// Regular expression to match {{T "..." ...}} patterns
 	tPattern := regexp.MustCompile(`\{\{T\s+"([^"]+)"(?:\s+([^}]+))?\}\}`)

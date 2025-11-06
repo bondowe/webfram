@@ -27,7 +27,6 @@ func TestConfigure(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -62,7 +61,6 @@ func TestConfiguration(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -77,12 +75,16 @@ func TestConfiguration(t *testing.T) {
 		t.Fatal("Expected valid configuration")
 	}
 
-	if result.TemplatesPath != cfg.TemplatesPath {
-		t.Errorf("Expected TemplatesPath %q, got %q", cfg.TemplatesPath, result.TemplatesPath)
-	}
-
 	if result.LayoutBaseName != cfg.LayoutBaseName {
 		t.Errorf("Expected LayoutBaseName %q, got %q", cfg.LayoutBaseName, result.LayoutBaseName)
+	}
+
+	if result.HTMLTemplateExtension != cfg.HTMLTemplateExtension {
+		t.Errorf("Expected HTMLTemplateExtension %q, got %q", cfg.HTMLTemplateExtension, result.HTMLTemplateExtension)
+	}
+
+	if result.TextTemplateExtension != cfg.TextTemplateExtension {
+		t.Errorf("Expected TextTemplateExtension %q, got %q", cfg.TextTemplateExtension, result.TextTemplateExtension)
 	}
 }
 
@@ -108,7 +110,6 @@ func TestLookupTemplate_Absolute(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -136,7 +137,6 @@ func TestLookupTemplate_Relative(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -164,7 +164,6 @@ func TestLookupTemplate_NotFound(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -307,7 +306,6 @@ func TestParseHTMLTemplate_WithoutLayout(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -342,7 +340,6 @@ func TestParseHTMLTemplate_WithLayout(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -370,7 +367,6 @@ func TestParseTextTemplate_WithoutLayout(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -405,7 +401,6 @@ func TestParseTextTemplate_WithLayout(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -433,7 +428,6 @@ func TestGetPartialFunc(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -466,7 +460,6 @@ func TestGetPartialFunc_NotFound(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -494,7 +487,6 @@ func TestLookUpPartial(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -520,7 +512,6 @@ func TestLookUpPartial_NotFound(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -541,7 +532,6 @@ func TestGetOrCreateHTMLLayoutChain(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -571,7 +561,6 @@ func TestGetOrCreateTextLayoutChain(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -601,7 +590,6 @@ func TestCacheTemplates(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -623,7 +611,6 @@ func TestLayoutPattern(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -660,7 +647,6 @@ func TestFuncMap_I18nFunction(t *testing.T) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -686,7 +672,6 @@ func BenchmarkLookupTemplate(b *testing.B) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",
@@ -710,7 +695,6 @@ func BenchmarkParseHTMLTemplate(b *testing.B) {
 
 	cfg := &Config{
 		FS:                    testFS,
-		TemplatesPath:         "testdata",
 		LayoutBaseName:        "layout",
 		HTMLTemplateExtension: ".go.html",
 		TextTemplateExtension: ".go.txt",

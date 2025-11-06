@@ -53,12 +53,14 @@ func TestConfigure_Success(t *testing.T) {
 
 	cfg := &Config{
 		JSONPCallbackParamName: "callback",
-		I18n: &I18nConfig{
+		Assets: &Assets{
 			FS: testI18nFS2,
-		},
-		Templates: &TemplateConfig{
-			FS:            testTemplatesFS2,
-			TemplatesPath: "testdata/templates",
+			I18nMessages: &I18nMessages{
+				Dir: "testdata/locales",
+			},
+			Templates: &Templates{
+				Dir: "testdata/templates",
+			},
 		},
 	}
 
@@ -194,9 +196,9 @@ func TestConfigureOpenAPI_NilOpenAPIConfig(t *testing.T) {
 }
 
 func TestConfigureOpenAPI_DisabledEndpoint(t *testing.T) {
-	openAPIConfig = &OpenAPIConfig{EndpointEnabled: false}
+	openAPIConfig = &OpenAPI{EndpointEnabled: false}
 	cfg := &Config{
-		OpenAPI: &OpenAPIConfig{
+		OpenAPI: &OpenAPI{
 			EndpointEnabled: false,
 			Config:          &openapi.Config{},
 		},
@@ -212,10 +214,10 @@ func TestConfigureOpenAPI_DisabledEndpoint(t *testing.T) {
 func TestConfigureOpenAPI_WithDefaultURL(t *testing.T) {
 	// Set up initial state - the function checks openAPIConfig.EndpointEnabled
 	// so we need to initialize it first
-	openAPIConfig = &OpenAPIConfig{EndpointEnabled: true}
+	openAPIConfig = &OpenAPI{EndpointEnabled: true}
 
 	cfg := &Config{
-		OpenAPI: &OpenAPIConfig{
+		OpenAPI: &OpenAPI{
 			EndpointEnabled: true,
 			Config: &openapi.Config{
 				Info: &openapi.Info{
@@ -241,10 +243,10 @@ func TestConfigureOpenAPI_WithDefaultURL(t *testing.T) {
 }
 
 func TestConfigureOpenAPI_WithCustomURL(t *testing.T) {
-	openAPIConfig = &OpenAPIConfig{EndpointEnabled: true}
+	openAPIConfig = &OpenAPI{EndpointEnabled: true}
 
 	cfg := &Config{
-		OpenAPI: &OpenAPIConfig{
+		OpenAPI: &OpenAPI{
 			EndpointEnabled: true,
 			URLPath:         "/api/spec.json",
 			Config:          &openapi.Config{},
@@ -259,10 +261,10 @@ func TestConfigureOpenAPI_WithCustomURL(t *testing.T) {
 }
 
 func TestConfigureOpenAPI_URLWithExistingGETPrefix(t *testing.T) {
-	openAPIConfig = &OpenAPIConfig{EndpointEnabled: true}
+	openAPIConfig = &OpenAPI{EndpointEnabled: true}
 
 	cfg := &Config{
-		OpenAPI: &OpenAPIConfig{
+		OpenAPI: &OpenAPI{
 			EndpointEnabled: true,
 			URLPath:         "GET /custom.json",
 			Config:          &openapi.Config{},
@@ -292,7 +294,9 @@ func TestConfigureTemplate_NilTemplateConfig(t *testing.T) {
 
 func TestConfigureTemplate_NilFS(t *testing.T) {
 	cfg := &Config{
-		Templates: &TemplateConfig{},
+		Assets: &Assets{
+			Templates: &Templates{},
+		},
 	}
 	configureTemplate(cfg)
 	// Should not panic
@@ -300,8 +304,11 @@ func TestConfigureTemplate_NilFS(t *testing.T) {
 
 func TestConfigureTemplate_WithDefaults(t *testing.T) {
 	cfg := &Config{
-		Templates: &TemplateConfig{
+		Assets: &Assets{
 			FS: testTemplatesFS2,
+			Templates: &Templates{
+				Dir: "testdata/templates",
+			},
 		},
 	}
 	configureTemplate(cfg)
@@ -310,16 +317,44 @@ func TestConfigureTemplate_WithDefaults(t *testing.T) {
 
 func TestConfigureTemplate_WithCustomValues(t *testing.T) {
 	cfg := &Config{
-		Templates: &TemplateConfig{
-			FS:                    testTemplatesFS2,
-			TemplatesPath:         "custom/path",
-			LayoutBaseName:        "customLayout",
-			HTMLTemplateExtension: ".html",
-			TextTemplateExtension: ".txt",
+		Assets: &Assets{
+			FS: testTemplatesFS2,
+			Templates: &Templates{
+				Dir:                   "testdata/templates",
+				LayoutBaseName:        "customLayout",
+				HTMLTemplateExtension: ".html",
+				TextTemplateExtension: ".txt",
+			},
 		},
 	}
 	configureTemplate(cfg)
 	// Should accept custom values without panicking
+}
+
+func TestConfigureTemplate_NonExistentDirectory(t *testing.T) {
+	cfg := &Config{
+		Assets: &Assets{
+			FS: testTemplatesFS2,
+			Templates: &Templates{
+				Dir: "nonexistent/path",
+			},
+		},
+	}
+	// Should not panic, just return early when directory doesn't exist
+	configureTemplate(cfg)
+}
+
+func TestConfigureTemplate_DirectoryIsFile(t *testing.T) {
+	cfg := &Config{
+		Assets: &Assets{
+			FS: testTemplatesFS2,
+			Templates: &Templates{
+				Dir: "testdata/locales/messages.en.json", // This is a file, not a directory
+			},
+		},
+	}
+	// Should not panic, just return early when path is not a directory
+	configureTemplate(cfg)
 }
 
 // =============================================================================
@@ -339,7 +374,9 @@ func TestConfigureI18n_NilI18nConfig(t *testing.T) {
 
 func TestConfigureI18n_NilFS(t *testing.T) {
 	cfg := &Config{
-		I18n: &I18nConfig{},
+		Assets: &Assets{
+			I18nMessages: &I18nMessages{},
+		},
 	}
 	configureI18n(cfg)
 	// Should not panic
@@ -347,12 +384,41 @@ func TestConfigureI18n_NilFS(t *testing.T) {
 
 func TestConfigureI18n_WithFS(t *testing.T) {
 	cfg := &Config{
-		I18n: &I18nConfig{
+		Assets: &Assets{
 			FS: testI18nFS2,
+			I18nMessages: &I18nMessages{
+				Dir: "testdata/locales",
+			},
 		},
 	}
 	configureI18n(cfg)
 	// Should configure without panicking
+}
+
+func TestConfigureI18n_NonExistentDirectory(t *testing.T) {
+	cfg := &Config{
+		Assets: &Assets{
+			FS: testI18nFS2,
+			I18nMessages: &I18nMessages{
+				Dir: "nonexistent/path",
+			},
+		},
+	}
+	// Should not panic, just return early when directory doesn't exist
+	configureI18n(cfg)
+}
+
+func TestConfigureI18n_WithCustomDirectory(t *testing.T) {
+	cfg := &Config{
+		Assets: &Assets{
+			FS: testI18nFS2,
+			I18nMessages: &I18nMessages{
+				Dir: "testdata/locales",
+			},
+		},
+	}
+	configureI18n(cfg)
+	// Should configure with custom directory without panicking
 }
 
 // =============================================================================
@@ -850,7 +916,10 @@ func TestValidationErrors_JSONMarshaling(t *testing.T) {
 func TestBindJSON_Success(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	body := `{"name":"John Doe","email":"john@example.com","age":30}`
@@ -884,7 +953,10 @@ func TestBindJSON_Success(t *testing.T) {
 func TestBindJSON_WithValidation_Valid(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	body := `{"name":"John","email":"john@example.com","age":25}`
@@ -910,7 +982,10 @@ func TestBindJSON_WithValidation_Valid(t *testing.T) {
 func TestBindJSON_WithValidation_Invalid(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	body := `{"name":"J","email":"invalid","age":-5}`
@@ -936,7 +1011,10 @@ func TestBindJSON_WithValidation_Invalid(t *testing.T) {
 func TestBindJSON_MalformedJSON(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	body := `{invalid json}`
@@ -954,7 +1032,10 @@ func TestBindJSON_MalformedJSON(t *testing.T) {
 func TestBindJSON_EmptyBody(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(""))
@@ -975,7 +1056,10 @@ func TestBindJSON_EmptyBody(t *testing.T) {
 func TestBindXML_Success(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	body := `<testUser><name>John Doe</name><email>john@example.com</email><age>30</age></testUser>`
@@ -1001,7 +1085,10 @@ func TestBindXML_Success(t *testing.T) {
 func TestBindXML_WithValidation_Valid(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	body := `<testUser><name>John</name><email>john@example.com</email><age>25</age></testUser>`
@@ -1027,7 +1114,10 @@ func TestBindXML_WithValidation_Valid(t *testing.T) {
 func TestBindXML_WithValidation_Invalid(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	body := `<testUser><name>J</name><email>invalid</email><age>200</age></testUser>`
@@ -1049,7 +1139,10 @@ func TestBindXML_WithValidation_Invalid(t *testing.T) {
 func TestBindXML_MalformedXML(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	body := `<invalid><unclosed>`
@@ -1071,7 +1164,10 @@ func TestBindXML_MalformedXML(t *testing.T) {
 func TestBindForm_Success(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	body := "name=John+Doe&email=john%40example.com&age=30"
@@ -1101,7 +1197,10 @@ func TestBindForm_Success(t *testing.T) {
 func TestPatchJSON_Success(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	target := testUser{
@@ -1137,7 +1236,10 @@ func TestPatchJSON_Success(t *testing.T) {
 func TestPatchJSON_WithValidation_Valid(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	target := testUser{
@@ -1169,7 +1271,10 @@ func TestPatchJSON_WithValidation_Valid(t *testing.T) {
 func TestPatchJSON_WithValidation_Invalid(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	target := testUser{
@@ -1197,7 +1302,10 @@ func TestPatchJSON_WithValidation_Invalid(t *testing.T) {
 func TestPatchJSON_MethodNotAllowed(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	target := testUser{}
@@ -1223,7 +1331,10 @@ func TestPatchJSON_MethodNotAllowed(t *testing.T) {
 func TestPatchJSON_InvalidContentType(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	target := testUser{}
@@ -1247,7 +1358,10 @@ func TestPatchJSON_InvalidContentType(t *testing.T) {
 func TestPatchJSON_InvalidPatchFormat(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	target := testUser{}
@@ -1267,7 +1381,10 @@ func TestPatchJSON_InvalidPatchFormat(t *testing.T) {
 func TestPatchJSON_MultipleOperations(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	target := testUser{
@@ -1310,7 +1427,10 @@ func TestPatchJSON_MultipleOperations(t *testing.T) {
 func TestGetI18nPrinter_English(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	printer := GetI18nPrinter(language.English)
@@ -1328,7 +1448,10 @@ func TestGetI18nPrinter_English(t *testing.T) {
 func TestGetI18nPrinter_MultipleLanguages(t *testing.T) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	languages := []language.Tag{
@@ -1458,7 +1581,7 @@ func TestConstants(t *testing.T) {
 		{"defaultLayoutBaseName", defaultLayoutBaseName, "layout"},
 		{"defaultHTMLTemplateExtension", defaultHTMLTemplateExtension, ".go.html"},
 		{"defaultTextTemplateExtension", defaultTextTemplateExtension, ".go.txt"},
-		{"defaultI18nPath", defaultI18nPath, "i18n"},
+		{"defaultI18nMessagesDir", defaultI18nMessagesDir, "i18n"},
 		{"defaultI18nFuncName", defaultI18nFuncName, "T"},
 	}
 
@@ -1483,6 +1606,36 @@ func TestErrMethodNotAllowed(t *testing.T) {
 }
 
 // =============================================================================
+// Helper Function Tests
+// =============================================================================
+
+func TestGetValueOrDefault_WithZeroValue(t *testing.T) {
+	result := getValueOrDefault("", "default")
+	if result != "default" {
+		t.Errorf("Expected 'default', got %q", result)
+	}
+}
+
+func TestGetValueOrDefault_WithProvidedValue(t *testing.T) {
+	result := getValueOrDefault("custom", "default")
+	if result != "custom" {
+		t.Errorf("Expected 'custom', got %q", result)
+	}
+}
+
+func TestGetValueOrDefault_IntType(t *testing.T) {
+	result := getValueOrDefault(0, 42)
+	if result != 42 {
+		t.Errorf("Expected 42, got %d", result)
+	}
+
+	result = getValueOrDefault(10, 42)
+	if result != 10 {
+		t.Errorf("Expected 10, got %d", result)
+	}
+}
+
+// =============================================================================
 // Benchmark Tests
 // =============================================================================
 
@@ -1490,7 +1643,10 @@ func BenchmarkConfigure(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		resetAppConfig()
 		Configure(&Config{
-			I18n: &I18nConfig{FS: testI18nFS2},
+			Assets: &Assets{
+				FS:           testI18nFS2,
+				I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+			},
 		})
 	}
 }
@@ -1498,7 +1654,10 @@ func BenchmarkConfigure(b *testing.B) {
 func BenchmarkBindJSON(b *testing.B) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	body := `{"name":"John Doe","email":"john@example.com","age":30}`
@@ -1516,7 +1675,10 @@ func BenchmarkBindJSON(b *testing.B) {
 func BenchmarkBindJSON_WithValidation(b *testing.B) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	body := `{"name":"John Doe","email":"john@example.com","age":30}`
@@ -1534,7 +1696,10 @@ func BenchmarkBindJSON_WithValidation(b *testing.B) {
 func BenchmarkPatchJSON(b *testing.B) {
 	resetAppConfig()
 	Configure(&Config{
-		I18n: &I18nConfig{FS: testI18nFS2},
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
 	})
 
 	patch := `[{"op":"replace","path":"/name","value":"New Name"}]`

@@ -136,7 +136,7 @@ func (w *ResponseWriter) HTMLString(s string, data any) error {
 func (w *ResponseWriter) HTML(path string, data any) error {
 	tmplConfig, ok := template.Configuration()
 	if !ok {
-		return fmt.Errorf("template configuration not set")
+		return fmt.Errorf("templates not configured")
 	}
 
 	w.Header().Set("Content-Type", "text/html")
@@ -167,7 +167,7 @@ func (w *ResponseWriter) TextString(s string, data any) error {
 func (w *ResponseWriter) Text(path string, data any) error {
 	tmplConfig, ok := template.Configuration()
 	if !ok {
-		return fmt.Errorf("template configuration not set")
+		return fmt.Errorf("templates not configured")
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
@@ -230,7 +230,7 @@ func (rw *ResponseWriter) Redirect(req *Request, urlStr string, code int) {
 func (rw *ResponseWriter) ServeFile(req *Request, name string, inline bool) {
 	tmplConfig, ok := template.Configuration()
 	if !ok {
-		http.Error(rw.ResponseWriter, "template configuration not set", http.StatusInternalServerError)
+		http.Error(rw.ResponseWriter, "templates not configured", http.StatusInternalServerError)
 		return
 	}
 
