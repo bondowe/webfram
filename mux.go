@@ -126,7 +126,7 @@ type (
 	}
 	Link struct {
 		OperationRef string
-		OperationId  string
+		OperationID  string
 		Parameters   map[string]any
 		RequestBody  any
 		Description  string
@@ -221,7 +221,7 @@ func mapLinks(links map[string]Link) map[string]openapi.LinkOrRef {
 		output[k] = openapi.LinkOrRef{
 			Link: &openapi.Link{
 				OperationRef: v.OperationRef,
-				OperationId:  v.OperationId,
+				OperationId:  v.OperationID,
 				Parameters:   v.Parameters,
 				RequestBody:  v.RequestBody,
 				Description:  v.Description,
@@ -267,10 +267,10 @@ func mapHeaders(header map[string]Header) map[string]openapi.HeaderOrRef {
 			content = make(map[string]openapi.MediaTypeOrRef)
 			for mediaType, model := range v.Content {
 				for _, mt := range strings.Split(mediaType, ",") {
-					schemaOrRef := bind.GenerateJSONSchema(model, openAPIConfig.Config.Components)
+					schema := bind.GenerateJSONSchema(model, openAPIConfig.Config.Components)
 					content[mt] = openapi.MediaTypeOrRef{
 						MediaType: &openapi.MediaType{
-							Schema: schemaOrRef,
+							Schema: schema,
 						},
 					}
 				}
@@ -315,10 +315,9 @@ func mapParameters(params []Parameter) []openapi.ParameterOrRef {
 			content = make(map[string]openapi.MediaType)
 			for mediaType, model := range param.Content {
 				for _, mt := range strings.Split(mediaType, ",") {
-
-					schemaOrRef := bind.GenerateJSONSchema(model, openAPIConfig.Config.Components)
+					schema := bind.GenerateJSONSchema(model, openAPIConfig.Config.Components)
 					content[mt] = openapi.MediaType{
-						Schema: schemaOrRef,
+						Schema: schema,
 					}
 				}
 			}
@@ -597,7 +596,7 @@ func (m *ServeMux) Use(mw interface{}) {
 		return
 	}
 
-	switch v := any(mw).(type) {
+	switch v := mw.(type) {
 	case AppMiddleware:
 		m.middlewares = append(m.middlewares, v)
 	case StandardMiddleware:

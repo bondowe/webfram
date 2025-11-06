@@ -11,8 +11,32 @@ import (
 	"github.com/google/uuid"
 )
 
-func GenerateJSONSchema(t any, components *openapi.Components) *openapi.SchemaOrRef {
+const dateTimeFormat = "date-time"
 
+// registerStructSchema adds a struct type to components if not already registered
+func registerStructSchema(typName string, typ reflect.Type, components *openapi.Components) {
+	if _, ok := components.Schemas[typName]; ok {
+		return
+	}
+
+	structSchema := &openapi.Schema{
+		Type:       "object",
+		Title:      typName,
+		Properties: make(map[string]openapi.SchemaOrRef),
+		Required:   []string{},
+	}
+
+	// Add to components first to handle circular references
+	components.Schemas[typName] = *structSchema
+
+	// Generate properties
+	generateSchemaForStruct(typ, structSchema, components)
+
+	// Update the schema in components with generated properties
+	components.Schemas[typName] = *structSchema
+}
+
+func GenerateJSONSchema(t any, components *openapi.Components) *openapi.SchemaOrRef {
 	typ := reflect.TypeOf(t)
 	if typ.Kind() == reflect.Ptr {
 		typ = typ.Elem()
@@ -133,25 +157,7 @@ func generateSchemaForField(field reflect.StructField, components *openapi.Compo
 			components.Schemas = make(map[string]openapi.Schema)
 		}
 
-		// Check if schema already exists in components
-		if _, ok := components.Schemas[typName]; !ok {
-			// Create the schema for the nested struct
-			structSchema := &openapi.Schema{
-				Type:       "object",
-				Title:      typName,
-				Properties: make(map[string]openapi.SchemaOrRef),
-				Required:   []string{},
-			}
-
-			// Add to components first to handle circular references
-			components.Schemas[typName] = *structSchema
-
-			// Generate properties
-			generateSchemaForStruct(fieldType, structSchema, components)
-
-			// Update the schema in components with generated properties
-			components.Schemas[typName] = *structSchema
-		}
+		registerStructSchema(typName, fieldType, components)
 
 		// Return a reference to the component schema
 		return &openapi.SchemaOrRef{
@@ -233,25 +239,7 @@ func generateSchemaForSliceElement(field reflect.StructField, components *openap
 			components.Schemas = make(map[string]openapi.Schema)
 		}
 
-		// Check if schema already exists in components
-		if _, ok := components.Schemas[typName]; !ok {
-			// Create the schema for the nested struct
-			structSchema := &openapi.Schema{
-				Type:       "object",
-				Title:      typName,
-				Properties: make(map[string]openapi.SchemaOrRef),
-				Required:   []string{},
-			}
-
-			// Add to components first to handle circular references
-			components.Schemas[typName] = *structSchema
-
-			// Generate properties
-			generateSchemaForStruct(elemType, structSchema, components)
-
-			// Update the schema in components with generated properties
-			components.Schemas[typName] = *structSchema
-		}
+		registerStructSchema(typName, elemType, components)
 
 		// Return a reference to the component schema
 		return &openapi.SchemaOrRef{
@@ -318,20 +306,20 @@ func getNumberFormat(field reflect.StructField) string {
 func getTimeFormat(field reflect.StructField) string {
 	format := field.Tag.Get("format")
 	if format == "" {
-		return "date-time" // RFC3339 is the default, which is JSON Schema date-time format
+		return dateTimeFormat // RFC3339 is the default, which is JSON Schema date-time format
 	}
 
 	// Map common Go formats to JSON Schema formats
 	switch format {
 	case time.RFC3339, time.RFC3339Nano:
-		return "date-time"
+		return dateTimeFormat
 	case "2006-01-02":
 		return "date"
 	case "15:04:05":
 		return "time"
 	default:
 		// For custom formats, we could use pattern, but JSON Schema format is better
-		return "date-time"
+		return dateTimeFormat
 	}
 }
 

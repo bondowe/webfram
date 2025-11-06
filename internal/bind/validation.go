@@ -13,37 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-/*
-type Address struct {
-    Street string `form:"street" validate:"required" errmsg:"required=Street is required"`
-    City   string `form:"city" validate:"required" errmsg:"required=City is required"`
-    Zip    int    `form:"zip" validate:"min=10000,max=99999" errmsg:"min=Zip must be at least 10000,max=Zip must be at most 99999"`
-}
-
-type User struct {
-    Name  string `form:"name" validate:"required,minlength=3" errmsg:"required=Name is required;minlength=Name must be at least 3 characters"`
-    Role  string `form:"role" validate:"enum=admin|user|guest" errmsg:"enum=Role must be one of admin, user, or guest"`
-    Birthdate time.Time `form:"birthdate" validate:"required,format=2006-01-02" errmsg:"required=Birthdate is required"`
-    Email string `form:"email" validate:"format=email" errmsg:"format=Please enter a valid email address"`
-    Hobbies []string `form:"hobbies" validate:"minItems=1,maxItems=5,emptyItemsAllowed,uniqueItems" errmsg:"minItems=At least one hobby is required;maxItems=At most 5 hobbies are allowed"`
-    Address Address `form:"address" validate:"required" errmsg:"required=Address is required"`
-}
-Tag        							Applies to        		Description
-required   							all types 				Field must be present and non-empty
-emptyItemsAllowed  					slices      			Field may contain empty items in the slice
-min=10      						integers, floats   		Field value must be at least 10 (inclusive).
-max=100      						integers, floats   		Field value must be at most 100 (inclusive).
-multipleOf=5      					integers, floats   		Field value must be a multiple of 5.
-minlength=3 						string     				Field length must be at least 3 characters.
-maxlength=10 						string     				Field length must be at most 10 characters.
-minItems=2 							slices, maps       		Field must contain at least 2 items.
-maxItems=5 							slices, maps       		Field must contain at most 5 items.
-uniqueItems 						slices       			All items in the slice must be unique.
-pattern=^\\d+\\.\\w{2}\\.\\w{2}$ 	string         			Field value must match the regular expression PATTERN (e.g. ^\\w+@\\w+\\.com$).
-enum=val1|val2|val3 				string, int, floats 	Field value must be one of the specified values (e.g. enum=val1|val2|val3).
-format=2006-01-02 					time.Time, string      	Specifies the time layout for parsing time (for form binding only, default is RFC3339) or format of strings (i.e. email).
-*/
-
 type ValidationError struct {
 	XMLName xml.Name `json:"-" xml:"validationError" form:"-"`
 	Field   string   `json:"field" xml:"field" form:"field"`
