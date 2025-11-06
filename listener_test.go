@@ -24,15 +24,15 @@ func TestNewServerConfig(t *testing.T) {
 
 	// Test default values
 	tests := []struct {
-		name     string
 		got      interface{}
 		expected interface{}
+		name     string
 	}{
-		{"ReadTimeout", cfg.ReadTimeout, 15 * time.Second},
-		{"ReadHeaderTimeout", cfg.ReadHeaderTimeout, 15 * time.Second},
-		{"WriteTimeout", cfg.WriteTimeout, 15 * time.Second},
-		{"IdleTimeout", cfg.IdleTimeout, 60 * time.Second},
-		{"MaxHeaderBytes", cfg.MaxHeaderBytes, http.DefaultMaxHeaderBytes},
+		{name: "ReadTimeout", got: cfg.ReadTimeout, expected: 15 * time.Second},
+		{name: "ReadHeaderTimeout", got: cfg.ReadHeaderTimeout, expected: 15 * time.Second},
+		{name: "WriteTimeout", got: cfg.WriteTimeout, expected: 15 * time.Second},
+		{name: "IdleTimeout", got: cfg.IdleTimeout, expected: 60 * time.Second},
+		{name: "MaxHeaderBytes", got: cfg.MaxHeaderBytes, expected: http.DefaultMaxHeaderBytes},
 	}
 
 	for _, tt := range tests {
@@ -46,10 +46,10 @@ func TestNewServerConfig(t *testing.T) {
 
 func TestGetValueOrDefault(t *testing.T) {
 	tests := []struct {
-		name         string
 		value        interface{}
 		defaultValue interface{}
 		expected     interface{}
+		name         string
 	}{
 		{
 			name:         "int zero value",

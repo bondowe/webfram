@@ -14,20 +14,20 @@ import (
 )
 
 type ServerConfig struct {
-	DisableGeneralOptionsHandler bool
-	TLSConfig                    *tls.Config
-	ReadTimeout                  time.Duration
-	ReadHeaderTimeout            time.Duration
-	WriteTimeout                 time.Duration
-	IdleTimeout                  time.Duration
-	MaxHeaderBytes               int
-	TLSNextProto                 map[string]func(*http.Server, *tls.Conn, http.Handler)
 	ConnState                    func(net.Conn, http.ConnState)
-	ErrorLog                     *log.Logger
-	BaseContext                  func(net.Listener) context.Context
-	ConnContext                  func(ctx context.Context, c net.Conn) context.Context
-	HTTP2                        *http.HTTP2Config
+	TLSConfig                    *tls.Config
 	Protocols                    *http.Protocols
+	HTTP2                        *http.HTTP2Config
+	ConnContext                  func(ctx context.Context, c net.Conn) context.Context
+	BaseContext                  func(net.Listener) context.Context
+	ErrorLog                     *log.Logger
+	TLSNextProto                 map[string]func(*http.Server, *tls.Conn, http.Handler)
+	ReadHeaderTimeout            time.Duration
+	MaxHeaderBytes               int
+	IdleTimeout                  time.Duration
+	WriteTimeout                 time.Duration
+	ReadTimeout                  time.Duration
+	DisableGeneralOptionsHandler bool
 }
 
 func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {

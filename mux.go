@@ -19,9 +19,8 @@ type (
 		*http.Request
 	}
 	ServeMux struct {
-		http.ServeMux
-
 		middlewares []AppMiddleware
+		http.ServeMux
 	}
 	Handler interface {
 		ServeHTTP(ResponseWriter, *Request)
@@ -46,83 +45,83 @@ type (
 		Parameters []Parameter
 	}
 	Parameter struct {
-		Name             string
-		In               string
-		Description      string
-		Required         bool
-		Deprecated       bool
-		Style            string
-		Explode          *bool
-		AllowReserved    bool
-		TypeHint         any
-		Content          map[string]any
-		Const            any
+		Example          any
 		Default          any
-		Nullable         bool
-		Enum             []any
+		Const            any
+		TypeHint         any
+		Explode          *bool
+		Examples         map[string]Example
+		Content          map[string]any
+		Style            string
 		Format           string
-		MaxLength        int
-		MinLength        int
+		Name             string
+		Description      string
+		In               string
 		Pattern          string
+		Enum             []any
+		Minimum          float64
+		MinItems         int
+		MinLength        int
+		MaxLength        int
 		ExclusiveMaximum float64
 		ExclusiveMinimum float64
 		Maximum          float64
-		Minimum          float64
-		MultipleOf       float64
 		MaxItems         int
-		MinItems         int
+		MultipleOf       float64
+		AllowReserved    bool
+		Nullable         bool
 		UniqueItems      bool
-		Example          any
-		Examples         map[string]Example
+		Deprecated       bool
+		Required         bool
 	}
 	TypeInfo struct {
 		TypeHint any
 		Examples map[string]Example
 	}
 	Example struct {
-		Summary         string
-		Description     string
 		DataValue       any
 		DefaultValue    any
 		SerializedValue any
-		ExternalValue   string
 		Server          *Server
+		Summary         string
+		Description     string
+		ExternalValue   string
 	}
 	Server struct {
+		Variables   map[string]ServerVariable
 		URL         string
 		Name        string
 		Description string
-		Variables   map[string]ServerVariable
 	}
 	ServerVariable struct {
-		Enum        []string
 		Default     string
 		Description string
+		Enum        []string
 	}
 	RequestBody struct {
-		Description string
-		Required    bool
 		Content     map[string]TypeInfo
 		Example     *Example
 		Examples    map[string]Example
+		Description string
+		Required    bool
 	}
 	Response struct {
-		Summary     string
-		Description string
 		Headers     map[string]Header
 		Content     map[string]TypeInfo
 		Links       map[string]Link
+		Summary     string
+		Description string
 	}
 	Header struct {
+		Example     any
+		TypeHint    any
+		Examples    map[string]Example
+		Explode     *bool
+		Content     map[string]TypeInfo
 		Description string
+		Style       string
 		Required    bool
 		Deprecated  bool
-		Example     any
-		Examples    map[string]Example
-		Style       string
-		Explode     *bool
-		TypeHint    any
-		Content     map[string]TypeInfo
 	}
 	Link struct {
 		OperationRef string
@@ -132,8 +131,8 @@ type (
 		Description  string
 	}
 	handlerConfig struct {
-		pathPattern string
 		APIConfig   *APIConfig
+		pathPattern string
 	}
 )
 
@@ -328,7 +327,6 @@ func mapParameters(params []Parameter) []openapi.ParameterOrRef {
 			schemaOrRef = bind.GenerateJSONSchema(param.TypeHint, openAPIConfig.Config.Components)
 
 			if schemaOrRef.Ref == "" && schemaOrRef.Schema != nil {
-
 				schema := schemaOrRef.Schema
 				schema.Const = param.Const
 				schema.Default = param.Default
@@ -588,7 +586,10 @@ func NewServeMux() *ServeMux {
 		Configure(nil)
 	}
 
-	return &ServeMux{http.ServeMux{}, nil}
+	return &ServeMux{
+		middlewares: nil,
+		ServeMux:    http.ServeMux{},
+	}
 }
 
 func (m *ServeMux) Use(mw interface{}) {
@@ -660,7 +661,10 @@ func (hf HandlerFunc) ServeHTTP(w ResponseWriter, r *Request) {
 		matched := jsonpCallbackNamePattern.MatchString(jsonpCallbackMethodName)
 		if !matched {
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(fmt.Errorf("invalid JSONP callback method name: %q. Must start with a letter or underscore and only contain alphanumeric characters and underscores", jsonpCallbackMethodName).Error()))
+			_, _ = w.Write([]byte(fmt.Errorf(
+				"invalid JSONP callback method name: %q. "+
+					"Must start with a letter or underscore and only contain alphanumeric characters and underscores",
+				jsonpCallbackMethodName).Error()))
 			return
 		}
 		ctx = context.WithValue(ctx, jsonpCallbackMethodNameKey, jsonpCallbackMethodName)

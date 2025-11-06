@@ -22,8 +22,8 @@ type Placeholder struct {
 	String         string `json:"string"`
 	Type           string `json:"type"`
 	UnderlyingType string `json:"underlyingType"`
-	ArgNum         int    `json:"argNum"`
 	Expr           string `json:"expr"`
+	ArgNum         int    `json:"argNum"`
 }
 
 // Message represents a translation message in gotext format with plural support

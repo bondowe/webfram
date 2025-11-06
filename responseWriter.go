@@ -57,7 +57,6 @@ func (w *ResponseWriter) Flush() {
 }
 
 func (w *ResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-
 	if hj, ok := w.ResponseWriter.(http.Hijacker); ok {
 		return hj.Hijack()
 	}
@@ -66,7 +65,6 @@ func (w *ResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 }
 
 func (w *ResponseWriter) Push(target string, opts *http.PushOptions) error {
-
 	if pusher, ok := w.ResponseWriter.(http.Pusher); ok {
 		return pusher.Push(target, opts)
 	}
@@ -75,7 +73,6 @@ func (w *ResponseWriter) Push(target string, opts *http.PushOptions) error {
 }
 
 func (w *ResponseWriter) CloseNotify() <-chan bool {
-
 	if cn, ok := w.ResponseWriter.(http.CloseNotifier); ok {
 		return cn.CloseNotify()
 	}
@@ -84,7 +81,6 @@ func (w *ResponseWriter) CloseNotify() <-chan bool {
 }
 
 func (w *ResponseWriter) ReadFrom(r io.Reader) (n int64, err error) {
-
 	if rf, ok := w.ResponseWriter.(io.ReaderFrom); ok {
 		return rf.ReadFrom(r)
 	}
@@ -185,52 +181,52 @@ func (w *ResponseWriter) Text(path string, data any) error {
 	return fmt.Errorf("template not found in cache: %s", path)
 }
 
-func (rw *ResponseWriter) XML(v any) error {
-	rw.Header().Set("Content-Type", "application/xml")
+func (w *ResponseWriter) XML(v any) error {
+	w.Header().Set("Content-Type", "application/xml")
 
 	bs, err := xml.Marshal(v)
 	if err != nil {
 		return err
 	}
-	_, err = rw.Write(bs)
+	_, err = w.Write(bs)
 	return err
 }
 
-func (rw *ResponseWriter) YAML(v any) error {
-	rw.Header().Set("Content-Type", "text/x-yaml")
+func (w *ResponseWriter) YAML(v any) error {
+	w.Header().Set("Content-Type", "text/x-yaml")
 
 	data, err := yaml.Marshal(v)
 
 	if err != nil {
-		http.Error(rw.ResponseWriter, err.Error(), http.StatusInternalServerError)
+		http.Error(w.ResponseWriter, err.Error(), http.StatusInternalServerError)
 		return err
 	}
-	_, err = rw.Write(data)
+	_, err = w.Write(data)
 	return err
 }
 
-func (rw *ResponseWriter) Bytes(bs []byte, contentType string) error {
+func (w *ResponseWriter) Bytes(bs []byte, contentType string) error {
 	if contentType == "" {
 		contentType = http.DetectContentType(bs)
 	}
-	rw.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Type", contentType)
 
-	_, err := rw.Write(bs)
+	_, err := w.Write(bs)
 	return err
 }
 
-func (rw *ResponseWriter) NoContent() {
-	rw.WriteHeader(http.StatusNoContent)
+func (w *ResponseWriter) NoContent() {
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func (rw *ResponseWriter) Redirect(req *Request, urlStr string, code int) {
-	http.Redirect(rw.ResponseWriter, req.Request, urlStr, code)
+func (w *ResponseWriter) Redirect(req *Request, urlStr string, code int) {
+	http.Redirect(w.ResponseWriter, req.Request, urlStr, code)
 }
 
-func (rw *ResponseWriter) ServeFile(req *Request, name string, inline bool) {
+func (w *ResponseWriter) ServeFile(req *Request, name string, inline bool) {
 	tmplConfig, ok := template.Configuration()
 	if !ok {
-		http.Error(rw.ResponseWriter, "templates not configured", http.StatusInternalServerError)
+		http.Error(w.ResponseWriter, "templates not configured", http.StatusInternalServerError)
 		return
 	}
 
@@ -241,6 +237,6 @@ func (rw *ResponseWriter) ServeFile(req *Request, name string, inline bool) {
 		disposition = "attachment"
 	}
 
-	rw.Header().Set("Content-Disposition", disposition+"; filename=\""+filepath.Base(name)+"\"")
-	http.ServeFileFS(rw.ResponseWriter, req.Request, tmplConfig.FS, name)
+	w.Header().Set("Content-Disposition", disposition+"; filename=\""+filepath.Base(name)+"\"")
+	http.ServeFileFS(w.ResponseWriter, req.Request, tmplConfig.FS, name)
 }

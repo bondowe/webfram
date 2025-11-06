@@ -78,8 +78,8 @@ func TestFormBinding_SliceUniqueAndLengthValidation(t *testing.T) {
 
 func TestFormBinding_UUIDAndTime(t *testing.T) {
 	type T struct {
-		ID    uuid.UUID   `form:"id" validate:"required"`
 		Times []time.Time `form:"times" validate:"minItems=1"`
+		ID    uuid.UUID   `form:"id" validate:"required"`
 	}
 
 	values := url.Values{

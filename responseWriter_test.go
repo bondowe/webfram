@@ -218,8 +218,8 @@ func TestResponseWriter_JSON(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		data     TestData
 		expected string
+		data     TestData
 	}{
 		{
 			name:     "simple object",
@@ -364,9 +364,9 @@ func TestResponseWriter_YAML(t *testing.T) {
 func TestResponseWriter_Bytes(t *testing.T) {
 	tests := []struct {
 		name        string
-		data        []byte
 		contentType string
 		expected    string
+		data        []byte
 	}{
 		{
 			name:        "with explicit content type",
@@ -584,8 +584,8 @@ func TestResponseWriter_ServeFile(t *testing.T) {
 	tests := []struct {
 		name                string
 		filename            string
-		inline              bool
 		expectedDisposition string
+		inline              bool
 	}{
 		{
 			name:                "inline file",
@@ -655,8 +655,8 @@ func (m *mockHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 type mockPusher struct {
 	*httptest.ResponseRecorder
-	pushed bool
 	target string
+	pushed bool
 }
 
 func (m *mockPusher) Push(target string, opts *http.PushOptions) error {
@@ -804,11 +804,11 @@ func TestResponseWriter_HTML(t *testing.T) {
 	setupResponseWriterTests()
 
 	tests := []struct {
+		data        any
 		name        string
 		path        string
-		data        any
-		wantError   bool
 		wantContain string
+		wantError   bool
 	}{
 		{
 			name:        "valid template",
@@ -871,4 +871,3 @@ func TestResponseWriter_HTML_WithI18n(t *testing.T) {
 		t.Errorf("Expected Content-Type 'text/html', got %q", ct)
 	}
 }
-

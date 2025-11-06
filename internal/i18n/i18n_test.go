@@ -72,8 +72,8 @@ func TestGetI18nPrinter(t *testing.T) {
 	Configure(cfg)
 
 	tests := []struct {
-		name string
 		tag  language.Tag
+		name string
 	}{
 		{
 			name: "English",
@@ -145,8 +145,8 @@ func TestI18nPrinterFromContext(t *testing.T) {
 	Configure(cfg)
 
 	tests := []struct {
-		name         string
 		setupContext func() context.Context
+		name         string
 		expectFound  bool
 	}{
 		{
@@ -196,9 +196,9 @@ func TestI18nPrinterFromContext(t *testing.T) {
 
 func TestExtractLangTagFromFilename(t *testing.T) {
 	tests := []struct {
+		expected language.Tag
 		name     string
 		filepath string
-		expected language.Tag
 	}{
 		{
 			name:     "English",
@@ -502,11 +502,11 @@ func TestI18nPrinterTranslation(t *testing.T) {
 	Configure(cfg)
 
 	tests := []struct {
-		name     string
 		lang     language.Tag
+		name     string
 		message  string
-		args     []interface{}
 		contains string
+		args     []interface{}
 	}{
 		{
 			name:     "simple message",

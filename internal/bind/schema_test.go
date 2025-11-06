@@ -15,20 +15,20 @@ type Address struct {
 }
 
 type Person struct {
-	Name       string    `json:"name" validate:"required,minlength=2,maxlength=50,regexp=^[A-Za-z]+$,enum=John|Jane"`
-	Age        int       `json:"age" validate:"min=0,max=120"`
-	Score      float64   `json:"score" validate:"min=0.0,max=100.0"`
-	Active     bool      `json:"active"`
 	CreatedAt  time.Time `json:"created_at" format:"2006-01-02"`
-	ID         uuid.UUID `json:"id"`
-	Addr       Address   `json:"address"`
-	PtrField   *string   `json:"ptr_field,omitempty" validate:"minlength=1"`
-	Tags       []string  `json:"tags" validate:"minItems=1,maxItems=5,uniqueItems"`
-	Ignored    string    `json:"-"`
 	NestedPtr  *Address  `json:"nested_ptr,omitempty"`
+	PtrField   *string   `json:"ptr_field,omitempty" validate:"minlength=1"`
+	Name       string    `json:"name" validate:"required,minlength=2,maxlength=50,regexp=^[A-Za-z]+$,enum=John|Jane"`
+	Ignored    string    `json:"-"`
+	Addr       Address   `json:"address"`
+	Tags       []string  `json:"tags" validate:"minItems=1,maxItems=5,uniqueItems"`
 	IntSlice   []int     `json:"ints"`
 	FloatSlice []float64 `json:"floats"`
 	BoolSlice  []bool    `json:"bools"`
+	Score      float64   `json:"score" validate:"min=0.0,max=100.0"`
+	Age        int       `json:"age" validate:"min=0,max=120"`
+	ID         uuid.UUID `json:"id"`
+	Active     bool      `json:"active"`
 }
 
 func TestGenerateJSONSchema_Struct(t *testing.T) {
@@ -155,19 +155,22 @@ func TestGenerateJSONSchema_Struct(t *testing.T) {
 	if intsSchemaOrRef.Schema == nil || intsSchemaOrRef.Schema.Type != "array" {
 		t.Fatalf("expected ints to be an array")
 	}
-	if intsSchemaOrRef.Schema.Items == nil || intsSchemaOrRef.Schema.Items.Schema == nil || intsSchemaOrRef.Schema.Items.Schema.Type != "integer" {
+	if intsSchemaOrRef.Schema.Items == nil || intsSchemaOrRef.Schema.Items.Schema == nil ||
+		intsSchemaOrRef.Schema.Items.Schema.Type != "integer" {
 		t.Fatalf("expected ints items type integer")
 	}
 
 	// Floats slice item type number
 	floatsSchemaOrRef := props["floats"]
-	if floatsSchemaOrRef.Schema == nil || floatsSchemaOrRef.Schema.Items == nil || floatsSchemaOrRef.Schema.Items.Schema == nil || floatsSchemaOrRef.Schema.Items.Schema.Type != "number" {
+	if floatsSchemaOrRef.Schema == nil || floatsSchemaOrRef.Schema.Items == nil ||
+		floatsSchemaOrRef.Schema.Items.Schema == nil || floatsSchemaOrRef.Schema.Items.Schema.Type != "number" {
 		t.Fatalf("expected floats items type number")
 	}
 
 	// Bools slice item type boolean
 	boolsSchemaOrRef := props["bools"]
-	if boolsSchemaOrRef.Schema == nil || boolsSchemaOrRef.Schema.Items == nil || boolsSchemaOrRef.Schema.Items.Schema == nil || boolsSchemaOrRef.Schema.Items.Schema.Type != "boolean" {
+	if boolsSchemaOrRef.Schema == nil || boolsSchemaOrRef.Schema.Items == nil ||
+		boolsSchemaOrRef.Schema.Items.Schema == nil || boolsSchemaOrRef.Schema.Items.Schema.Type != "boolean" {
 		t.Fatalf("expected bools items type boolean")
 	}
 }

@@ -28,10 +28,10 @@ type (
 	StandardMiddleware = Middleware[http.Handler]
 
 	SSEPayload struct {
-		Id       string
+		Data     any
+		ID       string
 		Event    string
 		Comments []string
-		Data     any
 		Retry    time.Duration
 	}
 	SSEPayloadFunc    func() SSEPayload
@@ -51,12 +51,12 @@ type (
 	}
 
 	sseHandler struct {
-		interval       time.Duration
 		headers        map[string]string
 		payloadFunc    SSEPayloadFunc
 		disconnectFunc SSEDisconnectFunc
 		errorFunc      SSEErrorFunc
 		writerFactory  func(http.ResponseWriter) sseWriter
+		interval       time.Duration
 	}
 
 	ValidationError struct {
@@ -88,16 +88,16 @@ type (
 	}
 
 	OpenAPI struct {
-		EndpointEnabled bool
-		URLPath         string
 		Config          *openapi.Config
+		URLPath         string
+		EndpointEnabled bool
 	}
 
 	Config struct {
 		I18nMessages           *I18nMessages
-		JSONPCallbackParamName string
 		Assets                 *Assets
 		OpenAPI                *OpenAPI
+		JSONPCallbackParamName string
 	}
 )
 
@@ -188,8 +188,8 @@ func (m *sseHandler) ServeHTTP(w ResponseWriter, r *Request) {
 		case <-t.C:
 			payload := m.payloadFunc()
 
-			if payload.Id != "" {
-				_, err := fmt.Fprintf(sseW, "id: %s\n", payload.Id)
+			if payload.ID != "" {
+				_, err := fmt.Fprintf(sseW, "id: %s\n", payload.ID)
 				if err != nil {
 					m.errorFunc(err)
 					return
@@ -368,7 +368,10 @@ func Configure(cfg *Config) {
 		if cfg.JSONPCallbackParamName != "" {
 			matched := jsonpCallbackNamePattern.MatchString(cfg.JSONPCallbackParamName)
 			if !matched {
-				panic(fmt.Errorf("invalid JSONP callback param name: %q. Must start with a letter or underscore and only contain alphanumeric characters and underscores", cfg.JSONPCallbackParamName))
+				panic(fmt.Errorf(
+					"invalid JSONP callback param name: %q. "+
+						"Must start with a letter or underscore and only contain alphanumeric characters and underscores",
+					cfg.JSONPCallbackParamName))
 			}
 		}
 		jsonpCallbackParamName = cfg.JSONPCallbackParamName
@@ -389,7 +392,13 @@ func Use[H AppMiddleware | StandardMiddleware](mw H) {
 	}
 }
 
-func SSE(payloadFunc SSEPayloadFunc, disconnectFunc SSEDisconnectFunc, errorFunc SSEErrorFunc, interval time.Duration, headers map[string]string) *sseHandler {
+func SSE(
+	payloadFunc SSEPayloadFunc,
+	disconnectFunc SSEDisconnectFunc,
+	errorFunc SSEErrorFunc,
+	interval time.Duration,
+	headers map[string]string,
+) *sseHandler {
 	h := &sseHandler{
 		interval:       interval,
 		payloadFunc:    payloadFunc,

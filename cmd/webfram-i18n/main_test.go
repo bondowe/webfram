@@ -105,9 +105,9 @@ func TestMergeTranslations(t *testing.T) {
 
 func TestCatalogsAreEqual(t *testing.T) {
 	tests := []struct {
-		name     string
 		catalog1 *Catalog
 		catalog2 *Catalog
+		name     string
 		expected bool
 	}{
 		{
@@ -269,10 +269,10 @@ func TestMessagesAreEqual(t *testing.T) {
 
 func TestCreateMessage(t *testing.T) {
 	tests := []struct {
+		checkFn func(*testing.T, Message)
 		name    string
 		msgID   string
 		info    TranslationInfo
-		checkFn func(*testing.T, Message)
 	}{
 		{
 			name:  "simple message",
@@ -341,8 +341,8 @@ func TestExtractPlaceholders(t *testing.T) {
 	tests := []struct {
 		name     string
 		message  string
-		expected int
 		types    []string
+		expected int
 	}{
 		{
 			name:     "no placeholders",

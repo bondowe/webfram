@@ -1208,8 +1208,8 @@ func TestHandlerConfig_WithAPIConfig_WithResponses(t *testing.T) {
 	config := mux.HandleFunc("GET /api/users/{id}", handler)
 
 	type User struct {
-		ID   int    `json:"id"`
 		Name string `json:"name"`
+		ID   int    `json:"id"`
 	}
 
 	apiConfig := &APIConfig{

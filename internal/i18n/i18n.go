@@ -27,10 +27,10 @@ type (
 
 	// MessageEntry represents a single message with its translations and placeholders
 	MessageEntry struct {
+		Placeholders map[string]Placeholder `json:"placeholders,omitempty"`
 		ID           string                 `json:"id"`
 		Message      string                 `json:"message"`
 		Translation  string                 `json:"translation,omitempty"`
-		Placeholders map[string]Placeholder `json:"placeholders,omitempty"`
 	}
 
 	// Placeholder represents a placeholder in a message
@@ -39,8 +39,8 @@ type (
 		String         string `json:"string"`
 		Type           string `json:"type"`
 		UnderlyingType string `json:"underlyingType"`
-		ArgNum         int    `json:"argNum"`
 		Expr           string `json:"expr"`
+		ArgNum         int    `json:"argNum"`
 	}
 )
 

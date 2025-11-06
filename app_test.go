@@ -572,7 +572,7 @@ func TestUse_MultipleMiddlewares(t *testing.T) {
 func TestSSE_Success(t *testing.T) {
 	payloadFunc := func() SSEPayload {
 		return SSEPayload{
-			Id:    "1",
+			ID:    "1",
 			Event: "message",
 			Data:  "test data",
 		}
@@ -799,8 +799,8 @@ type mockSSEWriter struct {
 	http.ResponseWriter
 	writeError error
 	flushError error
-	mu         sync.Mutex
 	writeCalls []string
+	mu         sync.Mutex
 }
 
 func (m *mockSSEWriter) Write(b []byte) (int, error) {
@@ -860,7 +860,7 @@ func sseTestHelper(
 func TestSSE_ServeHTTP_PayloadIdNotEmpty(t *testing.T) {
 	payloadFunc := func() SSEPayload {
 		return SSEPayload{
-			Id: "message-123",
+			ID: "message-123",
 		}
 	}
 
@@ -1088,7 +1088,7 @@ func TestSSE_ServeHTTP_FlushError(t *testing.T) {
 func TestSSE_ServeHTTP_AllPayloadFieldsSet(t *testing.T) {
 	payloadFunc := func() SSEPayload {
 		return SSEPayload{
-			Id:       "msg-456",
+			ID:       "msg-456",
 			Event:    "update",
 			Comments: []string{"status update"},
 			Data:     "complete",
@@ -2188,16 +2188,16 @@ func TestAdaptHTTPMiddleware2(t *testing.T) {
 
 func TestConstants(t *testing.T) {
 	tests := []struct {
-		name     string
 		constant interface{}
 		expected interface{}
+		name     string
 	}{
-		{"defaultOpenAPIURLPath", defaultOpenAPIURLPath, "GET /openapi.json"},
-		{"defaultLayoutBaseName", defaultLayoutBaseName, "layout"},
-		{"defaultHTMLTemplateExtension", defaultHTMLTemplateExtension, ".go.html"},
-		{"defaultTextTemplateExtension", defaultTextTemplateExtension, ".go.txt"},
-		{"defaultI18nMessagesDir", defaultI18nMessagesDir, "i18n"},
-		{"defaultI18nFuncName", defaultI18nFuncName, "T"},
+		{name: "GET /openapi.json", constant: defaultOpenAPIURLPath, expected: "GET /openapi.json"},
+		{name: "layout", constant: defaultLayoutBaseName, expected: "layout"},
+		{name: ".go.html", constant: defaultHTMLTemplateExtension, expected: ".go.html"},
+		{name: ".go.txt", constant: defaultTextTemplateExtension, expected: ".go.txt"},
+		{name: "i18n", constant: defaultI18nMessagesDir, expected: "i18n"},
+		{name: "T", constant: defaultI18nFuncName, expected: "T"},
 	}
 
 	for _, tt := range tests {
@@ -2347,7 +2347,7 @@ func BenchmarkSSE_PayloadGeneration(b *testing.B) {
 	handler := SSE(
 		func() SSEPayload {
 			return SSEPayload{
-				Id:    "1",
+				ID:    "1",
 				Event: "message",
 				Data:  "test data",
 			}

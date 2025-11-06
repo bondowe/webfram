@@ -331,7 +331,7 @@ func isFieldRequired(field reflect.StructField) bool {
 
 	rules := strings.Split(validateTag, ",")
 	for _, rule := range rules {
-		if strings.TrimSpace(rule) == "required" {
+		if strings.TrimSpace(rule) == ruleRequired {
 			return true
 		}
 	}
@@ -411,6 +411,5 @@ func applySliceValidationRules(field reflect.StructField, schema *openapi.Schema
 		case rule == "uniqueItems":
 			schema.UniqueItems = true
 		}
-
 	}
 }

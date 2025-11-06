@@ -104,11 +104,12 @@ type (
 		UniqueItems bool         `json:"uniqueItems,omitempty" yaml:"uniqueItems,omitempty"`
 
 		// Objects
-		Properties           map[string]SchemaOrRef `json:"properties,omitempty" yaml:"properties,omitempty"`
-		AdditionalProperties any                    `json:"additionalProperties,omitempty" yaml:"additionalProperties,omitempty"` // bool or SchemaOrRef
-		Required             []string               `json:"required,omitempty" yaml:"required,omitempty"`
-		MaxProperties        *int                   `json:"maxProperties,omitempty" yaml:"maxProperties,omitempty"`
-		MinProperties        *int                   `json:"minProperties,omitempty" yaml:"minProperties,omitempty"`
+		Properties map[string]SchemaOrRef `json:"properties,omitempty" yaml:"properties,omitempty"`
+		// AdditionalProperties can be bool or SchemaOrRef
+		AdditionalProperties any      `json:"additionalProperties,omitempty" yaml:"additionalProperties,omitempty"`
+		Required             []string `json:"required,omitempty" yaml:"required,omitempty"`
+		MaxProperties        *int     `json:"maxProperties,omitempty" yaml:"maxProperties,omitempty"`
+		MinProperties        *int     `json:"minProperties,omitempty" yaml:"minProperties,omitempty"`
 
 		// General
 		Type        string             `json:"type,omitempty" yaml:"type,omitempty"`

@@ -142,10 +142,10 @@ func TestUUIDRequiredValidation(t *testing.T) {
 
 func TestMultipleRulesCombination(t *testing.T) {
 	type X struct {
-		Title string  `json:"title" validate:"required,minlength=3,maxlength=10" errmsg:"required=Title required;minlength=Title too short;maxlength=Title too long"`
-		Nums  []int   `json:"nums" validate:"minItems=1,maxItems=3,uniqueItems" errmsg:"minItems=At least one number;maxItems=At most 3 numbers;uniqueItems=Numbers must be unique"`
-		Role  string  `json:"role" validate:"enum=admin|user|guest" errmsg:"enum=Role invalid"`
-		Score float64 `json:"score" validate:"min=0.5,max=10" errmsg:"min=Score too low;max=Score too high"`
+		Title string  `json:"title" validate:"required,minlength=3,maxlength=10" errmsg:"required=Required;minlength=Short;maxlength=Long"`
+		Role  string  `json:"role" validate:"enum=admin|user|guest" errmsg:"enum=Invalid"`
+		Nums  []int   `json:"nums" validate:"minItems=1,maxItems=3,uniqueItems" errmsg:"minItems=Need 1;maxItems=Max 3;uniqueItems=Unique"`
+		Score float64 `json:"score" validate:"min=0.5,max=10" errmsg:"min=Too low;max=Too high"`
 	}
 
 	x := X{
@@ -160,13 +160,13 @@ func TestMultipleRulesCombination(t *testing.T) {
 		t.Fatalf("expected 4 errors, got %d: %+v", len(errs), errs)
 	}
 
-	if e := findByField(errs, "title"); e == nil || e.Error != "Title too short" {
+	if e := findByField(errs, "title"); e == nil || e.Error != "Short" {
 		t.Errorf("title error missing or unexpected: %+v", e)
 	}
-	if e := findByField(errs, "nums"); e == nil || e.Error != "At least one number" {
+	if e := findByField(errs, "nums"); e == nil || e.Error != "Need 1" {
 		t.Errorf("nums error missing or unexpected: %+v", e)
 	}
-	if e := findByField(errs, "role"); e == nil || e.Error != "Role invalid" {
+	if e := findByField(errs, "role"); e == nil || e.Error != "Invalid" {
 		t.Errorf("role error missing or unexpected: %+v", e)
 	}
 	if e := findByField(errs, "score"); e == nil {

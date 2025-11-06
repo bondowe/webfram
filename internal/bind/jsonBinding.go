@@ -7,7 +7,6 @@ import (
 )
 
 func ValidateJSON[T any](data *T) []ValidationError {
-
 	val := reflect.ValueOf(data).Elem()
 	errors := []ValidationError{}
 

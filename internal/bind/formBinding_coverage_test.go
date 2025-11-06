@@ -13,9 +13,9 @@ import (
 // Test convertStringToType with various types
 func TestConvertStringToType(t *testing.T) {
 	tests := []struct {
+		targetType  reflect.Type
 		name        string
 		value       string
-		targetType  reflect.Type
 		shouldError bool
 	}{
 		{
@@ -72,8 +72,8 @@ func TestConvertStringToType(t *testing.T) {
 // Test validateField with various edge cases
 func TestValidateField_EdgeCases(t *testing.T) {
 	tests := []struct {
-		name       string
 		fieldSetup func() (reflect.StructField, string, reflect.Kind)
+		name       string
 		wantError  bool
 	}{
 		{
