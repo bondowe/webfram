@@ -968,10 +968,10 @@ func TestSSE_ServeHTTP_PayloadDataWriteError(t *testing.T) {
 	}
 
 	var errorCalled atomic.Bool
-	var capturedError error
+	var capturedError atomic.Value
 	errorFunc := func(err error) {
 		errorCalled.Store(true)
-		capturedError = err
+		capturedError.Store(err)
 	}
 
 	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
@@ -1001,8 +1001,8 @@ func TestSSE_ServeHTTP_PayloadDataWriteError(t *testing.T) {
 	if !errorCalled.Load() {
 		t.Error("Expected errorFunc to be called when data write fails")
 	}
-	if capturedError != writeErr {
-		t.Errorf("Expected error %v, got %v", writeErr, capturedError)
+	if err := capturedError.Load(); err != writeErr {
+		t.Errorf("Expected error %v, got %v", writeErr, err)
 	}
 }
 
@@ -1058,10 +1058,10 @@ func TestSSE_ServeHTTP_PayloadRetryWriteError(t *testing.T) {
 	}
 
 	var errorCalled atomic.Bool
-	var capturedError error
+	var capturedError atomic.Value
 	errorFunc := func(err error) {
 		errorCalled.Store(true)
-		capturedError = err
+		capturedError.Store(err)
 	}
 
 	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
@@ -1091,8 +1091,8 @@ func TestSSE_ServeHTTP_PayloadRetryWriteError(t *testing.T) {
 	if !errorCalled.Load() {
 		t.Error("Expected errorFunc to be called when retry write fails")
 	}
-	if capturedError != writeErr {
-		t.Errorf("Expected error %v, got %v", writeErr, capturedError)
+	if err := capturedError.Load(); err != writeErr {
+		t.Errorf("Expected error %v, got %v", writeErr, err)
 	}
 }
 
@@ -1104,10 +1104,10 @@ func TestSSE_ServeHTTP_FlushError(t *testing.T) {
 	}
 
 	var errorCalled atomic.Bool
-	var capturedError error
+	var capturedError atomic.Value
 	errorFunc := func(err error) {
 		errorCalled.Store(true)
-		capturedError = err
+		capturedError.Store(err)
 	}
 
 	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
@@ -1137,8 +1137,8 @@ func TestSSE_ServeHTTP_FlushError(t *testing.T) {
 	if !errorCalled.Load() {
 		t.Error("Expected errorFunc to be called when flush fails")
 	}
-	if capturedError != flushErr {
-		t.Errorf("Expected error %v, got %v", flushErr, capturedError)
+	if err := capturedError.Load(); err != flushErr {
+		t.Errorf("Expected error %v, got %v", flushErr, err)
 	}
 }
 
