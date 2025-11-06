@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -770,10 +771,10 @@ func TestSSE_ServeHTTP_SetsCorrectHeaders(t *testing.T) {
 }
 
 func TestSSE_ServeHTTP_CallsDisconnectOnContext(t *testing.T) {
-	disconnectCalled := false
+	var disconnectCalled atomic.Bool
 	handler := SSE(
 		func() SSEPayload { return SSEPayload{Data: "test"} },
-		func() { disconnectCalled = true },
+		func() { disconnectCalled.Store(true) },
 		nil,
 		10*time.Millisecond,
 		nil,
@@ -793,7 +794,7 @@ func TestSSE_ServeHTTP_CallsDisconnectOnContext(t *testing.T) {
 	cancel()
 	time.Sleep(20 * time.Millisecond)
 
-	if !disconnectCalled {
+	if !disconnectCalled.Load() {
 		t.Error("Expected disconnectFunc to be called")
 	}
 }
