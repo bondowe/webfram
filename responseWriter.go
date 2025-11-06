@@ -86,16 +86,6 @@ func (w *ResponseWriter) Push(target string, opts *http.PushOptions) error {
 	return http.ErrNotSupported
 }
 
-// CloseNotify returns a channel that receives a single value when the client connection is closed.
-// Deprecated: Use Request.Context() instead.
-func (w *ResponseWriter) CloseNotify() <-chan bool {
-	if cn, ok := w.ResponseWriter.(http.CloseNotifier); ok {
-		return cn.CloseNotify()
-	}
-
-	return nil
-}
-
 // ReadFrom reads data from src until EOF or error and writes it to the response.
 // Implements the io.ReaderFrom interface for efficient data transfer.
 func (w *ResponseWriter) ReadFrom(src io.Reader) (n int64, err error) {
@@ -161,24 +151,7 @@ func (w *ResponseWriter) HTMLString(s string, data any) error {
 // Sets Content-Type header to "text/html".
 // Returns an error if templates are not configured, template is not found, or execution fails.
 func (w *ResponseWriter) HTML(path string, data any) error {
-	tmplConfig, ok := template.Configuration()
-	if !ok {
-		return fmt.Errorf("templates not configured")
-	}
-
-	w.Header().Set("Content-Type", "text/html")
-
-	if tmpl, ok := template.LookupTemplate(path+tmplConfig.HTMLTemplateExtension, false); ok {
-		if msgPrinter, ok := i18n.I18nPrinterFromContext(w.context); ok {
-			funcs := htmlTemplate.FuncMap{
-				tmplConfig.I18nFuncName: i18nPrinterFunc(msgPrinter),
-			}
-			return template.Must(tmpl.Clone()).Funcs(funcs).Execute(w.ResponseWriter, data)
-		}
-		return tmpl.Execute(w.ResponseWriter, data)
-	}
-
-	return fmt.Errorf("template not found in cache: %s", path)
+	return w.renderTemplate(path, data, "text/html", true)
 }
 
 // TextString parses a plain text template string and executes it with the provided data.
@@ -200,23 +173,42 @@ func (w *ResponseWriter) TextString(s string, data any) error {
 // Sets Content-Type header to "text/plain".
 // Returns an error if templates are not configured, template is not found, or execution fails.
 func (w *ResponseWriter) Text(path string, data any) error {
+	return w.renderTemplate(path, data, "text/plain", false)
+}
+
+// renderTemplate is a helper function that handles template rendering for both HTML and text templates.
+func (w *ResponseWriter) renderTemplate(path string, data any, contentType string, isHTML bool) error {
 	tmplConfig, ok := template.Configuration()
 	if !ok {
 		return fmt.Errorf("templates not configured")
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Type", contentType)
 
-	if tmpl, ok := template.LookupTemplate(path+tmplConfig.TextTemplateExtension, false); ok {
+	var extension string
+	if isHTML {
+		extension = tmplConfig.HTMLTemplateExtension
+	} else {
+		extension = tmplConfig.TextTemplateExtension
+	}
+
+	if tmpl, ok := template.LookupTemplate(path+extension, false); ok {
 		if msgPrinter, ok := i18n.I18nPrinterFromContext(w.context); ok {
-			funcs := textTemplate.FuncMap{
-
-				tmplConfig.I18nFuncName: i18nPrinterFunc(msgPrinter),
+			if isHTML {
+				funcs := htmlTemplate.FuncMap{
+					tmplConfig.I18nFuncName: i18nPrinterFunc(msgPrinter),
+				}
+				return template.Must(tmpl.Clone()).Funcs(funcs).Execute(w.ResponseWriter, data)
+			} else {
+				funcs := textTemplate.FuncMap{
+					tmplConfig.I18nFuncName: i18nPrinterFunc(msgPrinter),
+				}
+				return template.Must(tmpl.Clone()).Funcs(funcs).Execute(w.ResponseWriter, data)
 			}
-			return template.Must(tmpl.Clone()).Funcs(funcs).Execute(w.ResponseWriter, data)
 		}
 		return tmpl.Execute(w.ResponseWriter, data)
 	}
+
 	return fmt.Errorf("template not found in cache: %s", path)
 }
 

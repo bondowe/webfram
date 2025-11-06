@@ -83,12 +83,12 @@ func GenerateJSONSchema(t any, components *openapi.Components) *openapi.SchemaOr
 		schemaOrRef = &openapi.SchemaOrRef{
 			Schema: &openapi.Schema{
 				Type:  "array",
-				Items: generateSchemaForSliceElement(reflect.StructField{Type: typ}, components),
+				Items: generateSchemaForSliceElement(&reflect.StructField{Type: typ}, components),
 			},
 		}
 	} else {
 		// For other types, create a simple schema
-		schemaOrRef = generateSchemaForField(reflect.StructField{Type: typ}, components)
+		schemaOrRef = generateSchemaForField(&reflect.StructField{Type: typ}, components)
 	}
 
 	return schemaOrRef
@@ -115,20 +115,20 @@ func generateSchemaForStruct(typ reflect.Type, schema *openapi.Schema, component
 		}
 
 		// Create schema for this field
-		fieldSchema := generateSchemaForField(field, components)
+		fieldSchema := generateSchemaForField(&field, components)
 
 		if fieldSchema.Ref != "" || fieldSchema.Schema != nil {
 			schema.Properties[propertyName] = *fieldSchema
 
 			// Check if field is required
-			if isFieldRequired(field) {
+			if isFieldRequired(&field) {
 				schema.Required = append(schema.Required, propertyName)
 			}
 		}
 	}
 }
 
-func generateSchemaForField(field reflect.StructField, components *openapi.Components) *openapi.SchemaOrRef {
+func generateSchemaForField(field *reflect.StructField, components *openapi.Components) *openapi.SchemaOrRef {
 	fieldType := field.Type
 
 	// Handle pointers
@@ -211,7 +211,7 @@ func generateSchemaForField(field reflect.StructField, components *openapi.Compo
 	}
 }
 
-func generateSchemaForSliceElement(field reflect.StructField, components *openapi.Components) *openapi.SchemaOrRef {
+func generateSchemaForSliceElement(field *reflect.StructField, components *openapi.Components) *openapi.SchemaOrRef {
 	elemType := field.Type.Elem()
 
 	// Handle pointer elements
@@ -280,7 +280,7 @@ func generateSchemaForSliceElement(field reflect.StructField, components *openap
 	}
 }
 
-func getIntegerFormat(field reflect.StructField) string {
+func getIntegerFormat(field *reflect.StructField) string {
 	bitSize := field.Type.Bits()
 	switch bitSize {
 	case 8:
@@ -296,7 +296,7 @@ func getIntegerFormat(field reflect.StructField) string {
 	}
 }
 
-func getNumberFormat(field reflect.StructField) string {
+func getNumberFormat(field *reflect.StructField) string {
 	bitSize := field.Type.Bits()
 	switch bitSize {
 	case 32:
@@ -308,7 +308,7 @@ func getNumberFormat(field reflect.StructField) string {
 	}
 }
 
-func getTimeFormat(field reflect.StructField) string {
+func getTimeFormat(field *reflect.StructField) string {
 	format := field.Tag.Get("format")
 	if format == "" {
 		return dateTimeFormat // RFC3339 is the default, which is JSON Schema date-time format
@@ -328,7 +328,7 @@ func getTimeFormat(field reflect.StructField) string {
 	}
 }
 
-func isFieldRequired(field reflect.StructField) bool {
+func isFieldRequired(field *reflect.StructField) bool {
 	validateTag := field.Tag.Get("validate")
 	if validateTag == "" {
 		return false
@@ -343,7 +343,7 @@ func isFieldRequired(field reflect.StructField) bool {
 	return false
 }
 
-func applyValidationRules(field reflect.StructField, schema *openapi.Schema, kind reflect.Kind) {
+func applyValidationRules(field *reflect.StructField, schema *openapi.Schema, kind reflect.Kind) {
 	validateTag := field.Tag.Get("validate")
 	if validateTag == "" {
 		return
@@ -394,7 +394,7 @@ func applyValidationRules(field reflect.StructField, schema *openapi.Schema, kin
 	}
 }
 
-func applySliceValidationRules(field reflect.StructField, schema *openapi.Schema) {
+func applySliceValidationRules(field *reflect.StructField, schema *openapi.Schema) {
 	validateTag := field.Tag.Get("validate")
 	if validateTag == "" {
 		return

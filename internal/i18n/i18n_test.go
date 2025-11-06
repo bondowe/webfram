@@ -158,11 +158,9 @@ func TestI18nPrinterFromContext(t *testing.T) {
 			expectFound: true,
 		},
 		{
-			name: "without printer in context",
-			setupContext: func() context.Context {
-				return context.Background()
-			},
-			expectFound: false,
+			name:         "without printer in context",
+			setupContext: context.Background,
+			expectFound:  false,
 		},
 		{
 			name: "with wrong type in context",

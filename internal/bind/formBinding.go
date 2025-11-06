@@ -64,14 +64,14 @@ func bindRecursive(form map[string][]string, val reflect.Value, prefix string, e
 		}
 
 		// Validate that the validation rules are applicable to this field type
-		validateFieldTypeRules(fieldType, kind, field.Type())
+		validateFieldTypeRules(&fieldType, kind, field.Type())
 
 		if len(values) == 0 {
 			values = []string{""}
 		}
 
 		// Validate first value
-		if err := validateField(fieldType, values[0], kind); err != nil {
+		if err := validateField(&fieldType, values[0], kind); err != nil {
 			*errors = append(*errors, *err)
 		}
 
@@ -212,44 +212,46 @@ func bindRecursive(form map[string][]string, val reflect.Value, prefix string, e
 
 			// Iterate through form values and extract map entries
 			for formKey, formValues := range form {
-				if strings.HasPrefix(formKey, key+"[") && strings.HasSuffix(formKey, "]") {
-					// Extract the map key
-					mapKeyStr := formKey[len(key)+1 : len(formKey)-1]
+				if !strings.HasPrefix(formKey, key+"[") || !strings.HasSuffix(formKey, "]") {
+					continue
+				}
 
-					// Skip empty keys
-					if mapKeyStr == "" {
-						continue
-					}
+				// Extract the map key
+				mapKeyStr := formKey[len(key)+1 : len(formKey)-1]
 
-					// Convert string key to appropriate type
-					mapKey, err := convertStringToType(mapKeyStr, mapKeyType)
+				// Skip empty keys
+				if mapKeyStr == "" {
+					continue
+				}
+
+				// Convert string key to appropriate type
+				mapKey, err := convertStringToType(mapKeyStr, mapKeyType)
+				if err != nil {
+					*errors = append(*errors, ValidationError{
+						Field: fieldType.Name,
+						Error: fmt.Sprintf("invalid map key '%s': %v", mapKeyStr, err),
+					})
+					continue
+				}
+
+				// Convert form value to map value type
+				if len(formValues) > 0 {
+					mapValue, err := convertStringToType(formValues[0], mapValueType)
 					if err != nil {
 						*errors = append(*errors, ValidationError{
 							Field: fieldType.Name,
-							Error: fmt.Sprintf("invalid map key '%s': %v", mapKeyStr, err),
+							Error: fmt.Sprintf("invalid map value for key '%s': %v", mapKeyStr, err),
 						})
 						continue
 					}
 
-					// Convert form value to map value type
-					if len(formValues) > 0 {
-						mapValue, err := convertStringToType(formValues[0], mapValueType)
-						if err != nil {
-							*errors = append(*errors, ValidationError{
-								Field: fieldType.Name,
-								Error: fmt.Sprintf("invalid map value for key '%s': %v", mapKeyStr, err),
-							})
-							continue
-						}
-
-						field.SetMapIndex(mapKey, mapValue)
-						mapSize++
-					}
+					field.SetMapIndex(mapKey, mapValue)
+					mapSize++
 				}
 			}
 
 			// Validate map size
-			if err := validateMapSize(fieldType, mapSize); err != nil {
+			if err := validateMapSize(&fieldType, mapSize); err != nil {
 				*errors = append(*errors, *err)
 			}
 		}
@@ -372,7 +374,6 @@ func validateTimeSliceFieldString(field *reflect.StructField, values []string) (
 }
 
 func validateUUIDFieldString(field *reflect.StructField, value string) (uuid.UUID, *ValidationError) {
-
 	v, err := uuid.Parse(value)
 	if err != nil {
 		msg := getErrorMessage(field, "uuid", "must be a valid UUID")
@@ -410,7 +411,7 @@ func validateUUIDSliceFieldString(field *reflect.StructField, values []string) (
 	return vs, errors
 }
 
-func validateField(field reflect.StructField, value string, kind reflect.Kind) *ValidationError {
+func validateField(field *reflect.StructField, value string, kind reflect.Kind) *ValidationError {
 	validateTag := field.Tag.Get("validate")
 	if validateTag == "" {
 		return nil
@@ -420,14 +421,14 @@ func validateField(field reflect.StructField, value string, kind reflect.Kind) *
 	for _, rule := range rules {
 		switch {
 		case rule == "required" && value == "":
-			msg := getErrorMessage(&field, "required", "is required")
+			msg := getErrorMessage(field, "required", "is required")
 			return &ValidationError{Field: field.Name, Error: msg}
 
 		case strings.HasPrefix(rule, "min=") && IsIntType(kind):
 			minVal, _ := strconv.Atoi(strings.TrimPrefix(rule, "min="))
 			val, err := strconv.Atoi(value)
 			if err != nil || val < minVal {
-				msg := getErrorMessage(&field, "min", fmt.Sprintf("must be at least %d", minVal))
+				msg := getErrorMessage(field, "min", fmt.Sprintf("must be at least %d", minVal))
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
@@ -435,7 +436,7 @@ func validateField(field reflect.StructField, value string, kind reflect.Kind) *
 			maxVal, _ := strconv.Atoi(strings.TrimPrefix(rule, "max="))
 			val, err := strconv.Atoi(value)
 			if err != nil || val > maxVal {
-				msg := getErrorMessage(&field, "max", fmt.Sprintf("must be at most %d", maxVal))
+				msg := getErrorMessage(field, "max", fmt.Sprintf("must be at most %d", maxVal))
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
@@ -443,7 +444,7 @@ func validateField(field reflect.StructField, value string, kind reflect.Kind) *
 			minVal, _ := strconv.ParseFloat(strings.TrimPrefix(rule, "min="), 64)
 			val, err := strconv.ParseFloat(value, 64)
 			if err != nil || val < minVal {
-				msg := getErrorMessage(&field, "min", fmt.Sprintf("must be at least %f", minVal))
+				msg := getErrorMessage(field, "min", fmt.Sprintf("must be at least %f", minVal))
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
@@ -451,7 +452,7 @@ func validateField(field reflect.StructField, value string, kind reflect.Kind) *
 			maxVal, _ := strconv.ParseFloat(strings.TrimPrefix(rule, "max="), 64)
 			val, err := strconv.ParseFloat(value, 64)
 			if err != nil || val > maxVal {
-				msg := getErrorMessage(&field, "max", fmt.Sprintf("must be at most %f", maxVal))
+				msg := getErrorMessage(field, "max", fmt.Sprintf("must be at most %f", maxVal))
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
@@ -459,7 +460,7 @@ func validateField(field reflect.StructField, value string, kind reflect.Kind) *
 			multVal, _ := strconv.Atoi(strings.TrimPrefix(rule, "multipleOf="))
 			val, err := strconv.Atoi(value)
 			if err != nil || val%multVal != 0 {
-				msg := getErrorMessage(&field, "multipleOf", fmt.Sprintf("must be a multiple of %d", multVal))
+				msg := getErrorMessage(field, "multipleOf", fmt.Sprintf("must be a multiple of %d", multVal))
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
@@ -467,21 +468,21 @@ func validateField(field reflect.StructField, value string, kind reflect.Kind) *
 			multVal, _ := strconv.ParseFloat(strings.TrimPrefix(rule, "multipleOf="), 64)
 			val, err := strconv.ParseFloat(value, 64)
 			if err != nil || int(val*1000000)%int(multVal*1000000) != 0 {
-				msg := getErrorMessage(&field, "multipleOf", fmt.Sprintf("must be a multiple of %f", multVal))
+				msg := getErrorMessage(field, "multipleOf", fmt.Sprintf("must be a multiple of %f", multVal))
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
 		case strings.HasPrefix(rule, "minlength=") && kind == reflect.String:
 			minLen, _ := strconv.Atoi(strings.TrimPrefix(rule, "minlength="))
 			if len(value) < minLen {
-				msg := getErrorMessage(&field, "minlength", fmt.Sprintf("must be at least %d characters", minLen))
+				msg := getErrorMessage(field, "minlength", fmt.Sprintf("must be at least %d characters", minLen))
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
 		case strings.HasPrefix(rule, "maxlength=") && kind == reflect.String:
 			maxLen, _ := strconv.Atoi(strings.TrimPrefix(rule, "maxlength="))
 			if len(value) > maxLen {
-				msg := getErrorMessage(&field, "maxlength", fmt.Sprintf("must be at most %d characters", maxLen))
+				msg := getErrorMessage(field, "maxlength", fmt.Sprintf("must be at most %d characters", maxLen))
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
@@ -489,7 +490,7 @@ func validateField(field reflect.StructField, value string, kind reflect.Kind) *
 			pattern := strings.TrimPrefix(rule, "pattern=")
 			matched, err := regexp.MatchString(pattern, value)
 			if err != nil || !matched {
-				msg := getErrorMessage(&field, "pattern", "does not match required format")
+				msg := getErrorMessage(field, "pattern", "does not match required format")
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
@@ -498,7 +499,7 @@ func validateField(field reflect.StructField, value string, kind reflect.Kind) *
 			if format == "email" {
 				matched := idnEmailRegex.MatchString(value)
 				if !matched {
-					msg := getErrorMessage(&field, "format", "is not a valid email address")
+					msg := getErrorMessage(field, "format", "is not a valid email address")
 					return &ValidationError{Field: field.Name, Error: msg}
 				}
 			}
@@ -513,7 +514,7 @@ func validateField(field reflect.StructField, value string, kind reflect.Kind) *
 				}
 			}
 			if !found {
-				msg := getErrorMessage(&field, "enum", fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")))
+				msg := getErrorMessage(field, "enum", fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")))
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 		}
@@ -605,7 +606,7 @@ func convertStringToType(value string, targetType reflect.Type) (reflect.Value, 
 }
 
 // validateMapSize validates the size of a map based on validation tags
-func validateMapSize(field reflect.StructField, size int) *ValidationError {
+func validateMapSize(field *reflect.StructField, size int) *ValidationError {
 	validateTag := field.Tag.Get("validate")
 	if validateTag == "" {
 		return nil
@@ -619,19 +620,19 @@ func validateMapSize(field reflect.StructField, size int) *ValidationError {
 		case strings.HasPrefix(rule, ruleMinItems+"="):
 			minSize, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMinItems+"="))
 			if size < minSize {
-				msg := getErrorMessage(&field, ruleMinItems, fmt.Sprintf("must have at least %d entries", minSize))
+				msg := getErrorMessage(field, ruleMinItems, fmt.Sprintf("must have at least %d entries", minSize))
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
 		case strings.HasPrefix(rule, ruleMaxItems+"="):
 			maxSize, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMaxItems+"="))
 			if size > maxSize {
-				msg := getErrorMessage(&field, ruleMaxItems, fmt.Sprintf("must have at most %d entries", maxSize))
+				msg := getErrorMessage(field, ruleMaxItems, fmt.Sprintf("must have at most %d entries", maxSize))
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
 		case rule == ruleRequired && size == 0:
-			msg := getErrorMessage(&field, ruleRequired, "is required and cannot be empty")
+			msg := getErrorMessage(field, ruleRequired, "is required and cannot be empty")
 			return &ValidationError{Field: field.Name, Error: msg}
 		}
 	}

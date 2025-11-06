@@ -30,6 +30,14 @@ type ServerConfig struct {
 	DisableGeneralOptionsHandler bool
 }
 
+const (
+	readTimeout       = 15 * time.Second
+	readHeaderTimeout = 15 * time.Second
+	writeTimeout      = 15 * time.Second
+	idleTimeout       = 60 * time.Second
+	maxHeaderBytes    = http.DefaultMaxHeaderBytes
+)
+
 // ListenAndServe starts an HTTP server on the specified address with the given multiplexer.
 // It automatically sets up OpenAPI endpoint if configured, applies server configuration,
 // and handles graceful shutdown on SIGINT or SIGTERM signals.
@@ -46,27 +54,30 @@ func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
 	}
 
 	server := &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+		MaxHeaderBytes:    maxHeaderBytes,
 	}
 
-	serverConfig := NewServerConfig()
-
 	if cfg != nil {
-		serverConfig.DisableGeneralOptionsHandler = cfg.DisableGeneralOptionsHandler
-		serverConfig.TLSConfig = cfg.TLSConfig
-		serverConfig.ReadTimeout = getValueOrDefault(cfg.ReadTimeout, serverConfig.ReadTimeout)
-		serverConfig.ReadHeaderTimeout = getValueOrDefault(cfg.ReadHeaderTimeout, serverConfig.ReadHeaderTimeout)
-		serverConfig.WriteTimeout = getValueOrDefault(cfg.WriteTimeout, serverConfig.WriteTimeout)
-		serverConfig.IdleTimeout = getValueOrDefault(cfg.IdleTimeout, serverConfig.IdleTimeout)
-		serverConfig.MaxHeaderBytes = getValueOrDefault(cfg.MaxHeaderBytes, serverConfig.MaxHeaderBytes)
-		serverConfig.TLSNextProto = cfg.TLSNextProto
-		serverConfig.ConnState = cfg.ConnState
-		serverConfig.ErrorLog = cfg.ErrorLog
-		serverConfig.BaseContext = cfg.BaseContext
-		serverConfig.ConnContext = cfg.ConnContext
-		serverConfig.HTTP2 = cfg.HTTP2
-		serverConfig.Protocols = cfg.Protocols
+		server.DisableGeneralOptionsHandler = cfg.DisableGeneralOptionsHandler
+		server.TLSConfig = cfg.TLSConfig
+		server.ReadTimeout = getValueOrDefault(cfg.ReadTimeout, server.ReadTimeout)
+		server.ReadHeaderTimeout = getValueOrDefault(cfg.ReadHeaderTimeout, server.ReadHeaderTimeout)
+		server.WriteTimeout = getValueOrDefault(cfg.WriteTimeout, server.WriteTimeout)
+		server.IdleTimeout = getValueOrDefault(cfg.IdleTimeout, server.IdleTimeout)
+		server.MaxHeaderBytes = getValueOrDefault(cfg.MaxHeaderBytes, server.MaxHeaderBytes)
+		server.TLSNextProto = cfg.TLSNextProto
+		server.ConnState = cfg.ConnState
+		server.ErrorLog = cfg.ErrorLog
+		server.BaseContext = cfg.BaseContext
+		server.ConnContext = cfg.ConnContext
+		server.HTTP2 = cfg.HTTP2
+		server.Protocols = cfg.Protocols
 	}
 
 	serverError := make(chan error, 1)
@@ -95,17 +106,4 @@ func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
 		panic(err)
 	}
 	log.Println("Server stopped")
-}
-
-// NewServerConfig creates a new server configuration with sensible defaults.
-// Default timeouts: ReadTimeout=15s, ReadHeaderTimeout=15s, WriteTimeout=15s, IdleTimeout=60s.
-// Default MaxHeaderBytes: http.DefaultMaxHeaderBytes (1MB).
-func NewServerConfig() *ServerConfig {
-	return &ServerConfig{
-		ReadTimeout:       15 * time.Second,
-		ReadHeaderTimeout: 15 * time.Second,
-		WriteTimeout:      15 * time.Second,
-		IdleTimeout:       60 * time.Second,
-		MaxHeaderBytes:    http.DefaultMaxHeaderBytes,
-	}
 }

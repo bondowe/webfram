@@ -258,7 +258,7 @@ func TestMessagesAreEqual(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := messagesAreEqual(tt.msg1, tt.msg2)
+			result := messagesAreEqual(&tt.msg1, &tt.msg2)
 
 			if result != tt.expected {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
@@ -321,9 +321,9 @@ func TestCreateMessage(t *testing.T) {
 			},
 			checkFn: func(t *testing.T, msg Message) {
 				// Should have plural form fields initialized
-				if msg.One == "" && msg.Other == "" {
+				if msg.One != "" || msg.Other != "" {
 					// Fields should exist but be empty strings (not omitted from JSON)
-					// We can't check for existence directly, but we know they're zero values
+					t.Error("Expected plural form fields to be initialized as empty strings")
 				}
 			},
 		},
@@ -620,19 +620,19 @@ func TestWriteCatalog(t *testing.T) {
 	}
 
 	// Verify file exists
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
+	if _, err2 := os.Stat(filename); os.IsNotExist(err2) {
 		t.Fatal("Catalog file was not created")
 	}
 
 	// Verify content
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		t.Fatalf("Failed to read catalog file: %v", err)
+	data, err3 := os.ReadFile(filename)
+	if err3 != nil {
+		t.Fatalf("Failed to read catalog file: %v", err3)
 	}
 
 	var loaded Catalog
-	if err := json.Unmarshal(data, &loaded); err != nil {
-		t.Fatalf("Failed to unmarshal catalog: %v", err)
+	if err4 := json.Unmarshal(data, &loaded); err4 != nil {
+		t.Fatalf("Failed to unmarshal catalog: %v", err4)
 	}
 
 	if loaded.Language != catalog.Language {
@@ -657,9 +657,7 @@ func TestLoadExistingCatalog(t *testing.T) {
 	}
 
 	data, _ := json.MarshalIndent(catalog, "", "  ")
-	os.WriteFile(filename, data, 0644)
-
-	// Load it
+	_ = os.WriteFile(filename, data, 0600) // Load it
 	loaded, err := loadExistingCatalog(filename)
 	if err != nil {
 		t.Fatalf("loadExistingCatalog failed: %v", err)
@@ -707,14 +705,14 @@ func TestCreateNewCatalog(t *testing.T) {
 	}
 
 	// Verify file exists
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
+	if _, err2 := os.Stat(filename); os.IsNotExist(err2) {
 		t.Fatal("Catalog file was not created")
 	}
 
 	// Load and verify
-	loaded, err := loadExistingCatalog(filename)
-	if err != nil {
-		t.Fatalf("Failed to load created catalog: %v", err)
+	loaded, err3 := loadExistingCatalog(filename)
+	if err3 != nil {
+		t.Fatalf("Failed to load created catalog: %v", err3)
 	}
 
 	if loaded.Language != "fr" {
@@ -739,10 +737,10 @@ func TestExtractTranslationsFromTemplates(t *testing.T) {
 <h1>{{T "Hello World"}}</h1>
 <p>{{T "You have %d messages" .Count}}</p>
 `
-	os.WriteFile(filepath.Join(tmpDir, "test.go.html"), []byte(htmlContent), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "test.go.html"), []byte(htmlContent), 0600)
 
 	txtContent := `{{T "Welcome"}}`
-	os.WriteFile(filepath.Join(tmpDir, "test.go.txt"), []byte(txtContent), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "test.go.txt"), []byte(txtContent), 0600)
 
 	// Extract translations
 	translations, err := extractTranslationsFromTemplates(tmpDir)
@@ -788,7 +786,7 @@ func main() {
     printer.Sprintf("Welcome to %s", "App")
 }
 `
-	os.WriteFile(filepath.Join(tmpDir, "test.go"), []byte(goContent), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "test.go"), []byte(goContent), 0600)
 
 	// Extract translations
 	translations, err := extractTranslationsFromGoFiles(tmpDir)

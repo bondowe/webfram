@@ -59,6 +59,10 @@ type PlaceholderInfo struct {
 	ArgNum int
 }
 
+const (
+	placeholderTypeInt = "int"
+)
+
 func main() {
 	// Define command-line flags
 	mode := flag.String("mode", "both", "Extraction mode: templates, code, or both")
@@ -207,22 +211,23 @@ func catalogsAreEqual(catalog1, catalog2 *Catalog) bool {
 
 	// Create maps for comparison
 	messages1 := make(map[string]Message)
-	for _, msg := range catalog1.Messages {
-		messages1[msg.ID] = msg
+	for i := range catalog1.Messages {
+		messages1[catalog1.Messages[i].ID] = catalog1.Messages[i]
 	}
 
 	messages2 := make(map[string]Message)
-	for _, msg := range catalog2.Messages {
-		messages2[msg.ID] = msg
+	for i := range catalog2.Messages {
+		messages2[catalog2.Messages[i].ID] = catalog2.Messages[i]
 	}
 
 	// Check if all messages are equal
-	for id, msg1 := range messages1 {
+	for id := range messages1 {
+		msg1 := messages1[id]
 		msg2, exists := messages2[id]
 		if !exists {
 			return false
 		}
-		if !messagesAreEqual(msg1, msg2) {
+		if !messagesAreEqual(&msg1, &msg2) {
 			return false
 		}
 	}
@@ -231,7 +236,7 @@ func catalogsAreEqual(catalog1, catalog2 *Catalog) bool {
 }
 
 // messagesAreEqual checks if two messages are equal
-func messagesAreEqual(msg1, msg2 Message) bool {
+func messagesAreEqual(msg1, msg2 *Message) bool {
 	if msg1.ID != msg2.ID ||
 		msg1.Key != msg2.Key ||
 		msg1.Message != msg2.Message ||
@@ -285,8 +290,8 @@ func mergeAndUpdateCatalog(localesDir, lang string, newTranslations map[string]T
 
 	// Create a map of existing messages for quick lookup
 	existingMessages := make(map[string]Message)
-	for _, msg := range existingCatalog.Messages {
-		existingMessages[msg.ID] = msg
+	for i := range existingCatalog.Messages {
+		existingMessages[existingCatalog.Messages[i].ID] = existingCatalog.Messages[i]
 	}
 
 	// Build the merged catalog
@@ -769,7 +774,7 @@ func extractPlaceholders(message string) []PlaceholderInfo {
 func inferPlaceholderType(verb string) string {
 	switch verb {
 	case "d", "b", "c", "o", "O", "x", "X", "U":
-		return "int"
+		return placeholderTypeInt
 	case "e", "E", "f", "F", "g", "G":
 		return "float64"
 	case "s", "q":
@@ -787,7 +792,7 @@ func inferPlaceholderType(verb string) string {
 
 func getFormatSpecifier(placeholderType string) string {
 	switch placeholderType {
-	case "int":
+	case placeholderTypeInt:
 		return "d"
 	case "float64":
 		return "f"
@@ -804,7 +809,7 @@ func getFormatSpecifier(placeholderType string) string {
 
 func containsIntegerPlaceholder(placeholders []PlaceholderInfo) bool {
 	for _, ph := range placeholders {
-		if ph.Type == "int" {
+		if ph.Type == placeholderTypeInt {
 			return true
 		}
 	}
@@ -817,7 +822,7 @@ func writeCatalog(filename string, catalog Catalog) error {
 		return fmt.Errorf("error marshaling catalog: %w", err)
 	}
 
-	if err := os.WriteFile(filename, data, 0644); err != nil {
+	if err := os.WriteFile(filename, data, 0600); err != nil {
 		return fmt.Errorf("error writing file: %w", err)
 	}
 

@@ -315,7 +315,8 @@ func mapParameters(params []Parameter) []openapi.ParameterOrRef {
 	var parameters []openapi.ParameterOrRef
 	var schemaOrRef *openapi.SchemaOrRef
 	var content map[string]openapi.MediaType
-	for _, param := range params {
+	for i := range params {
+		param := &params[i]
 		if param.Content != nil {
 			content = make(map[string]openapi.MediaType)
 			for mediaType, model := range param.Content {

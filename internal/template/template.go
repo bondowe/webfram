@@ -255,6 +255,7 @@ func getPartialFunc(templatePath string) func(name string, data any) (htmlTempla
 		if tmpl != nil {
 			var sb strings.Builder
 			err := tmpl.Execute(&sb, data)
+			// #nosec G203 -- Partial templates are trusted, pre-defined templates, not user input
 			return htmlTemplate.HTML(sb.String()), err
 		}
 

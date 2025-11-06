@@ -1,6 +1,7 @@
 package bind
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
@@ -158,7 +159,7 @@ func TestValidateField_EdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			field, value, kind := tt.fieldSetup()
-			err := validateField(field, value, kind)
+			err := validateField(&field, value, kind)
 			if tt.wantError && err == nil {
 				t.Errorf("Expected error but got none")
 			}
@@ -186,7 +187,7 @@ func TestForm_NestedStructs(t *testing.T) {
 	form.Add("address.street", "123 Main St")
 	form.Add("address.city", "Boston")
 
-	req := httptest.NewRequest("POST", "/", nil)
+	req := httptest.NewRequest("POST", "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[Person](req)
@@ -226,7 +227,7 @@ func TestForm_NestedStructsValidationError(t *testing.T) {
 	form.Add("address.city", "Boston")
 	// Missing required address.street
 
-	req := httptest.NewRequest("POST", "/", nil)
+	req := httptest.NewRequest("POST", "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[Person](req)
@@ -276,7 +277,7 @@ func TestForm_SliceTypes(t *testing.T) {
 	form.Add("uuids", "550e8400-e29b-41d4-a716-446655440000")
 	form.Add("uuids", "550e8400-e29b-41d4-a716-446655440001")
 
-	req := httptest.NewRequest("POST", "/", nil)
+	req := httptest.NewRequest("POST", "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[FormData](req)
@@ -316,7 +317,7 @@ func TestForm_InvalidSliceValues(t *testing.T) {
 	form.Add("times", "not-a-time")
 	form.Add("uuids", "not-a-uuid")
 
-	req := httptest.NewRequest("POST", "/", nil)
+	req := httptest.NewRequest("POST", "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[FormData](req)
@@ -345,7 +346,7 @@ func TestForm_ParseFormError(t *testing.T) {
 	}
 
 	// Create a request with an invalid body that will cause ParseForm to fail
-	req := httptest.NewRequest("POST", "/", nil)
+	req := httptest.NewRequest("POST", "/", http.NoBody)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Body = nil // This will cause ParseForm to potentially fail in some edge cases
 
@@ -366,7 +367,7 @@ func TestForm_TimeFields(t *testing.T) {
 	form.Add("created_at", "2023-01-15T10:30:00Z")
 	form.Add("updated_at", "2023-01-16T10:30:00Z")
 
-	req := httptest.NewRequest("POST", "/", nil)
+	req := httptest.NewRequest("POST", "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[FormData](req)
@@ -402,7 +403,7 @@ func TestForm_SkippedFields(t *testing.T) {
 	form.Add("Internal", "should-be-skipped")
 	form.Add("id", "123")
 
-	req := httptest.NewRequest("POST", "/", nil)
+	req := httptest.NewRequest("POST", "/", http.NoBody)
 	req.PostForm = form
 
 	result, _, err := Form[FormData](req)
@@ -431,7 +432,7 @@ func TestForm_MapFields(t *testing.T) {
 	form.Add("metadata[key1]", "value1")
 	form.Add("metadata[key2]", "value2")
 
-	req := httptest.NewRequest("POST", "/", nil)
+	req := httptest.NewRequest("POST", "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[FormData](req)

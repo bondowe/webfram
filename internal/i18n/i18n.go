@@ -176,7 +176,7 @@ func loadJSONMessages(builder *catalog.Builder, tag language.Tag, data []byte) e
 
 		// Add the message to the catalog
 		// The ID is the key, and the translated message is the value
-		builder.SetString(tag, entry.ID, translation)
+		_ = builder.SetString(tag, entry.ID, translation)
 	}
 
 	return nil

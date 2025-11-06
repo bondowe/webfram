@@ -40,6 +40,48 @@ func resetAppConfig() {
 	jsonpCallbackParamName = ""
 }
 
+// setupTestConfig is a helper that sets up test configuration
+func setupTestConfig(t *testing.T) {
+	t.Helper()
+	resetAppConfig()
+	Configure(&Config{
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
+	})
+}
+
+// testBindingSuccess is a generic helper for testing successful binding
+func testBindingSuccess[T any](
+	t *testing.T,
+	body, contentType, method string,
+	bindFunc func(*Request, bool) (T, *ValidationErrors, error),
+	validate bool,
+	checkResult func(T),
+) {
+	t.Helper()
+	setupTestConfig(t)
+
+	req := httptest.NewRequest(method, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", contentType)
+	r := &Request{Request: req}
+
+	result, valErrs, err := bindFunc(r, validate)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if valErrs.Any() {
+		t.Errorf("Unexpected validation errors: %+v", valErrs)
+	}
+
+	if checkResult != nil {
+		checkResult(result)
+	}
+}
+
 // =============================================================================
 // Configure Tests
 // =============================================================================
@@ -485,7 +527,7 @@ func TestUse_WithStandardMiddleware(t *testing.T) {
 	})
 	wrapped := appMiddlewares[0](handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
@@ -546,7 +588,7 @@ func TestUse_MultipleMiddlewares(t *testing.T) {
 		wrapped = appMiddlewares[i](wrapped)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
@@ -709,7 +751,7 @@ func TestSSE_ServeHTTP_MethodNotAllowed(t *testing.T) {
 
 	for _, method := range methods {
 		t.Run(method, func(t *testing.T) {
-			req := httptest.NewRequest(method, "/sse", nil)
+			req := httptest.NewRequest(method, "/sse", http.NoBody)
 			rec := httptest.NewRecorder()
 			rw := ResponseWriter{ResponseWriter: rec}
 			r := &Request{Request: req}
@@ -734,7 +776,7 @@ func TestSSE_ServeHTTP_SetsCorrectHeaders(t *testing.T) {
 		},
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sse", http.NoBody)
 	ctx, cancel := context.WithTimeout(req.Context(), 50*time.Millisecond)
 	defer cancel()
 	req = req.WithContext(ctx)
@@ -775,7 +817,7 @@ func TestSSE_ServeHTTP_CallsDisconnectOnContext(t *testing.T) {
 		nil,
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sse", http.NoBody)
 	ctx, cancel := context.WithCancel(req.Context())
 	req = req.WithContext(ctx)
 
@@ -835,7 +877,7 @@ func sseTestHelper(
 	t.Helper()
 	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sse", http.NoBody)
 	ctx, cancel := context.WithTimeout(req.Context(), 50*time.Millisecond)
 	req = req.WithContext(ctx)
 
@@ -920,7 +962,7 @@ func TestSSE_ServeHTTP_PayloadCommentsExist(t *testing.T) {
 
 	handler := SSE(payloadFunc, nil, nil, 10*time.Millisecond, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sse", http.NoBody)
 	ctx, cancel := context.WithTimeout(req.Context(), 25*time.Millisecond)
 	defer cancel()
 	req = req.WithContext(ctx)
@@ -957,7 +999,7 @@ func TestSSE_ServeHTTP_PayloadCommentsExist(t *testing.T) {
 }
 
 // sseErrorTestHelper tests SSE error callback functionality
-func sseErrorTestHelper(t *testing.T, expectedErr error, writeErr, flushErr error) {
+func sseErrorTestHelper(t *testing.T, expectedErr, writeErr, flushErr error) {
 	t.Helper()
 	payloadFunc := func() SSEPayload {
 		return SSEPayload{
@@ -999,7 +1041,7 @@ func TestSSE_ServeHTTP_PayloadRetrySuccess(t *testing.T) {
 
 	handler := SSE(payloadFunc, nil, nil, 10*time.Millisecond, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sse", http.NoBody)
 	ctx, cancel := context.WithTimeout(req.Context(), 25*time.Millisecond)
 	defer cancel()
 	req = req.WithContext(ctx)
@@ -1050,7 +1092,7 @@ func TestSSE_ServeHTTP_PayloadRetryWriteError(t *testing.T) {
 
 	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sse", http.NoBody)
 	ctx, cancel := context.WithTimeout(req.Context(), 50*time.Millisecond)
 	defer cancel()
 	req = req.WithContext(ctx)
@@ -1098,7 +1140,7 @@ func TestSSE_ServeHTTP_AllPayloadFieldsSet(t *testing.T) {
 
 	handler := SSE(payloadFunc, nil, nil, 10*time.Millisecond, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sse", http.NoBody)
 	ctx, cancel := context.WithTimeout(req.Context(), 25*time.Millisecond)
 	defer cancel()
 	req = req.WithContext(ctx)
@@ -1179,20 +1221,24 @@ func TestValidationErrors_Any_MultipleErrors(t *testing.T) {
 	}
 }
 
-func TestValidationError_JSONMarshaling(t *testing.T) {
-	ve := ValidationError{
-		Field: "email",
-		Error: "invalid format",
-	}
+// testMarshalUnmarshal is a helper that tests marshaling and unmarshaling of ValidationError
+func testMarshalUnmarshal(
+	t *testing.T,
+	ve ValidationError,
+	marshal func(interface{}) ([]byte, error),
+	unmarshal func([]byte, interface{}) error,
+	formatName string,
+) {
+	t.Helper()
 
-	data, err := json.Marshal(ve)
+	data, err := marshal(ve)
 	if err != nil {
-		t.Fatalf("Failed to marshal ValidationError: %v", err)
+		t.Fatalf("Failed to marshal ValidationError to %s: %v", formatName, err)
 	}
 
 	var unmarshaled ValidationError
-	if err := json.Unmarshal(data, &unmarshaled); err != nil {
-		t.Fatalf("Failed to unmarshal ValidationError: %v", err)
+	if err := unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("Failed to unmarshal ValidationError from %s: %v", formatName, err)
 	}
 
 	if unmarshaled.Field != ve.Field {
@@ -1204,29 +1250,20 @@ func TestValidationError_JSONMarshaling(t *testing.T) {
 	}
 }
 
+func TestValidationError_JSONMarshaling(t *testing.T) {
+	ve := ValidationError{
+		Field: "email",
+		Error: "invalid format",
+	}
+	testMarshalUnmarshal(t, ve, json.Marshal, json.Unmarshal, "JSON")
+}
+
 func TestValidationError_XMLMarshaling(t *testing.T) {
 	ve := ValidationError{
 		Field: "age",
 		Error: "must be positive",
 	}
-
-	data, err := xml.Marshal(ve)
-	if err != nil {
-		t.Fatalf("Failed to marshal ValidationError to XML: %v", err)
-	}
-
-	var unmarshaled ValidationError
-	if err := xml.Unmarshal(data, &unmarshaled); err != nil {
-		t.Fatalf("Failed to unmarshal ValidationError from XML: %v", err)
-	}
-
-	if unmarshaled.Field != ve.Field {
-		t.Errorf("Expected Field %q, got %q", ve.Field, unmarshaled.Field)
-	}
-
-	if unmarshaled.Error != ve.Error {
-		t.Errorf("Expected Error %q, got %q", ve.Error, unmarshaled.Error)
-	}
+	testMarshalUnmarshal(t, ve, xml.Marshal, xml.Unmarshal, "XML")
 }
 
 func TestValidationErrors_JSONMarshaling(t *testing.T) {
@@ -1294,32 +1331,12 @@ func TestBindJSON_Success(t *testing.T) {
 }
 
 func TestBindJSON_WithValidation_Valid(t *testing.T) {
-	resetAppConfig()
-	Configure(&Config{
-		Assets: &Assets{
-			FS:           testI18nFS2,
-			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
-		},
-	})
-
 	body := `{"name":"John","email":"john@example.com","age":25}`
-	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	r := &Request{Request: req}
-
-	result, valErrs, err := BindJSON[testUser](r, true)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	if valErrs.Any() {
-		t.Errorf("Unexpected validation errors: %+v", valErrs)
-	}
-
-	if result.Name != "John" {
-		t.Errorf("Expected Name 'John', got %q", result.Name)
-	}
+	testBindingSuccess(t, body, "application/json", http.MethodPost, BindJSON[testUser], true, func(result testUser) {
+		if result.Name != "John" {
+			t.Errorf("Expected Name 'John', got %q", result.Name)
+		}
+	})
 }
 
 func TestBindJSON_WithValidation_Invalid(t *testing.T) {
@@ -1397,61 +1414,21 @@ func TestBindJSON_EmptyBody(t *testing.T) {
 // =============================================================================
 
 func TestBindXML_Success(t *testing.T) {
-	resetAppConfig()
-	Configure(&Config{
-		Assets: &Assets{
-			FS:           testI18nFS2,
-			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
-		},
-	})
-
 	body := `<testUser><name>John Doe</name><email>john@example.com</email><age>30</age></testUser>`
-	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/xml")
-	r := &Request{Request: req}
-
-	result, valErrs, err := BindXML[testUser](r, false)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	if valErrs.Any() {
-		t.Errorf("Unexpected validation errors: %+v", valErrs)
-	}
-
-	if result.Name != "John Doe" {
-		t.Errorf("Expected Name 'John Doe', got %q", result.Name)
-	}
+	testBindingSuccess(t, body, "application/xml", http.MethodPost, BindXML[testUser], false, func(result testUser) {
+		if result.Name != "John Doe" {
+			t.Errorf("Expected Name 'John Doe', got %q", result.Name)
+		}
+	})
 }
 
 func TestBindXML_WithValidation_Valid(t *testing.T) {
-	resetAppConfig()
-	Configure(&Config{
-		Assets: &Assets{
-			FS:           testI18nFS2,
-			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
-		},
-	})
-
 	body := `<testUser><name>John</name><email>john@example.com</email><age>25</age></testUser>`
-	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/xml")
-	r := &Request{Request: req}
-
-	result, valErrs, err := BindXML[testUser](r, true)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	if valErrs.Any() {
-		t.Errorf("Unexpected validation errors: %+v", valErrs)
-	}
-
-	if result.Name != "John" {
-		t.Errorf("Expected Name 'John', got %q", result.Name)
-	}
+	testBindingSuccess(t, body, "application/xml", http.MethodPost, BindXML[testUser], true, func(result testUser) {
+		if result.Name != "John" {
+			t.Errorf("Expected Name 'John', got %q", result.Name)
+		}
+	})
 }
 
 func TestBindXML_WithValidation_Invalid(t *testing.T) {
@@ -1809,27 +1786,16 @@ func TestBindForm_ValidationErrors_ReturnsValidationErrorsStruct(t *testing.T) {
 // PatchJSON Tests
 // =============================================================================
 
-func TestPatchJSON_Success(t *testing.T) {
-	resetAppConfig()
-	Configure(&Config{
-		Assets: &Assets{
-			FS:           testI18nFS2,
-			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
-		},
-	})
+// testPatchJSONSuccess is a helper for testing successful PatchJSON operations
+func testPatchJSONSuccess(t *testing.T, target *testUser, patch string, validate bool, checkResult func(*testUser)) {
+	t.Helper()
+	setupTestConfig(t)
 
-	target := testUser{
-		Name:  "Old Name",
-		Email: "old@example.com",
-		Age:   25,
-	}
-
-	patch := `[{"op":"replace","path":"/name","value":"New Name"}]`
 	req := httptest.NewRequest(http.MethodPatch, "/test", strings.NewReader(patch))
 	req.Header.Set("Content-Type", "application/json-patch+json")
 	r := &Request{Request: req}
 
-	valErrs, err := PatchJSON(r, &target, false)
+	valErrs, err := PatchJSON(r, target, validate)
 
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -1839,13 +1805,27 @@ func TestPatchJSON_Success(t *testing.T) {
 		t.Errorf("Unexpected validation errors: %+v", valErrs)
 	}
 
-	if target.Name != "New Name" {
-		t.Errorf("Expected Name 'New Name', got %q", target.Name)
+	if checkResult != nil {
+		checkResult(target)
+	}
+}
+
+func TestPatchJSON_Success(t *testing.T) {
+	target := testUser{
+		Name:  "Old Name",
+		Email: "old@example.com",
+		Age:   25,
 	}
 
-	if target.Email != "old@example.com" {
-		t.Errorf("Email should remain unchanged, got %q", target.Email)
-	}
+	patch := `[{"op":"replace","path":"/name","value":"New Name"}]`
+	testPatchJSONSuccess(t, &target, patch, false, func(target *testUser) {
+		if target.Name != "New Name" {
+			t.Errorf("Expected Name 'New Name', got %q", target.Name)
+		}
+		if target.Email != "old@example.com" {
+			t.Errorf("Email should remain unchanged, got %q", target.Email)
+		}
+	})
 }
 
 func TestPatchJSON_WithValidation_Valid(t *testing.T) {
@@ -1994,14 +1974,6 @@ func TestPatchJSON_InvalidPatchFormat(t *testing.T) {
 }
 
 func TestPatchJSON_MultipleOperations(t *testing.T) {
-	resetAppConfig()
-	Configure(&Config{
-		Assets: &Assets{
-			FS:           testI18nFS2,
-			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
-		},
-	})
-
 	target := testUser{
 		Name:  "John",
 		Email: "john@example.com",
@@ -2012,27 +1984,14 @@ func TestPatchJSON_MultipleOperations(t *testing.T) {
 		{"op":"replace","path":"/name","value":"Jane"},
 		{"op":"replace","path":"/age","value":30}
 	]`
-	req := httptest.NewRequest(http.MethodPatch, "/test", strings.NewReader(patch))
-	req.Header.Set("Content-Type", "application/json-patch+json")
-	r := &Request{Request: req}
-
-	valErrs, err := PatchJSON(r, &target, false)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	if len(valErrs) > 0 {
-		t.Errorf("Unexpected validation errors: %+v", valErrs)
-	}
-
-	if target.Name != "Jane" {
-		t.Errorf("Expected Name 'Jane', got %q", target.Name)
-	}
-
-	if target.Age != 30 {
-		t.Errorf("Expected Age 30, got %d", target.Age)
-	}
+	testPatchJSONSuccess(t, &target, patch, false, func(target *testUser) {
+		if target.Name != "Jane" {
+			t.Errorf("Expected Name 'Jane', got %q", target.Name)
+		}
+		if target.Age != 30 {
+			t.Errorf("Expected Age 30, got %d", target.Age)
+		}
+	})
 }
 
 // =============================================================================
@@ -2101,7 +2060,7 @@ func TestAdaptToHTTPHandler(t *testing.T) {
 
 	httpHandler := adaptToHTTPHandler(handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	httpHandler.ServeHTTP(rec, req)
@@ -2127,7 +2086,7 @@ func TestAdaptHTTPHandler(t *testing.T) {
 
 	handler := adaptHTTPHandler(httpHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
@@ -2166,7 +2125,7 @@ func TestAdaptHTTPMiddleware2(t *testing.T) {
 
 	wrapped := appMw(handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
@@ -2266,7 +2225,9 @@ func BenchmarkConfigure(b *testing.B) {
 	}
 }
 
-func BenchmarkBindJSON(b *testing.B) {
+// benchmarkBindJSON is a helper for benchmarking BindJSON operations
+func benchmarkBindJSON(b *testing.B, validate bool) {
+	b.Helper()
 	resetAppConfig()
 	Configure(&Config{
 		Assets: &Assets{
@@ -2283,29 +2244,16 @@ func BenchmarkBindJSON(b *testing.B) {
 		req.Header.Set("Content-Type", "application/json")
 		r := &Request{Request: req}
 
-		_, _, _ = BindJSON[testUser](r, false)
+		_, _, _ = BindJSON[testUser](r, validate)
 	}
 }
 
+func BenchmarkBindJSON(b *testing.B) {
+	benchmarkBindJSON(b, false)
+}
+
 func BenchmarkBindJSON_WithValidation(b *testing.B) {
-	resetAppConfig()
-	Configure(&Config{
-		Assets: &Assets{
-			FS:           testI18nFS2,
-			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
-		},
-	})
-
-	body := `{"name":"John Doe","email":"john@example.com","age":30}`
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader([]byte(body)))
-		req.Header.Set("Content-Type", "application/json")
-		r := &Request{Request: req}
-
-		_, _, _ = BindJSON[testUser](r, true)
-	}
+	benchmarkBindJSON(b, true)
 }
 
 func BenchmarkPatchJSON(b *testing.B) {

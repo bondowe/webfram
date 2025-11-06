@@ -104,12 +104,12 @@ func TestServeMux_HandleFunc_BasicHandler(t *testing.T) {
 	handler := func(w ResponseWriter, r *Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Hello World"))
+		_, _ = w.Write([]byte("Hello World"))
 	}
 
 	mux.HandleFunc("GET /test", handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)
@@ -140,7 +140,7 @@ func TestServeMux_HandleFunc_WithPathParameters(t *testing.T) {
 
 	mux.HandleFunc("GET /users/{id}", handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users/123", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)
@@ -169,7 +169,7 @@ func TestServeMux_HandleFunc_MultipleRoutes(t *testing.T) {
 	})
 
 	// Test route1
-	req1 := httptest.NewRequest(http.MethodGet, "/route1", nil)
+	req1 := httptest.NewRequest(http.MethodGet, "/route1", http.NoBody)
 	rec1 := httptest.NewRecorder()
 	mux.ServeHTTP(rec1, req1)
 
@@ -184,7 +184,7 @@ func TestServeMux_HandleFunc_MultipleRoutes(t *testing.T) {
 	route1Called = false
 	route2Called = false
 
-	req2 := httptest.NewRequest(http.MethodGet, "/route2", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/route2", http.NoBody)
 	rec2 := httptest.NewRecorder()
 	mux.ServeHTTP(rec2, req2)
 
@@ -229,12 +229,12 @@ func TestServeMux_Handle_WithHandlerInterface(t *testing.T) {
 	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
 		called = true
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte("Created"))
+		_, _ = w.Write([]byte("Created"))
 	})
 
 	mux.Handle("POST /resource", handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/resource", nil)
+	req := httptest.NewRequest(http.MethodPost, "/resource", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)
@@ -302,7 +302,7 @@ func TestServeMux_Use_WithAppMiddleware(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)
@@ -342,7 +342,7 @@ func TestServeMux_Use_WithStandardMiddleware(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)
@@ -416,7 +416,7 @@ func TestServeMux_Use_MultipleMiddlewares(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)
@@ -457,7 +457,7 @@ func TestServeMux_HandleFunc_WithHandlerMiddleware(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler, handlerMw)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)
@@ -499,7 +499,7 @@ func TestServeMux_HandleFunc_WithMultipleHandlerMiddlewares(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler, mw1, mw2)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)
@@ -562,7 +562,7 @@ func TestServeMux_MixedMuxAndHandlerMiddlewares(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler, handlerMw)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)
@@ -606,10 +606,10 @@ func TestHandlerFunc_ServeHTTP_Basic(t *testing.T) {
 	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("test response"))
+		_, _ = w.Write([]byte("test response"))
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
@@ -640,7 +640,7 @@ func TestHandlerFunc_ServeHTTP_SetsContext(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
@@ -669,10 +669,10 @@ func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Valid(t *testing.T) {
 	})
 
 	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
-		w.JSON(map[string]string{"message": "test"})
+		_ = w.JSON(map[string]string{"message": "test"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test?callback=myCallback", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test?callback=myCallback", http.NoBody)
 	rec := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
@@ -706,7 +706,7 @@ func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Invalid(t *testing.T) {
 	})
 
 	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
-		w.JSON(map[string]string{"message": "test"})
+		_ = w.JSON(map[string]string{"message": "test"})
 	})
 
 	invalidCallbacks := []string{
@@ -719,7 +719,7 @@ func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Invalid(t *testing.T) {
 	for _, callback := range invalidCallbacks {
 		t.Run(callback, func(t *testing.T) {
 			// URL encode the callback to avoid issues with special characters in URL
-			req := httptest.NewRequest(http.MethodGet, "/test?callback="+strings.ReplaceAll(callback, " ", "%20"), nil)
+			req := httptest.NewRequest(http.MethodGet, "/test?callback="+strings.ReplaceAll(callback, " ", "%20"), http.NoBody)
 			rec := httptest.NewRecorder()
 			rw := ResponseWriter{ResponseWriter: rec}
 			r := &Request{Request: req}
@@ -752,7 +752,7 @@ func TestI18nMiddleware_WithAcceptLanguageHeader(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	req.Header.Set("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
 	rec := httptest.NewRecorder()
 
@@ -774,7 +774,7 @@ func TestI18nMiddleware_WithLanguageCookie(t *testing.T) {
 
 	mux.HandleFunc("GET /test", handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	req.AddCookie(&http.Cookie{
 		Name:  "lang",
 		Value: "es",
@@ -800,7 +800,7 @@ func TestI18nMiddleware_DefaultsToEnglish(t *testing.T) {
 	mux.HandleFunc("GET /test", handler)
 
 	// No Accept-Language header or cookie
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)
@@ -928,7 +928,7 @@ func TestWrapMiddlewares_SingleMiddleware(t *testing.T) {
 
 	wrapped := wrapMiddlewares(handler, []AppMiddleware{mw})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
@@ -971,7 +971,7 @@ func TestWrapMiddlewares_MultipleMiddlewares(t *testing.T) {
 
 	wrapped := wrapMiddlewares(handler, []AppMiddleware{mw1, mw2, mw3})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
@@ -999,7 +999,7 @@ func TestWrapMiddlewares_EmptyMiddlewares(t *testing.T) {
 
 	wrapped := wrapMiddlewares(handler, []AppMiddleware{})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
@@ -1354,9 +1354,7 @@ func TestNonZeroValuePointer_NonZero(t *testing.T) {
 
 	if intPtr == nil {
 		t.Error("Expected non-nil pointer for non-zero value")
-	}
-
-	if *intPtr != 42 {
+	} else if *intPtr != 42 {
 		t.Errorf("Expected value 42, got %d", *intPtr)
 	}
 
@@ -1365,9 +1363,7 @@ func TestNonZeroValuePointer_NonZero(t *testing.T) {
 
 	if strPtr == nil {
 		t.Error("Expected non-nil pointer for non-zero string")
-	}
-
-	if *strPtr != "test" {
+	} else if *strPtr != "test" {
 		t.Errorf("Expected value 'test', got %q", *strPtr)
 	}
 }
@@ -1499,7 +1495,7 @@ func BenchmarkServeMux_ServeHTTP(b *testing.B) {
 
 	mux.HandleFunc("GET /test", handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

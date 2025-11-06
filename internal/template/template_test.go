@@ -16,9 +16,25 @@ var testFS embed.FS
 func resetTemplateConfig() {
 	config = nil
 	templatesCache = sync.Map{}
+	partialsCache = sync.Map{}
 	layoutsCache = make(map[string]any)
 	layoutPattern = nil
 	funcMap = htmlTemplate.FuncMap{}
+}
+
+func setupTestTemplateConfig(t *testing.T) {
+	t.Helper()
+	resetTemplateConfig()
+
+	cfg := &Config{
+		FS:                    testFS,
+		LayoutBaseName:        "layout",
+		HTMLTemplateExtension: ".go.html",
+		TextTemplateExtension: ".go.txt",
+		I18nFuncName:          "T",
+	}
+
+	Configure(cfg)
 }
 
 func TestConfigure(t *testing.T) {
@@ -283,17 +299,7 @@ func TestGetLayout_AmbiguousLayouts(t *testing.T) {
 }
 
 func TestParseHTMLTemplate_WithoutLayout(t *testing.T) {
-	resetTemplateConfig()
-
-	cfg := &Config{
-		FS:                    testFS,
-		LayoutBaseName:        "layout",
-		HTMLTemplateExtension: ".go.html",
-		TextTemplateExtension: ".go.txt",
-		I18nFuncName:          "T",
-	}
-
-	Configure(cfg)
+	setupTestTemplateConfig(t)
 
 	templatePath := "testdata/simple.go.html"
 	layouts := []string{}
@@ -344,17 +350,7 @@ func TestParseHTMLTemplate_WithLayout(t *testing.T) {
 }
 
 func TestParseTextTemplate_WithoutLayout(t *testing.T) {
-	resetTemplateConfig()
-
-	cfg := &Config{
-		FS:                    testFS,
-		LayoutBaseName:        "layout",
-		HTMLTemplateExtension: ".go.html",
-		TextTemplateExtension: ".go.txt",
-		I18nFuncName:          "T",
-	}
-
-	Configure(cfg)
+	setupTestTemplateConfig(t)
 
 	templatePath := "testdata/simple.go.txt"
 	layouts := []string{}

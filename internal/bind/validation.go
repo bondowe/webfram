@@ -131,7 +131,7 @@ func isValidationRuleValidForType(rule string, kind reflect.Kind, fieldType refl
 }
 
 // validateFieldTypeRules validates that all validation rules are applicable to the field type
-func validateFieldTypeRules(field reflect.StructField, kind reflect.Kind, fieldType reflect.Type) {
+func validateFieldTypeRules(field *reflect.StructField, kind reflect.Kind, fieldType reflect.Type) {
 	validateTag := field.Tag.Get("validate")
 	if validateTag == "" {
 		return
@@ -175,7 +175,7 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 		}
 
 		// Validate that the validation rules are applicable to this field type
-		validateFieldTypeRules(fieldType, kind, field.Type())
+		validateFieldTypeRules(&fieldType, kind, field.Type())
 
 		validate := fieldType.Tag.Get("validate")
 		if validate == "" {
@@ -446,7 +446,7 @@ func isEmpty(v reflect.Value) bool {
 	}
 }
 
-func getErrorMessage(field *reflect.StructField, rule string, fallback string) string {
+func getErrorMessage(field *reflect.StructField, rule, fallback string) string {
 	tag := field.Tag.Get("errmsg")
 	if tag == "" {
 		return fallback

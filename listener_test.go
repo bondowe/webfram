@@ -15,34 +15,10 @@ import (
 	"github.com/bondowe/webfram/openapi"
 )
 
-func TestNewServerConfig(t *testing.T) {
-	cfg := NewServerConfig()
+// contextKey is a custom type for context keys to avoid collisions
+type contextKey2 string
 
-	if cfg == nil {
-		t.Fatal("NewServerConfig returned nil")
-	}
-
-	// Test default values
-	tests := []struct {
-		got      interface{}
-		expected interface{}
-		name     string
-	}{
-		{name: "ReadTimeout", got: cfg.ReadTimeout, expected: 15 * time.Second},
-		{name: "ReadHeaderTimeout", got: cfg.ReadHeaderTimeout, expected: 15 * time.Second},
-		{name: "WriteTimeout", got: cfg.WriteTimeout, expected: 15 * time.Second},
-		{name: "IdleTimeout", got: cfg.IdleTimeout, expected: 60 * time.Second},
-		{name: "MaxHeaderBytes", got: cfg.MaxHeaderBytes, expected: http.DefaultMaxHeaderBytes},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.got != tt.expected {
-				t.Errorf("Expected %v = %v, got %v", tt.name, tt.expected, tt.got)
-			}
-		})
-	}
-}
+const testContextKey2 contextKey2 = "test-key"
 
 func TestGetValueOrDefault(t *testing.T) {
 	tests := []struct {
@@ -122,7 +98,7 @@ func TestListenAndServe_ServerStartsSuccessfully(t *testing.T) {
 	// Add a simple handler
 	mux.HandleFunc("GET /test", func(w ResponseWriter, r *Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	// Find a free port
@@ -141,9 +117,9 @@ func TestListenAndServe_ServerStartsSuccessfully(t *testing.T) {
 		defer func() {
 			if r := recover(); r != nil {
 				// Server shutdown is expected
-				if err, ok := r.(error); ok {
-					if !errors.Is(err, http.ErrServerClosed) {
-						t.Errorf("Unexpected server error: %v", err)
+				if err2, ok := r.(error); ok {
+					if !errors.Is(err2, http.ErrServerClosed) {
+						t.Errorf("Unexpected server error: %v", err2)
 					}
 				}
 			}
@@ -179,7 +155,7 @@ func TestListenAndServe_ServerStartsSuccessfully(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proc.Signal(syscall.SIGTERM)
+	_ = proc.Signal(syscall.SIGTERM)
 
 	// Wait for server to stop (with timeout)
 	select {
@@ -223,7 +199,7 @@ func TestListenAndServe_WithCustomConfig(t *testing.T) {
 		ConnState: func(conn net.Conn, state http.ConnState) {
 		},
 		BaseContext: func(listener net.Listener) context.Context {
-			return context.WithValue(context.Background(), "test-key", "test-value")
+			return context.WithValue(context.Background(), testContextKey2, "test-value")
 		},
 	}
 
@@ -231,9 +207,7 @@ func TestListenAndServe_WithCustomConfig(t *testing.T) {
 
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
-				// Expected shutdown
-			}
+			_ = recover()
 			serverStopped <- true
 		}()
 
@@ -244,11 +218,15 @@ func TestListenAndServe_WithCustomConfig(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Make a request to trigger connection state
-	http.Get("http://" + addr + "/test")
+	resp, err := http.Get("http://" + addr + "/test")
+
+	if err == nil {
+		defer resp.Body.Close()
+	}
 
 	// Stop the server
 	proc, _ := os.FindProcess(os.Getpid())
-	proc.Signal(syscall.SIGTERM)
+	_ = proc.Signal(syscall.SIGTERM)
 
 	// Wait for shutdown
 	select {
@@ -306,9 +284,7 @@ func TestListenAndServe_WithOpenAPIEndpoint(t *testing.T) {
 
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
-				// Expected shutdown
-			}
+			_ = recover()
 			serverStopped <- true
 		}()
 
@@ -333,9 +309,7 @@ func TestListenAndServe_WithOpenAPIEndpoint(t *testing.T) {
 
 	// Stop the server
 	proc, _ := os.FindProcess(os.Getpid())
-	proc.Signal(syscall.SIGTERM)
-
-	// Wait for shutdown
+	_ = proc.Signal(syscall.SIGTERM) // Wait for shutdown
 	select {
 	case <-serverStopped:
 		// Success
@@ -450,7 +424,7 @@ func TestListenAndServe_HandlesMultipleRequests(t *testing.T) {
 	mux.HandleFunc("GET /count", func(w ResponseWriter, r *Request) {
 		requestCount++
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	// Find a free port
@@ -465,9 +439,7 @@ func TestListenAndServe_HandlesMultipleRequests(t *testing.T) {
 
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
-				// Expected shutdown
-			}
+			_ = recover()
 			serverStopped <- true
 		}()
 
@@ -492,9 +464,7 @@ func TestListenAndServe_HandlesMultipleRequests(t *testing.T) {
 
 	// Stop the server
 	proc, _ := os.FindProcess(os.Getpid())
-	proc.Signal(syscall.SIGTERM)
-
-	// Wait for shutdown
+	_ = proc.Signal(syscall.SIGTERM) // Wait for shutdown
 	select {
 	case <-serverStopped:
 		// Success
@@ -508,23 +478,21 @@ func TestServerConfig_ZeroTimeouts(t *testing.T) {
 		// All timeouts are zero (default values)
 	}
 
-	defaultCfg := NewServerConfig()
-
 	// When passed to ListenAndServe, zero values should be replaced with defaults
 	// We verify the logic by checking getValueOrDefault behavior
-	readTimeout := getValueOrDefault(cfg.ReadTimeout, defaultCfg.ReadTimeout)
-	if readTimeout != 15*time.Second {
-		t.Errorf("Expected default ReadTimeout 15s, got %v", readTimeout)
+	rTimeout := getValueOrDefault(cfg.ReadTimeout, readTimeout)
+	if rTimeout != 15*time.Second {
+		t.Errorf("Expected default ReadTimeout 15s, got %v", rTimeout)
 	}
 
-	writeTimeout := getValueOrDefault(cfg.WriteTimeout, defaultCfg.WriteTimeout)
-	if writeTimeout != 15*time.Second {
-		t.Errorf("Expected default WriteTimeout 15s, got %v", writeTimeout)
+	wTimeout := getValueOrDefault(cfg.WriteTimeout, writeTimeout)
+	if wTimeout != 15*time.Second {
+		t.Errorf("Expected default WriteTimeout 15s, got %v", wTimeout)
 	}
 
-	idleTimeout := getValueOrDefault(cfg.IdleTimeout, defaultCfg.IdleTimeout)
-	if idleTimeout != 60*time.Second {
-		t.Errorf("Expected default IdleTimeout 60s, got %v", idleTimeout)
+	iTimeout := getValueOrDefault(cfg.IdleTimeout, idleTimeout)
+	if iTimeout != 60*time.Second {
+		t.Errorf("Expected default IdleTimeout 60s, got %v", iTimeout)
 	}
 }
 
@@ -571,12 +539,6 @@ func TestServerConfig_Protocols(t *testing.T) {
 
 	if !cfg.Protocols.HTTP2() {
 		t.Error("HTTP2 should be enabled")
-	}
-}
-
-func BenchmarkNewServerConfig(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		NewServerConfig()
 	}
 }
 

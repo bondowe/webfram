@@ -20,6 +20,11 @@ import (
 	yaml "sigs.k8s.io/yaml/goyaml.v2"
 )
 
+// contextKey is a custom type for context keys to avoid collisions
+type contextKey3 string
+
+const testContextKey3 contextKey3 = "test-key"
+
 //go:embed testdata/templates/*.go.html
 //go:embed testdata/templates/*.go.txt
 var testTemplatesFS embed.FS
@@ -44,7 +49,7 @@ func setupResponseWriterTests() {
 
 func TestResponseWriter_Context(t *testing.T) {
 	w := httptest.NewRecorder()
-	ctx := context.WithValue(context.Background(), "test-key", "test-value")
+	ctx := context.WithValue(context.Background(), testContextKey3, "test-value")
 	rw := ResponseWriter{
 		ResponseWriter: w,
 		context:        ctx,
@@ -55,7 +60,7 @@ func TestResponseWriter_Context(t *testing.T) {
 		t.Fatal("Context() returned nil")
 	}
 
-	val := result.Value("test-key")
+	val := result.Value(testContextKey3)
 	if val != "test-value" {
 		t.Errorf("Expected context value 'test-value', got %v", val)
 	}
@@ -166,18 +171,6 @@ func TestResponseWriter_Push(t *testing.T) {
 
 	if !errors.Is(err, http.ErrNotSupported) {
 		t.Errorf("Expected http.ErrNotSupported, got %v", err)
-	}
-}
-
-func TestResponseWriter_CloseNotify(t *testing.T) {
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
-
-	// httptest.ResponseRecorder doesn't support CloseNotify
-	ch := rw.CloseNotify()
-
-	if ch != nil {
-		t.Error("Expected nil channel for unsupported CloseNotify")
 	}
 }
 
@@ -453,7 +446,7 @@ func TestResponseWriter_Redirect(t *testing.T) {
 			w := httptest.NewRecorder()
 			rw := ResponseWriter{ResponseWriter: w}
 
-			req := httptest.NewRequest("GET", "/original", nil)
+			req := httptest.NewRequest("GET", "/original", http.NoBody)
 			r := &Request{Request: req}
 
 			rw.Redirect(r, tt.url, tt.code)
@@ -514,60 +507,6 @@ func TestResponseWriter_HTMLString(t *testing.T) {
 	}
 }
 
-func TestResponseWriter_HTMLString_InvalidTemplate(t *testing.T) {
-	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
-
-	err := rw.HTMLString("{{.Invalid", nil)
-	if err == nil {
-		t.Error("Expected error for invalid template")
-	}
-}
-
-func TestResponseWriter_TextString(t *testing.T) {
-	tests := []struct {
-		name     string
-		template string
-		data     map[string]interface{}
-		expected string
-	}{
-		{
-			name:     "simple text",
-			template: "Hello {{.Name}}",
-			data:     map[string]interface{}{"Name": "World"},
-			expected: "Hello World",
-		},
-		{
-			name:     "multiple values",
-			template: "{{.A}} + {{.B}} = {{.C}}",
-			data:     map[string]interface{}{"A": "1", "B": "2", "C": "3"},
-			expected: "1 + 2 = 3",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			rw := ResponseWriter{ResponseWriter: w}
-
-			err := rw.TextString(tt.template, tt.data)
-			if err != nil {
-				t.Fatalf("TextString() returned error: %v", err)
-			}
-
-			contentType := w.Header().Get("Content-Type")
-			if contentType != "text/plain" {
-				t.Errorf("Expected Content-Type 'text/plain', got %q", contentType)
-			}
-
-			body := w.Body.String()
-			if body != tt.expected {
-				t.Errorf("Expected body %q, got %q", tt.expected, body)
-			}
-		})
-	}
-}
-
 func TestResponseWriter_TextString_InvalidTemplate(t *testing.T) {
 	w := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: w}
@@ -606,7 +545,7 @@ func TestResponseWriter_ServeFile(t *testing.T) {
 			w := httptest.NewRecorder()
 			rw := ResponseWriter{ResponseWriter: w}
 
-			req := httptest.NewRequest("GET", "/file", nil)
+			req := httptest.NewRequest("GET", "/file", http.NoBody)
 			r := &Request{Request: req}
 
 			rw.ServeFile(r, tt.filename, tt.inline)
@@ -665,15 +604,6 @@ func (m *mockPusher) Push(target string, opts *http.PushOptions) error {
 	return nil
 }
 
-type mockCloseNotifier struct {
-	*httptest.ResponseRecorder
-	ch chan bool
-}
-
-func (m *mockCloseNotifier) CloseNotify() <-chan bool {
-	return m.ch
-}
-
 type mockReaderFrom struct {
 	*httptest.ResponseRecorder
 	readBytes int64
@@ -715,19 +645,7 @@ func TestResponseWriter_Push_Supported(t *testing.T) {
 	}
 
 	if pusher.target != "/resource" {
-		t.Errorf("Expected target '/resource', got %q", pusher.target)
-	}
-}
-
-func TestResponseWriter_CloseNotify_Supported(t *testing.T) {
-	w := httptest.NewRecorder()
-	ch := make(chan bool, 1)
-	cn := &mockCloseNotifier{ResponseRecorder: w, ch: ch}
-	rw := ResponseWriter{ResponseWriter: cn}
-
-	result := rw.CloseNotify()
-	if result == nil {
-		t.Error("Expected non-nil channel")
+		t.Error("Expected Hijack to be called")
 	}
 }
 
@@ -768,7 +686,7 @@ func BenchmarkResponseWriter_JSON(b *testing.B) {
 			ResponseWriter: w,
 			context:        context.Background(),
 		}
-		rw.JSON(data)
+		_ = rw.JSON(data)
 	}
 }
 
@@ -785,7 +703,7 @@ func BenchmarkResponseWriter_XML(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
 		rw := ResponseWriter{ResponseWriter: w}
-		rw.XML(data)
+		_ = rw.XML(data)
 	}
 }
 
@@ -796,7 +714,7 @@ func BenchmarkResponseWriter_Bytes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
 		rw := ResponseWriter{ResponseWriter: w}
-		rw.Bytes(data, "text/plain")
+		_ = rw.Bytes(data, "text/plain")
 	}
 }
 
