@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -804,6 +805,7 @@ type mockSSEWriter struct {
 	http.ResponseWriter
 	writeError error
 	flushError error
+	mu         sync.Mutex
 	writeCalls []string
 }
 
@@ -811,12 +813,22 @@ func (m *mockSSEWriter) Write(b []byte) (int, error) {
 	if m.writeError != nil {
 		return 0, m.writeError
 	}
+	m.mu.Lock()
 	m.writeCalls = append(m.writeCalls, string(b))
+	m.mu.Unlock()
 	return m.ResponseWriter.Write(b)
 }
 
 func (m *mockSSEWriter) Flush() error {
 	return m.flushError
+}
+
+func (m *mockSSEWriter) getCalls() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	calls := make([]string, len(m.writeCalls))
+	copy(calls, m.writeCalls)
+	return calls
 }
 
 func TestSSE_ServeHTTP_PayloadIdNotEmpty(t *testing.T) {
@@ -848,15 +860,16 @@ func TestSSE_ServeHTTP_PayloadIdNotEmpty(t *testing.T) {
 	cancel()
 	time.Sleep(10 * time.Millisecond)
 
+	calls := mockWriter.getCalls()
 	found := false
-	for _, call := range mockWriter.writeCalls {
+	for _, call := range calls {
 		if strings.Contains(call, "id: message-123\n") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("Expected 'id: message-123\\n' to be written, got calls: %v", mockWriter.writeCalls)
+		t.Errorf("Expected 'id: message-123\\n' to be written, got calls: %v", calls)
 	}
 }
 
@@ -889,15 +902,16 @@ func TestSSE_ServeHTTP_PayloadEventNotEmpty(t *testing.T) {
 	cancel()
 	time.Sleep(10 * time.Millisecond)
 
+	calls := mockWriter.getCalls()
 	found := false
-	for _, call := range mockWriter.writeCalls {
+	for _, call := range calls {
 		if strings.Contains(call, "event: user-connected\n") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("Expected 'event: user-connected\\n' to be written, got calls: %v", mockWriter.writeCalls)
+		t.Errorf("Expected 'event: user-connected\\n' to be written, got calls: %v", calls)
 	}
 }
 
@@ -930,17 +944,18 @@ func TestSSE_ServeHTTP_PayloadCommentsExist(t *testing.T) {
 	cancel()
 	time.Sleep(10 * time.Millisecond)
 
+	calls := mockWriter.getCalls()
 	expectedComments := []string{": comment1\n", ": comment2\n", ": comment3\n"}
 	for _, expected := range expectedComments {
 		found := false
-		for _, call := range mockWriter.writeCalls {
+		for _, call := range calls {
 			if strings.Contains(call, expected) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Errorf("Expected '%s' to be written, got calls: %v", expected, mockWriter.writeCalls)
+			t.Errorf("Expected '%s' to be written, got calls: %v", expected, calls)
 		}
 	}
 }
@@ -1020,15 +1035,16 @@ func TestSSE_ServeHTTP_PayloadRetrySuccess(t *testing.T) {
 	cancel()
 	time.Sleep(10 * time.Millisecond)
 
+	calls := mockWriter.getCalls()
 	found := false
-	for _, call := range mockWriter.writeCalls {
+	for _, call := range calls {
 		if strings.Contains(call, "retry: 5000\n") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("Expected 'retry: 5000\\n' to be written, got calls: %v", mockWriter.writeCalls)
+		t.Errorf("Expected 'retry: 5000\\n' to be written, got calls: %v", calls)
 	}
 }
 
@@ -1159,6 +1175,7 @@ func TestSSE_ServeHTTP_AllPayloadFieldsSet(t *testing.T) {
 	cancel()
 	time.Sleep(10 * time.Millisecond)
 
+	calls := mockWriter.getCalls()
 	expectedStrings := []string{
 		"id: msg-456\n",
 		"event: update\n",
@@ -1169,14 +1186,14 @@ func TestSSE_ServeHTTP_AllPayloadFieldsSet(t *testing.T) {
 
 	for _, expected := range expectedStrings {
 		found := false
-		for _, call := range mockWriter.writeCalls {
+		for _, call := range calls {
 			if strings.Contains(call, expected) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Errorf("Expected '%s' to be written, got calls: %v", expected, mockWriter.writeCalls)
+			t.Errorf("Expected '%s' to be written, got calls: %v", expected, calls)
 		}
 	}
 }
