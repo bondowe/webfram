@@ -40,9 +40,7 @@ func Configure(cfg *Config) {
 	layoutPatternString = fmt.Sprintf("^_?(?:%s|%s)$", htmlLayoutFileName, textLayoutFileName)
 	layoutPattern = regexp.MustCompile(layoutPatternString)
 
-	funcMap[config.I18nFuncName] = func(str string, args ...any) string {
-		return fmt.Sprintf(str, args...)
-	}
+	funcMap[config.I18nFuncName] = fmt.Sprintf
 
 	htmlLayouts := make([]string, 0)
 	textLayouts := make([]string, 0)
@@ -75,9 +73,9 @@ func LookupTemplate(path string, absolute bool) (*htmlTemplate.Template, bool) {
 		if strings.HasSuffix(keyStr, path) {
 			foundTemplate = value.([2]any)[1].(*htmlTemplate.Template)
 			found = true
-			return false // stop iteration
+			return false
 		}
-		return true // continue iteration
+		return true
 	})
 
 	return foundTemplate, found
@@ -91,7 +89,7 @@ func Must[T any](v T, err error) T {
 	return v
 }
 
-func cacheTemplates(dir fs.FS, dirPath string, htmlLayouts []string, textLayouts []string) {
+func cacheTemplates(dir fs.FS, dirPath string, htmlLayouts, textLayouts []string) {
 	var layoutFilePath string
 
 	if layoutFileName, ok := getLayout(dir, htmlLayoutFileName); ok {
@@ -121,9 +119,9 @@ func cacheTemplates(dir fs.FS, dirPath string, htmlLayouts []string, textLayouts
 	for _, entry := range templates {
 		if entry.IsDir() {
 			entryFS := Must(fs.Sub(dir, entry.Name()))
-			dirPath := dirPath + "/" + entry.Name()
+			nestedDirPath := dirPath + "/" + entry.Name()
 
-			cacheTemplates(entryFS, dirPath, htmlLayouts, textLayouts)
+			cacheTemplates(entryFS, nestedDirPath, htmlLayouts, textLayouts)
 			continue
 		}
 		isLayoutFile := layoutPattern.MatchString(entry.Name())
@@ -191,7 +189,7 @@ func layoutExists(dir fs.FS, layoutName string) bool {
 	return true
 }
 
-func lookUpPartial(folder string, partialFilename string) *htmlTemplate.Template {
+func lookUpPartial(folder, partialFilename string) *htmlTemplate.Template {
 	var partialPath string
 	if folder == "" || folder == "." {
 		partialPath = partialFilename
@@ -213,7 +211,6 @@ func lookUpPartial(folder string, partialFilename string) *htmlTemplate.Template
 }
 
 func getPartialFunc(templatePath string) func(name string, data any) (htmlTemplate.HTML, error) {
-
 	return func(name string, data any) (htmlTemplate.HTML, error) {
 		var templateDir string
 		if templatePath != "" {

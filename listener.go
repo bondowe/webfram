@@ -31,14 +31,13 @@ type ServerConfig struct {
 }
 
 func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
-
 	if openAPIConfig != nil && openAPIConfig.EndpointEnabled {
 		doc, err := openAPIConfig.Config.MarshalJSON()
 		if err != nil {
 			panic(err)
 		}
 		mux.HandleFunc(openAPIConfig.URLPath, func(w ResponseWriter, r *Request) {
-			w.Bytes(doc, "application/openapi+json")
+			_ = w.Bytes(doc, "application/openapi+json")
 		})
 	}
 

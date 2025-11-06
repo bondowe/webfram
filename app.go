@@ -421,7 +421,6 @@ func (errs *ValidationErrors) Any() bool {
 }
 
 func BindForm[T any](r *Request) (T, *ValidationErrors, error) {
-
 	val, valErrors, err := bind.Form[T](r.Request)
 
 	vErrors := &ValidationErrors{}
@@ -522,7 +521,7 @@ func GetI18nPrinter(tag language.Tag) *message.Printer {
 	return i18n.GetI18nPrinter(tag)
 }
 
-func getValueOrDefault[T comparable](value T, defaultValue T) T {
+func getValueOrDefault[T comparable](value, defaultValue T) T {
 	var zero T
 
 	if value == zero {

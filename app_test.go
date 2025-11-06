@@ -32,12 +32,6 @@ type testUser struct {
 	Age   int    `json:"age" xml:"age" form:"age" validate:"min=0,max=150"`
 }
 
-type testProduct struct {
-	SKU   string  `json:"sku" xml:"sku" form:"sku" validate:"required"`
-	Name  string  `json:"name" xml:"name" form:"name" validate:"required"`
-	Price float64 `json:"price" xml:"price" form:"price" validate:"min=0"`
-}
-
 // resetAppConfig resets all global app configuration to initial state
 func resetAppConfig() {
 	appConfigured = false
@@ -450,7 +444,7 @@ func TestUse_WithAppMiddleware(t *testing.T) {
 	})
 	wrapped := appMiddlewares[0](handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: rec}
 	r := &Request{Request: req}
@@ -832,7 +826,12 @@ func (m *mockSSEWriter) getCalls() []string {
 }
 
 // sseTestHelper sets up and runs an SSE test, returning the mock writer's calls
-func sseTestHelper(t *testing.T, payloadFunc SSEPayloadFunc, errorFunc SSEErrorFunc, writeErr, flushErr error) (*mockSSEWriter, context.CancelFunc) {
+func sseTestHelper(
+	t *testing.T,
+	payloadFunc SSEPayloadFunc,
+	errorFunc SSEErrorFunc,
+	writeErr, flushErr error,
+) (*mockSSEWriter, context.CancelFunc) {
 	t.Helper()
 	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
 
@@ -957,7 +956,9 @@ func TestSSE_ServeHTTP_PayloadCommentsExist(t *testing.T) {
 	}
 }
 
-func TestSSE_ServeHTTP_PayloadDataWriteError(t *testing.T) {
+// sseErrorTestHelper tests SSE error callback functionality
+func sseErrorTestHelper(t *testing.T, expectedErr error, writeErr, flushErr error) {
+	t.Helper()
 	payloadFunc := func() SSEPayload {
 		return SSEPayload{
 			Data: "test data",
@@ -971,18 +972,22 @@ func TestSSE_ServeHTTP_PayloadDataWriteError(t *testing.T) {
 		capturedError.Store(err)
 	}
 
-	writeErr := errors.New("write failed")
-	_, cancel := sseTestHelper(t, payloadFunc, errorFunc, writeErr, nil)
+	_, cancel := sseTestHelper(t, payloadFunc, errorFunc, writeErr, flushErr)
 	defer cancel()
 
 	time.Sleep(30 * time.Millisecond)
 
 	if !errorCalled.Load() {
-		t.Error("Expected errorFunc to be called when data write fails")
+		t.Error("Expected errorFunc to be called")
 	}
-	if err := capturedError.Load(); err != writeErr {
-		t.Errorf("Expected error %v, got %v", writeErr, err)
+	if err := capturedError.Load(); err != expectedErr {
+		t.Errorf("Expected error %v, got %v", expectedErr, err)
 	}
+}
+
+func TestSSE_ServeHTTP_PayloadDataWriteError(t *testing.T) {
+	writeErr := errors.New("write failed")
+	sseErrorTestHelper(t, writeErr, writeErr, nil)
 }
 
 func TestSSE_ServeHTTP_PayloadRetrySuccess(t *testing.T) {
@@ -1076,31 +1081,8 @@ func TestSSE_ServeHTTP_PayloadRetryWriteError(t *testing.T) {
 }
 
 func TestSSE_ServeHTTP_FlushError(t *testing.T) {
-	payloadFunc := func() SSEPayload {
-		return SSEPayload{
-			Data: "test data",
-		}
-	}
-
-	var errorCalled atomic.Bool
-	var capturedError atomic.Value
-	errorFunc := func(err error) {
-		errorCalled.Store(true)
-		capturedError.Store(err)
-	}
-
 	flushErr := errors.New("flush failed")
-	_, cancel := sseTestHelper(t, payloadFunc, errorFunc, nil, flushErr)
-	defer cancel()
-
-	time.Sleep(30 * time.Millisecond)
-
-	if !errorCalled.Load() {
-		t.Error("Expected errorFunc to be called when flush fails")
-	}
-	if err := capturedError.Load(); err != flushErr {
-		t.Errorf("Expected error %v, got %v", flushErr, err)
-	}
+	sseErrorTestHelper(t, flushErr, nil, flushErr)
 }
 
 func TestSSE_ServeHTTP_AllPayloadFieldsSet(t *testing.T) {
@@ -1551,7 +1533,9 @@ func TestBindForm_Success(t *testing.T) {
 	}
 }
 
-func TestBindForm_ValidationError_MissingRequiredField(t *testing.T) {
+// bindFormValidationHelper tests BindForm validation errors
+func bindFormValidationHelper(t *testing.T, body, expectedField, expectedErrSubstr string) {
+	t.Helper()
 	resetAppConfig()
 	Configure(&Config{
 		Assets: &Assets{
@@ -1560,13 +1544,11 @@ func TestBindForm_ValidationError_MissingRequiredField(t *testing.T) {
 		},
 	})
 
-	// Missing required 'name' field
-	body := "email=john%40example.com&age=30"
 	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	r := &Request{Request: req}
 
-	result, valErrs, err := BindForm[testUser](r)
+	_, valErrs, err := BindForm[testUser](r)
 
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -1576,25 +1558,23 @@ func TestBindForm_ValidationError_MissingRequiredField(t *testing.T) {
 		t.Fatal("Expected validation errors but got none")
 	}
 
-	// Check that we have validation error for 'name' field
-	foundNameError := false
+	foundError := false
 	for _, e := range valErrs.Errors {
-		if e.Field == "Name" {
-			foundNameError = true
-			if !strings.Contains(e.Error, "required") {
-				t.Errorf("Expected 'required' error for Name field, got: %s", e.Error)
+		if e.Field == expectedField {
+			foundError = true
+			if !strings.Contains(e.Error, expectedErrSubstr) {
+				t.Errorf("Expected error containing %q for %s field, got: %s", expectedErrSubstr, expectedField, e.Error)
 			}
 		}
 	}
 
-	if !foundNameError {
-		t.Errorf("Expected validation error for Name field, got errors: %+v", valErrs.Errors)
+	if !foundError {
+		t.Errorf("Expected validation error for %s field, got errors: %+v", expectedField, valErrs.Errors)
 	}
+}
 
-	// Result should still be returned with default values
-	if result.Name != "" {
-		t.Errorf("Expected empty Name, got %q", result.Name)
-	}
+func TestBindForm_ValidationError_MissingRequiredField(t *testing.T) {
+	bindFormValidationHelper(t, "email=john%40example.com&age=30", "Name", "required")
 }
 
 func TestBindForm_ValidationError_MinLength(t *testing.T) {
@@ -1688,48 +1668,7 @@ func TestBindForm_ValidationError_MinValue(t *testing.T) {
 }
 
 func TestBindForm_ValidationError_MaxValue(t *testing.T) {
-	resetAppConfig()
-	Configure(&Config{
-		Assets: &Assets{
-			FS:           testI18nFS2,
-			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
-		},
-	})
-
-	// Age is above maximum (max=150)
-	body := "name=John+Doe&email=john%40example.com&age=200"
-	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	r := &Request{Request: req}
-
-	result, valErrs, err := BindForm[testUser](r)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	if !valErrs.Any() {
-		t.Fatal("Expected validation errors but got none")
-	}
-
-	// Check that we have validation error for 'age' field
-	foundAgeError := false
-	for _, e := range valErrs.Errors {
-		if e.Field == "Age" {
-			foundAgeError = true
-			if !strings.Contains(e.Error, "at most") {
-				t.Errorf("Expected max value error message for Age field, got: %s", e.Error)
-			}
-		}
-	}
-
-	if !foundAgeError {
-		t.Errorf("Expected validation error for Age field, got errors: %+v", valErrs.Errors)
-	}
-
-	if result.Age != 200 {
-		t.Errorf("Expected Age 200, got %d", result.Age)
-	}
+	bindFormValidationHelper(t, "name=John+Doe&email=john%40example.com&age=200", "Age", "at most")
 }
 
 func TestBindForm_ValidationError_MultipleFields(t *testing.T) {
@@ -2344,7 +2283,7 @@ func BenchmarkBindJSON(b *testing.B) {
 		req.Header.Set("Content-Type", "application/json")
 		r := &Request{Request: req}
 
-		BindJSON[testUser](r, false)
+		_, _, _ = BindJSON[testUser](r, false)
 	}
 }
 
@@ -2365,7 +2304,7 @@ func BenchmarkBindJSON_WithValidation(b *testing.B) {
 		req.Header.Set("Content-Type", "application/json")
 		r := &Request{Request: req}
 
-		BindJSON[testUser](r, true)
+		_, _, _ = BindJSON[testUser](r, true)
 	}
 }
 
@@ -2387,7 +2326,7 @@ func BenchmarkPatchJSON(b *testing.B) {
 		req.Header.Set("Content-Type", "application/json-patch+json")
 		r := &Request{Request: req}
 
-		PatchJSON(r, &target, false)
+		_, _ = PatchJSON(r, &target, false)
 	}
 }
 

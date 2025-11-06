@@ -28,7 +28,6 @@ type (
 	}
 	HandlerFunc func(ResponseWriter, *Request)
 	APIConfig   struct {
-		path        string
 		Method      string
 		Summary     string
 		Description string
@@ -240,7 +239,6 @@ func mapContent(typeInfos map[string]TypeInfo) map[string]openapi.MediaType {
 	content := make(map[string]openapi.MediaType)
 	for mediaType, info := range typeInfos {
 		for _, mt := range strings.Split(mediaType, ",") {
-
 			schemaOrRef := bind.GenerateJSONSchema(info.TypeHint, openAPIConfig.Config.Components)
 
 			mediaType := openapi.MediaType{
@@ -269,7 +267,6 @@ func mapHeaders(header map[string]Header) map[string]openapi.HeaderOrRef {
 			content = make(map[string]openapi.MediaTypeOrRef)
 			for mediaType, model := range v.Content {
 				for _, mt := range strings.Split(mediaType, ",") {
-
 					schemaOrRef := bind.GenerateJSONSchema(model, openAPIConfig.Config.Components)
 					content[mt] = openapi.MediaTypeOrRef{
 						MediaType: &openapi.MediaType{
@@ -285,7 +282,6 @@ func mapHeaders(header map[string]Header) map[string]openapi.HeaderOrRef {
 			schemaOrRef = bind.GenerateJSONSchema(v.TypeHint, openAPIConfig.Config.Components)
 
 			if schemaOrRef.Ref == "" && schemaOrRef.Schema != nil {
-
 				schema := schemaOrRef.Schema
 				schema.Example = v.Example
 				schema.Examples = mapExamples(v.Examples)
@@ -665,7 +661,7 @@ func (hf HandlerFunc) ServeHTTP(w ResponseWriter, r *Request) {
 		matched := jsonpCallbackNamePattern.MatchString(jsonpCallbackMethodName)
 		if !matched {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(fmt.Errorf("invalid JSONP callback method name: %q. Must start with a letter or underscore and only contain alphanumeric characters and underscores", jsonpCallbackMethodName).Error()))
+			_, _ = w.Write([]byte(fmt.Errorf("invalid JSONP callback method name: %q. Must start with a letter or underscore and only contain alphanumeric characters and underscores", jsonpCallbackMethodName).Error()))
 			return
 		}
 		ctx = context.WithValue(ctx, jsonpCallbackMethodNameKey, jsonpCallbackMethodName)
