@@ -386,12 +386,8 @@ func validateTimeField(field reflect.StructField, value time.Time) *ValidationEr
 			msg := getErrorMessage(field, "emptyItemsAllowed (not set)", "empty items not allowed")
 			return &ValidationError{Field: field.Name, Error: msg}
 		}
-	} else {
-		if value.IsZero() && strings.Contains(field.Tag.Get("validate"), "required") {
-			msg := getErrorMessage(field, "required", "is required")
-			return &ValidationError{Field: field.Name, Error: msg}
-		}
 	}
+	// Note: 'required' validation for non-slice time fields is already handled in the main validation loop
 
 	return nil
 }
@@ -414,12 +410,8 @@ func validateUUIDField(field reflect.StructField, value uuid.UUID) *ValidationEr
 			msg := getErrorMessage(field, "emptyItemsAllowed (not set)", "empty item not allowed")
 			return &ValidationError{Field: field.Name, Error: msg}
 		}
-	} else {
-		if value == uuid.Nil && strings.Contains(field.Tag.Get("validate"), "required") {
-			msg := getErrorMessage(field, "required", "is required")
-			return &ValidationError{Field: field.Name, Error: msg}
-		}
 	}
+	// Note: 'required' validation for non-slice UUID fields is already handled in the main validation loop
 
 	return nil
 }

@@ -48,7 +48,8 @@ func Configure(cfg *Config) {
 	textLayouts := make([]string, 0)
 
 	cacheTemplates(config.FS, ".", htmlLayouts, textLayouts)
-	layoutsCache = nil
+	// Keep layoutsCache for dynamic template parsing
+	// layoutsCache = nil
 }
 
 func Configuration() (Config, bool) {
@@ -59,12 +60,27 @@ func Configuration() (Config, bool) {
 }
 
 func LookupTemplate(path string, absolute bool) (*htmlTemplate.Template, bool) {
-
-	if nv, ok := templatesCache.Load(path); ok {
-		return nv.([2]any)[1].(*htmlTemplate.Template), ok
+	if absolute {
+		if nv, ok := templatesCache.Load(path); ok {
+			return nv.([2]any)[1].(*htmlTemplate.Template), ok
+		}
+		return nil, false
 	}
 
-	return nil, false
+	// For relative paths, search for templates ending with the given path
+	var foundTemplate *htmlTemplate.Template
+	var found bool
+	templatesCache.Range(func(key, value any) bool {
+		keyStr := key.(string)
+		if strings.HasSuffix(keyStr, path) {
+			foundTemplate = value.([2]any)[1].(*htmlTemplate.Template)
+			found = true
+			return false // stop iteration
+		}
+		return true // continue iteration
+	})
+
+	return foundTemplate, found
 }
 
 func Must[T any](v T, err error) T {
