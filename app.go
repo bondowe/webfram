@@ -37,12 +37,26 @@ type (
 	SSEPayloadFunc    func() SSEPayload
 	SSEDisconnectFunc func()
 	SSEErrorFunc      func(error)
-	sseHandler        struct {
+
+	// sseWriter interface for testability
+	sseWriter interface {
+		http.ResponseWriter
+		Flush() error
+	}
+
+	// defaultSSEWriter wraps http.ResponseWriter with flush capability
+	defaultSSEWriter struct {
+		http.ResponseWriter
+		rc *http.ResponseController
+	}
+
+	sseHandler struct {
 		interval       time.Duration
 		headers        map[string]string
 		payloadFunc    SSEPayloadFunc
 		disconnectFunc SSEDisconnectFunc
 		errorFunc      SSEErrorFunc
+		writerFactory  func(http.ResponseWriter) sseWriter
 	}
 
 	ValidationError struct {
@@ -108,6 +122,10 @@ var (
 	ErrMethodNotAllowed = fmt.Errorf("method not allowed")
 )
 
+func (w *defaultSSEWriter) Flush() error {
+	return w.rc.Flush()
+}
+
 func adaptToHTTPHandler(h Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		customW := &ResponseWriter{ResponseWriter: w}
@@ -147,7 +165,16 @@ func (m *sseHandler) ServeHTTP(w ResponseWriter, r *Request) {
 
 	clientDisconnected := r.Context().Done()
 
-	rc := http.NewResponseController(w.ResponseWriter)
+	var sseW sseWriter
+	if m.writerFactory != nil {
+		sseW = m.writerFactory(w.ResponseWriter)
+	} else {
+		sseW = &defaultSSEWriter{
+			ResponseWriter: w.ResponseWriter,
+			rc:             http.NewResponseController(w.ResponseWriter),
+		}
+	}
+
 	t := time.NewTicker(m.interval)
 	defer t.Stop()
 
@@ -162,7 +189,7 @@ func (m *sseHandler) ServeHTTP(w ResponseWriter, r *Request) {
 			payload := m.payloadFunc()
 
 			if payload.Id != "" {
-				_, err := fmt.Fprintf(w.ResponseWriter, "id: %s\n", payload.Id)
+				_, err := fmt.Fprintf(sseW, "id: %s\n", payload.Id)
 				if err != nil {
 					m.errorFunc(err)
 					return
@@ -170,7 +197,7 @@ func (m *sseHandler) ServeHTTP(w ResponseWriter, r *Request) {
 				msgWritten = true
 			}
 			if payload.Event != "" {
-				_, err := fmt.Fprintf(w.ResponseWriter, "event: %s\n", payload.Event)
+				_, err := fmt.Fprintf(sseW, "event: %s\n", payload.Event)
 				if err != nil {
 					m.errorFunc(err)
 					return
@@ -179,7 +206,7 @@ func (m *sseHandler) ServeHTTP(w ResponseWriter, r *Request) {
 			}
 			if len(payload.Comments) > 0 {
 				for _, comment := range payload.Comments {
-					_, err := fmt.Fprintf(w.ResponseWriter, ": %s\n", comment)
+					_, err := fmt.Fprintf(sseW, ": %s\n", comment)
 					if err != nil {
 						m.errorFunc(err)
 						return
@@ -188,7 +215,7 @@ func (m *sseHandler) ServeHTTP(w ResponseWriter, r *Request) {
 				msgWritten = true
 			}
 			if payload.Data != nil {
-				_, err := fmt.Fprintf(w.ResponseWriter, "data: %s\n", payload.Data)
+				_, err := fmt.Fprintf(sseW, "data: %s\n", payload.Data)
 				if err != nil {
 					m.errorFunc(err)
 					return
@@ -196,7 +223,7 @@ func (m *sseHandler) ServeHTTP(w ResponseWriter, r *Request) {
 				msgWritten = true
 			}
 			if payload.Retry > 0 {
-				_, err := fmt.Fprintf(w.ResponseWriter, "retry: %d\n", int(payload.Retry.Milliseconds()))
+				_, err := fmt.Fprintf(sseW, "retry: %d\n", int(payload.Retry.Milliseconds()))
 				if err != nil {
 					m.errorFunc(err)
 					return
@@ -205,13 +232,13 @@ func (m *sseHandler) ServeHTTP(w ResponseWriter, r *Request) {
 			}
 
 			if msgWritten {
-				_, err := fmt.Fprintf(w.ResponseWriter, "\n")
+				_, err := fmt.Fprintf(sseW, "\n")
 				if err != nil {
 					m.errorFunc(err)
 					return
 				}
 
-				err = rc.Flush()
+				err = sseW.Flush()
 				if err != nil {
 					m.errorFunc(err)
 					return

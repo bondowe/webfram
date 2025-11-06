@@ -799,6 +799,388 @@ func TestSSE_ServeHTTP_CallsDisconnectOnContext(t *testing.T) {
 	}
 }
 
+// Mock SSE writer for testing error scenarios
+type mockSSEWriter struct {
+	http.ResponseWriter
+	writeError error
+	flushError error
+	writeCalls []string
+}
+
+func (m *mockSSEWriter) Write(b []byte) (int, error) {
+	if m.writeError != nil {
+		return 0, m.writeError
+	}
+	m.writeCalls = append(m.writeCalls, string(b))
+	return m.ResponseWriter.Write(b)
+}
+
+func (m *mockSSEWriter) Flush() error {
+	return m.flushError
+}
+
+func TestSSE_ServeHTTP_PayloadIdNotEmpty(t *testing.T) {
+	payloadFunc := func() SSEPayload {
+		return SSEPayload{
+			Id: "message-123",
+		}
+	}
+
+	handler := SSE(payloadFunc, nil, nil, 10*time.Millisecond, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	ctx, cancel := context.WithTimeout(req.Context(), 25*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	mockWriter := &mockSSEWriter{ResponseWriter: rec}
+
+	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+		return mockWriter
+	}
+
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	go handler.ServeHTTP(rw, r)
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	time.Sleep(10 * time.Millisecond)
+
+	found := false
+	for _, call := range mockWriter.writeCalls {
+		if strings.Contains(call, "id: message-123\n") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected 'id: message-123\\n' to be written, got calls: %v", mockWriter.writeCalls)
+	}
+}
+
+func TestSSE_ServeHTTP_PayloadEventNotEmpty(t *testing.T) {
+	payloadFunc := func() SSEPayload {
+		return SSEPayload{
+			Event: "user-connected",
+		}
+	}
+
+	handler := SSE(payloadFunc, nil, nil, 10*time.Millisecond, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	ctx, cancel := context.WithTimeout(req.Context(), 25*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	mockWriter := &mockSSEWriter{ResponseWriter: rec}
+
+	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+		return mockWriter
+	}
+
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	go handler.ServeHTTP(rw, r)
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	time.Sleep(10 * time.Millisecond)
+
+	found := false
+	for _, call := range mockWriter.writeCalls {
+		if strings.Contains(call, "event: user-connected\n") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected 'event: user-connected\\n' to be written, got calls: %v", mockWriter.writeCalls)
+	}
+}
+
+func TestSSE_ServeHTTP_PayloadCommentsExist(t *testing.T) {
+	payloadFunc := func() SSEPayload {
+		return SSEPayload{
+			Comments: []string{"comment1", "comment2", "comment3"},
+		}
+	}
+
+	handler := SSE(payloadFunc, nil, nil, 10*time.Millisecond, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	ctx, cancel := context.WithTimeout(req.Context(), 25*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	mockWriter := &mockSSEWriter{ResponseWriter: rec}
+
+	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+		return mockWriter
+	}
+
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	go handler.ServeHTTP(rw, r)
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	time.Sleep(10 * time.Millisecond)
+
+	expectedComments := []string{": comment1\n", ": comment2\n", ": comment3\n"}
+	for _, expected := range expectedComments {
+		found := false
+		for _, call := range mockWriter.writeCalls {
+			if strings.Contains(call, expected) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected '%s' to be written, got calls: %v", expected, mockWriter.writeCalls)
+		}
+	}
+}
+
+func TestSSE_ServeHTTP_PayloadDataWriteError(t *testing.T) {
+	payloadFunc := func() SSEPayload {
+		return SSEPayload{
+			Data: "test data",
+		}
+	}
+
+	var errorCalled atomic.Bool
+	var capturedError error
+	errorFunc := func(err error) {
+		errorCalled.Store(true)
+		capturedError = err
+	}
+
+	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	ctx, cancel := context.WithTimeout(req.Context(), 50*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	writeErr := errors.New("write failed")
+	mockWriter := &mockSSEWriter{
+		ResponseWriter: rec,
+		writeError:     writeErr,
+	}
+
+	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+		return mockWriter
+	}
+
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	go handler.ServeHTTP(rw, r)
+	time.Sleep(30 * time.Millisecond)
+
+	if !errorCalled.Load() {
+		t.Error("Expected errorFunc to be called when data write fails")
+	}
+	if capturedError != writeErr {
+		t.Errorf("Expected error %v, got %v", writeErr, capturedError)
+	}
+}
+
+func TestSSE_ServeHTTP_PayloadRetrySuccess(t *testing.T) {
+	payloadFunc := func() SSEPayload {
+		return SSEPayload{
+			Retry: 5000 * time.Millisecond,
+		}
+	}
+
+	handler := SSE(payloadFunc, nil, nil, 10*time.Millisecond, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	ctx, cancel := context.WithTimeout(req.Context(), 25*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	mockWriter := &mockSSEWriter{ResponseWriter: rec}
+
+	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+		return mockWriter
+	}
+
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	go handler.ServeHTTP(rw, r)
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	time.Sleep(10 * time.Millisecond)
+
+	found := false
+	for _, call := range mockWriter.writeCalls {
+		if strings.Contains(call, "retry: 5000\n") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected 'retry: 5000\\n' to be written, got calls: %v", mockWriter.writeCalls)
+	}
+}
+
+func TestSSE_ServeHTTP_PayloadRetryWriteError(t *testing.T) {
+	callCount := 0
+	payloadFunc := func() SSEPayload {
+		callCount++
+		return SSEPayload{
+			Retry: 3000 * time.Millisecond,
+		}
+	}
+
+	var errorCalled atomic.Bool
+	var capturedError error
+	errorFunc := func(err error) {
+		errorCalled.Store(true)
+		capturedError = err
+	}
+
+	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	ctx, cancel := context.WithTimeout(req.Context(), 50*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	writeErr := errors.New("retry write failed")
+	mockWriter := &mockSSEWriter{
+		ResponseWriter: rec,
+		writeError:     writeErr,
+	}
+
+	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+		return mockWriter
+	}
+
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	go handler.ServeHTTP(rw, r)
+	time.Sleep(30 * time.Millisecond)
+
+	if !errorCalled.Load() {
+		t.Error("Expected errorFunc to be called when retry write fails")
+	}
+	if capturedError != writeErr {
+		t.Errorf("Expected error %v, got %v", writeErr, capturedError)
+	}
+}
+
+func TestSSE_ServeHTTP_FlushError(t *testing.T) {
+	payloadFunc := func() SSEPayload {
+		return SSEPayload{
+			Data: "test data",
+		}
+	}
+
+	var errorCalled atomic.Bool
+	var capturedError error
+	errorFunc := func(err error) {
+		errorCalled.Store(true)
+		capturedError = err
+	}
+
+	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	ctx, cancel := context.WithTimeout(req.Context(), 50*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	flushErr := errors.New("flush failed")
+	mockWriter := &mockSSEWriter{
+		ResponseWriter: rec,
+		flushError:     flushErr,
+	}
+
+	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+		return mockWriter
+	}
+
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	go handler.ServeHTTP(rw, r)
+	time.Sleep(30 * time.Millisecond)
+
+	if !errorCalled.Load() {
+		t.Error("Expected errorFunc to be called when flush fails")
+	}
+	if capturedError != flushErr {
+		t.Errorf("Expected error %v, got %v", flushErr, capturedError)
+	}
+}
+
+func TestSSE_ServeHTTP_AllPayloadFieldsSet(t *testing.T) {
+	payloadFunc := func() SSEPayload {
+		return SSEPayload{
+			Id:       "msg-456",
+			Event:    "update",
+			Comments: []string{"status update"},
+			Data:     "complete",
+			Retry:    2000 * time.Millisecond,
+		}
+	}
+
+	handler := SSE(payloadFunc, nil, nil, 10*time.Millisecond, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
+	ctx, cancel := context.WithTimeout(req.Context(), 25*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	mockWriter := &mockSSEWriter{ResponseWriter: rec}
+
+	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+		return mockWriter
+	}
+
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	go handler.ServeHTTP(rw, r)
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	time.Sleep(10 * time.Millisecond)
+
+	expectedStrings := []string{
+		"id: msg-456\n",
+		"event: update\n",
+		": status update\n",
+		"data: complete\n",
+		"retry: 2000\n",
+	}
+
+	for _, expected := range expectedStrings {
+		found := false
+		for _, call := range mockWriter.writeCalls {
+			if strings.Contains(call, expected) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected '%s' to be written, got calls: %v", expected, mockWriter.writeCalls)
+		}
+	}
+}
+
 // =============================================================================
 // ValidationErrors Tests
 // =============================================================================
@@ -1188,6 +1570,321 @@ func TestBindForm_Success(t *testing.T) {
 
 	if result.Name != "John Doe" {
 		t.Errorf("Expected Name 'John Doe', got %q", result.Name)
+	}
+}
+
+func TestBindForm_ValidationError_MissingRequiredField(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
+	})
+
+	// Missing required 'name' field
+	body := "email=john%40example.com&age=30"
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r := &Request{Request: req}
+
+	result, valErrs, err := BindForm[testUser](r)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !valErrs.Any() {
+		t.Fatal("Expected validation errors but got none")
+	}
+
+	// Check that we have validation error for 'name' field
+	foundNameError := false
+	for _, e := range valErrs.Errors {
+		if e.Field == "Name" {
+			foundNameError = true
+			if !strings.Contains(e.Error, "required") {
+				t.Errorf("Expected 'required' error for Name field, got: %s", e.Error)
+			}
+		}
+	}
+
+	if !foundNameError {
+		t.Errorf("Expected validation error for Name field, got errors: %+v", valErrs.Errors)
+	}
+
+	// Result should still be returned with default values
+	if result.Name != "" {
+		t.Errorf("Expected empty Name, got %q", result.Name)
+	}
+}
+
+func TestBindForm_ValidationError_MinLength(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
+	})
+
+	// Name is too short (minlength=2)
+	body := "name=A&email=john%40example.com&age=30"
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r := &Request{Request: req}
+
+	result, valErrs, err := BindForm[testUser](r)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !valErrs.Any() {
+		t.Fatal("Expected validation errors but got none")
+	}
+
+	// Check that we have validation error for 'name' field
+	foundNameError := false
+	for _, e := range valErrs.Errors {
+		if e.Field == "Name" {
+			foundNameError = true
+			if !strings.Contains(e.Error, "at least") && !strings.Contains(e.Error, "characters") {
+				t.Errorf("Expected minlength error message for Name field, got: %s", e.Error)
+			}
+		}
+	}
+
+	if !foundNameError {
+		t.Errorf("Expected validation error for Name field, got errors: %+v", valErrs.Errors)
+	}
+
+	if result.Name != "A" {
+		t.Errorf("Expected Name 'A', got %q", result.Name)
+	}
+}
+
+func TestBindForm_ValidationError_MinValue(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
+	})
+
+	// Age is below minimum (min=0)
+	body := "name=John+Doe&email=john%40example.com&age=-5"
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r := &Request{Request: req}
+
+	result, valErrs, err := BindForm[testUser](r)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !valErrs.Any() {
+		t.Fatal("Expected validation errors but got none")
+	}
+
+	// Check that we have validation error for 'age' field
+	foundAgeError := false
+	for _, e := range valErrs.Errors {
+		if e.Field == "Age" {
+			foundAgeError = true
+			if !strings.Contains(e.Error, "at least") {
+				t.Errorf("Expected min value error message for Age field, got: %s", e.Error)
+			}
+		}
+	}
+
+	if !foundAgeError {
+		t.Errorf("Expected validation error for Age field, got errors: %+v", valErrs.Errors)
+	}
+
+	if result.Age != -5 {
+		t.Errorf("Expected Age -5, got %d", result.Age)
+	}
+}
+
+func TestBindForm_ValidationError_MaxValue(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
+	})
+
+	// Age is above maximum (max=150)
+	body := "name=John+Doe&email=john%40example.com&age=200"
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r := &Request{Request: req}
+
+	result, valErrs, err := BindForm[testUser](r)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !valErrs.Any() {
+		t.Fatal("Expected validation errors but got none")
+	}
+
+	// Check that we have validation error for 'age' field
+	foundAgeError := false
+	for _, e := range valErrs.Errors {
+		if e.Field == "Age" {
+			foundAgeError = true
+			if !strings.Contains(e.Error, "at most") {
+				t.Errorf("Expected max value error message for Age field, got: %s", e.Error)
+			}
+		}
+	}
+
+	if !foundAgeError {
+		t.Errorf("Expected validation error for Age field, got errors: %+v", valErrs.Errors)
+	}
+
+	if result.Age != 200 {
+		t.Errorf("Expected Age 200, got %d", result.Age)
+	}
+}
+
+func TestBindForm_ValidationError_MultipleFields(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
+	})
+
+	// Multiple validation errors: missing name, missing email, age too high
+	body := "age=200"
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r := &Request{Request: req}
+
+	result, valErrs, err := BindForm[testUser](r)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !valErrs.Any() {
+		t.Fatal("Expected validation errors but got none")
+	}
+
+	// Should have at least 3 validation errors
+	if len(valErrs.Errors) < 3 {
+		t.Errorf("Expected at least 3 validation errors, got %d: %+v", len(valErrs.Errors), valErrs.Errors)
+	}
+
+	// Check for specific field errors
+	fieldErrors := make(map[string]bool)
+	for _, e := range valErrs.Errors {
+		fieldErrors[e.Field] = true
+	}
+
+	if !fieldErrors["Name"] {
+		t.Error("Expected validation error for Name field")
+	}
+
+	if !fieldErrors["Email"] {
+		t.Error("Expected validation error for Email field")
+	}
+
+	if !fieldErrors["Age"] {
+		t.Error("Expected validation error for Age field")
+	}
+
+	// Result should still be returned with provided/default values
+	if result.Name != "" {
+		t.Errorf("Expected empty Name, got %q", result.Name)
+	}
+	if result.Email != "" {
+		t.Errorf("Expected empty Email, got %q", result.Email)
+	}
+	if result.Age != 200 {
+		t.Errorf("Expected Age 200, got %d", result.Age)
+	}
+}
+
+func TestBindForm_ValidationError_EmptyForm(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
+	})
+
+	// Empty form body
+	body := ""
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r := &Request{Request: req}
+
+	result, valErrs, err := BindForm[testUser](r)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !valErrs.Any() {
+		t.Fatal("Expected validation errors but got none")
+	}
+
+	// Should have errors for all required fields
+	if len(valErrs.Errors) < 2 {
+		t.Errorf("Expected at least 2 validation errors for required fields, got %d: %+v", len(valErrs.Errors), valErrs.Errors)
+	}
+
+	// Result should have zero values
+	var zeroUser testUser
+	if result.Name != zeroUser.Name || result.Email != zeroUser.Email || result.Age != zeroUser.Age {
+		t.Errorf("Expected zero values for result, got: %+v", result)
+	}
+}
+
+func TestBindForm_ValidationErrors_ReturnsValidationErrorsStruct(t *testing.T) {
+	resetAppConfig()
+	Configure(&Config{
+		Assets: &Assets{
+			FS:           testI18nFS2,
+			I18nMessages: &I18nMessages{Dir: "testdata/locales"},
+		},
+	})
+
+	// Invalid data
+	body := "name=A&age=300"
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r := &Request{Request: req}
+
+	_, valErrs, err := BindForm[testUser](r)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Check ValidationErrors struct methods
+	if !valErrs.Any() {
+		t.Error("Expected valErrs.Any() to return true")
+	}
+
+	// Check that each error has Field and Error properties
+	for _, e := range valErrs.Errors {
+		if e.Field == "" {
+			t.Error("Expected Field to be set in ValidationError")
+		}
+		if e.Error == "" {
+			t.Error("Expected Error message to be set in ValidationError")
+		}
 	}
 }
 
