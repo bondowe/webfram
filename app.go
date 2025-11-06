@@ -354,6 +354,10 @@ func configureI18n(cfg *Config) {
 	i18n.Configure(i18nConfig)
 }
 
+// Configure initializes the webfram application with the provided configuration.
+// It sets up templates, i18n messages, OpenAPI documentation, and JSONP callback handling.
+// This function must be called only once before using the framework. Calling it multiple times will panic.
+// Pass nil to use default configuration values.
 func Configure(cfg *Config) {
 	if appConfigured {
 		panic("app already configured")
@@ -378,6 +382,9 @@ func Configure(cfg *Config) {
 	}
 }
 
+// Use registers a global middleware that will be applied to all handlers.
+// Accepts either AppMiddleware (func(Handler) Handler) or StandardMiddleware (func(http.Handler) http.Handler).
+// Middlewares are executed in the order they are registered.
 func Use[H AppMiddleware | StandardMiddleware](mw H) {
 	if mw == nil {
 		return
@@ -392,6 +399,12 @@ func Use[H AppMiddleware | StandardMiddleware](mw H) {
 	}
 }
 
+// SSE creates a Server-Sent Events handler that sends real-time updates to clients.
+// The payloadFunc is called at the specified interval to generate SSE payloads.
+// The disconnectFunc is called when the client disconnects (can be nil for no-op).
+// The errorFunc is called when an error occurs during streaming (can be nil for no-op).
+// The interval must be positive, and custom headers can be added to each response.
+// Panics if payloadFunc is nil or interval is non-positive.
 func SSE(
 	payloadFunc SSEPayloadFunc,
 	disconnectFunc SSEDisconnectFunc,
@@ -425,10 +438,14 @@ func SSE(
 	return h
 }
 
+// Any returns true if there are any validation errors in the collection.
 func (errs *ValidationErrors) Any() bool {
 	return len(errs.Errors) > 0
 }
 
+// BindForm parses form data from the request and binds it to the provided type T.
+// It validates the data according to struct tags (validate, errmsg) and returns validation errors if any.
+// Returns the bound data, validation errors (nil if valid), and a parsing error (nil if successful).
 func BindForm[T any](r *Request) (T, *ValidationErrors, error) {
 	val, valErrors, err := bind.Form[T](r.Request)
 
@@ -443,6 +460,9 @@ func BindForm[T any](r *Request) (T, *ValidationErrors, error) {
 	return val, vErrors, err
 }
 
+// BindJSON parses JSON from the request body and binds it to the provided type T.
+// If validate is true, validates the data according to struct tags (validate, errmsg).
+// Returns the bound data, validation errors (nil if valid or validation disabled), and a parsing error (nil if successful).
 func BindJSON[T any](r *Request, validate bool) (T, *ValidationErrors, error) {
 	val, valErrors, err := bind.JSON[T](r.Request, validate)
 
@@ -457,6 +477,9 @@ func BindJSON[T any](r *Request, validate bool) (T, *ValidationErrors, error) {
 	return val, vErrors, err
 }
 
+// BindXML parses XML from the request body and binds it to the provided type T.
+// If validate is true, validates the data according to struct tags (validate, errmsg).
+// Returns the bound data, validation errors (nil if valid or validation disabled), and a parsing error (nil if successful).
 func BindXML[T any](r *Request, validate bool) (T, *ValidationErrors, error) {
 	val, valErrors, err := bind.XML[T](r.Request, validate)
 
@@ -471,6 +494,10 @@ func BindXML[T any](r *Request, validate bool) (T, *ValidationErrors, error) {
 	return val, vErrors, err
 }
 
+// PatchJSON applies JSON Patch (RFC 6902) operations to the provided data.
+// The request must use PATCH method and have Content-Type application/json-patch+json.
+// If validate is true, validates the patched data according to struct tags.
+// Returns validation errors (empty if valid or validation disabled) and a parsing/application error (nil if successful).
 func PatchJSON[T any](r *Request, t *T, validate bool) ([]ValidationError, error) {
 	if r.Method != http.MethodPatch {
 		return nil, ErrMethodNotAllowed
@@ -526,6 +553,9 @@ func PatchJSON[T any](r *Request, t *T, validate bool) ([]ValidationError, error
 	return nil, nil
 }
 
+// GetI18nPrinter creates a message printer for the specified language tag.
+// The printer can be used to format messages according to the configured i18n catalogs.
+// Returns a printer that will use the best available language match from configured catalogs.
 func GetI18nPrinter(tag language.Tag) *message.Printer {
 	return i18n.GetI18nPrinter(tag)
 }

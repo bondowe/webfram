@@ -30,6 +30,10 @@ type ServerConfig struct {
 	DisableGeneralOptionsHandler bool
 }
 
+// ListenAndServe starts an HTTP server on the specified address with the given multiplexer.
+// It automatically sets up OpenAPI endpoint if configured, applies server configuration,
+// and handles graceful shutdown on SIGINT or SIGTERM signals.
+// Blocks until the server is shut down. Panics if server startup or shutdown fails.
 func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
 	if openAPIConfig != nil && openAPIConfig.EndpointEnabled {
 		doc, err := openAPIConfig.Config.MarshalJSON()
@@ -93,6 +97,9 @@ func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
 	log.Println("Server stopped")
 }
 
+// NewServerConfig creates a new server configuration with sensible defaults.
+// Default timeouts: ReadTimeout=15s, ReadHeaderTimeout=15s, WriteTimeout=15s, IdleTimeout=60s.
+// Default MaxHeaderBytes: http.DefaultMaxHeaderBytes (1MB).
 func NewServerConfig() *ServerConfig {
 	return &ServerConfig{
 		ReadTimeout:       15 * time.Second,

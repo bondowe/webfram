@@ -12,6 +12,10 @@ import (
 	"github.com/google/uuid"
 )
 
+// Form parses form data from an HTTP request and binds it to a struct of type T.
+// It extracts values from both URL query parameters and POST form data,
+// performs type conversion, and validates the data according to struct tags.
+// Returns the populated struct, validation errors (if any), and a decoding error (if parsing fails).
 func Form[T any](r *http.Request) (T, []ValidationError, error) {
 	var result T
 	val := reflect.ValueOf(&result).Elem()

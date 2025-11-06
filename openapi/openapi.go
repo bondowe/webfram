@@ -313,6 +313,8 @@ type (
 	}
 )
 
+// SetDefaults initializes required OpenAPI configuration fields with default values.
+// Sets OpenAPI version to 3.2.0, ensures Info is initialized, creates empty paths/components if nil.
 func (c *Config) SetDefaults() {
 	if c.Version == "" {
 		c.Version = version
@@ -336,6 +338,9 @@ func (c *Config) SetDefaults() {
 	}
 }
 
+// SetPathInfo sets or updates path-level information in the OpenAPI specification.
+// Allows setting common parameters, servers, and descriptions that apply to all operations on a path.
+// Creates a new PathItem if the path doesn't exist.
 func (ps *Paths) SetPathInfo(path string, summary string, description string, parameters []ParameterOrRef, servers []Server) {
 	if *ps == nil {
 		*ps = make(map[string]PathItem)
@@ -355,6 +360,9 @@ func (ps *Paths) SetPathInfo(path string, summary string, description string, pa
 	(*ps)[path] = pathItem
 }
 
+// AddOperation adds an HTTP operation (GET, POST, PUT, etc.) to a path in the OpenAPI specification.
+// The method parameter should be lowercase (get, post, put, delete, patch, options, head, trace).
+// Creates a new PathItem if the path doesn't exist.
 func (ps *Paths) AddOperation(path string, method string, operation Operation) {
 	if *ps == nil {
 		*ps = make(map[string]PathItem)
@@ -390,6 +398,8 @@ func (ps *Paths) AddOperation(path string, method string, operation Operation) {
 	(*ps)[path] = pathItem
 }
 
+// Validate checks that the OpenAPI configuration is valid.
+// Currently performs no validation and always returns nil.
 func (c *Config) Validate() error {
 	if c.Info == nil {
 		return fmt.Errorf("info is required in OpenAPI configuration")
@@ -397,6 +407,8 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// MarshalToJSON marshals a SchemaOrRef to JSON format.
+// Handles both schema references ($ref) and inline schema definitions.
 func (s SchemaOrRef) MarshalToJSON() ([]byte, error) {
 	if s.Ref != "" {
 		return json.Marshal(s.Ref)
@@ -404,6 +416,8 @@ func (s SchemaOrRef) MarshalToJSON() ([]byte, error) {
 	return json.Marshal(s.Schema)
 }
 
+// MarshalToYAML marshals a SchemaOrRef to YAML format.
+// Handles both schema references ($ref) and inline schema definitions.
 func (s SchemaOrRef) MarshalToYAML() ([]byte, error) {
 	if s.Ref != "" {
 		return yaml.Marshal(s.Ref)
@@ -411,6 +425,8 @@ func (s SchemaOrRef) MarshalToYAML() ([]byte, error) {
 	return yaml.Marshal(s.Schema)
 }
 
+// ToJSON converts a Schema to formatted JSON string with indentation.
+// Returns the JSON string or an error if marshaling fails.
 func (s *Schema) ToJSON() (string, error) {
 	bytes, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
@@ -419,6 +435,8 @@ func (s *Schema) ToJSON() (string, error) {
 	return string(bytes), nil
 }
 
+// ToJSONCompact converts a Schema to compact JSON string without indentation.
+// Returns the JSON string or an error if marshaling fails.
 func (s *Schema) ToJSONCompact() (string, error) {
 	bytes, err := json.Marshal(s)
 	if err != nil {
@@ -427,6 +445,8 @@ func (s *Schema) ToJSONCompact() (string, error) {
 	return string(bytes), nil
 }
 
+// ToYAML converts a Schema to YAML string.
+// Returns the YAML string or an error if marshaling fails.
 func (s *Schema) ToYAML() (string, error) {
 	bytes, err := yaml.Marshal(s)
 	if err != nil {
@@ -435,6 +455,8 @@ func (s *Schema) ToYAML() (string, error) {
 	return string(bytes), nil
 }
 
+// MarshalYaml converts the entire OpenAPI configuration to YAML format.
+// Returns the YAML bytes or an error if marshaling fails.
 func (c *Config) MarshalYaml() ([]byte, error) {
 	c.SetDefaults()
 	if err := c.Validate(); err != nil {
@@ -445,6 +467,9 @@ func (c *Config) MarshalYaml() ([]byte, error) {
 	return yaml.Marshal((*ConfigAlias)(c))
 }
 
+// MarshalJSON converts the entire OpenAPI configuration to formatted JSON.
+// Automatically sets defaults before marshaling if not already set.
+// Returns the JSON bytes or an error if marshaling fails.
 func (c *Config) MarshalJSON() ([]byte, error) {
 	c.SetDefaults()
 	if err := c.Validate(); err != nil {

@@ -53,11 +53,16 @@ var (
 	msgCatalog catalog.Catalog
 )
 
+// Configure initializes the internationalization system with the provided configuration.
+// It sets up the filesystem and base path for locale files, then loads all message catalogs.
+// Panics if locales directory or filesystem is missing.
 func Configure(cfg *Config) {
 	config = cfg
 	loadI18nCatalogs()
 }
 
+// Configuration returns the current i18n configuration.
+// Returns the config and true if i18n is configured, or an empty config and false if not configured.
 func Configuration() (Config, bool) {
 	if config == nil {
 		return Config{}, false
@@ -66,17 +71,24 @@ func Configuration() (Config, bool) {
 }
 
 // GetI18nPrinter creates a message printer for the given language tag
+// GetI18nPrinter creates a message printer for the specified language tag.
+// The printer can be used to translate messages according to the loaded message catalogs.
+// Returns a printer configured for the given language tag.
 func GetI18nPrinter(langTag language.Tag) *message.Printer {
 	p := message.NewPrinter(langTag, message.Catalog(msgCatalog))
 	return p
 }
 
 // ContextWithI18nPrinter adds the message printer to the context
+// ContextWithI18nPrinter stores a message printer in the context.
+// Returns a new context containing the printer, which can be retrieved later with I18nPrinterFromContext.
 func ContextWithI18nPrinter(ctx context.Context, printer *message.Printer) context.Context {
 	return context.WithValue(ctx, i18nPrinterKey, printer)
 }
 
 // I18nPrinterFromContext retrieves the message printer from the context
+// I18nPrinterFromContext retrieves a message printer from the context.
+// Returns the printer and true if found, or nil and false if not present.
 func I18nPrinterFromContext(ctx context.Context) (*message.Printer, bool) {
 	printer, ok := ctx.Value(i18nPrinterKey).(*message.Printer)
 	return printer, ok

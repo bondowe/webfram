@@ -463,10 +463,14 @@ func getErrorMessage(field *reflect.StructField, rule string, fallback string) s
 	return fallback
 }
 
+// IsIntType returns true if the given reflect.Kind represents an integer type.
+// Includes signed and unsigned integers of all sizes (int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64).
 func IsIntType(kind reflect.Kind) bool {
 	return kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 || kind == reflect.Int32 || kind == reflect.Int64
 }
 
+// IsFloatType returns true if the given reflect.Kind represents a floating-point type.
+// Includes float32 and float64.
 func IsFloatType(kind reflect.Kind) bool {
 	return kind == reflect.Float32 || kind == reflect.Float64
 }

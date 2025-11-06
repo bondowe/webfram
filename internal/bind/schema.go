@@ -36,6 +36,11 @@ func registerStructSchema(typName string, typ reflect.Type, components *openapi.
 	components.Schemas[typName] = *structSchema
 }
 
+// GenerateJSONSchema generates an OpenAPI JSON Schema for the given type.
+// It analyzes struct fields, validation tags, and type information to produce
+// a complete schema with properties, types, formats, and validation constraints.
+// The components parameter is used to register reusable schema definitions.
+// Returns a SchemaOrRef that can be used in OpenAPI documentation.
 func GenerateJSONSchema(t any, components *openapi.Components) *openapi.SchemaOrRef {
 	typ := reflect.TypeOf(t)
 	if typ.Kind() == reflect.Ptr {

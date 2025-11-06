@@ -136,6 +136,9 @@ type (
 	}
 )
 
+// SetOpenAPIPathInfo adds or updates path-level information in the OpenAPI documentation.
+// This should be called before registering handlers to set common parameters and servers for a path.
+// Only works if OpenAPI endpoint is enabled in configuration.
 func SetOpenAPIPathInfo(path string, info *PathInfo) {
 	if openAPIConfig == nil || !openAPIConfig.EndpointEnabled {
 		return
@@ -151,6 +154,9 @@ func SetOpenAPIPathInfo(path string, info *PathInfo) {
 	openAPIConfig.Config.Paths.SetPathInfo(path, info.Summary, info.Description, parameters, servers)
 }
 
+// WithAPIConfig attaches OpenAPI configuration to a handler.
+// This generates OpenAPI documentation for the endpoint with request/response schemas, parameters, etc.
+// Only works if OpenAPI endpoint is enabled in configuration.
 func (c *handlerConfig) WithAPIConfig(apiConfig *APIConfig) {
 	if apiConfig == nil || openAPIConfig == nil || !openAPIConfig.EndpointEnabled {
 		return
@@ -501,6 +507,9 @@ func getHandlerMiddlewares(middlewares []interface{}) []AppMiddleware {
 	return mdwrs
 }
 
+// I18nMiddleware creates middleware that adds internationalization support to handlers.
+// It parses the Accept-Language header and language cookie to determine the user's preferred language,
+// then injects an i18n printer into the request context for message translation.
 func I18nMiddleware(fsys fs.FS) func(Handler) Handler {
 	return func(next Handler) Handler {
 		return HandlerFunc(func(w ResponseWriter, r *Request) {
@@ -567,7 +576,9 @@ func parseAcceptLanguage(acceptLang string) language.Tag {
 	return tag
 }
 
-func SetLanguageCookie(w ResponseWriter, lang string, maxAge int) { // TODO Use this function
+// SetLanguageCookie sets a language preference cookie for the user.
+// The maxAge parameter controls cookie lifetime in seconds (0 = delete cookie, -1 = session cookie).
+func SetLanguageCookie(w ResponseWriter, lang string, maxAge int) {
 	cookie := &http.Cookie{
 		Name:     "lang",
 		Value:    lang,
@@ -581,6 +592,9 @@ func SetLanguageCookie(w ResponseWriter, lang string, maxAge int) { // TODO Use 
 	http.SetCookie(w.ResponseWriter, cookie)
 }
 
+// NewServeMux creates a new HTTP request multiplexer with webfram enhancements.
+// Automatically calls Configure(nil) if the application hasn't been configured yet.
+// Returns a ServeMux that supports middleware, custom handlers, and OpenAPI documentation.
 func NewServeMux() *ServeMux {
 	if !appConfigured {
 		Configure(nil)
@@ -592,6 +606,9 @@ func NewServeMux() *ServeMux {
 	}
 }
 
+// Use registers middleware to be applied to all handlers registered on this ServeMux.
+// Accepts either AppMiddleware (func(Handler) Handler) or StandardMiddleware (func(http.Handler) http.Handler).
+// Panics if an unsupported middleware type is provided.
 func (m *ServeMux) Use(mw interface{}) {
 	if mw == nil {
 		return
@@ -608,6 +625,10 @@ func (m *ServeMux) Use(mw interface{}) {
 	}
 }
 
+// Handle registers a handler for the given pattern.
+// The pattern can include HTTP method prefix (e.g., "GET /users").
+// Optional per-handler middlewares can be provided and will be applied only to this handler.
+// Returns a handlerConfig that can be used to attach OpenAPI documentation via WithAPIConfig.
 func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{}) *handlerConfig {
 	wrappedHandler := wrapMiddlewares(handler, getHandlerMiddlewares(mdwrs))
 	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
@@ -627,6 +648,9 @@ func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{})
 	}
 }
 
+// HandleFunc registers a handler function for the given pattern.
+// Convenience method that wraps a HandlerFunc and calls Handle.
+// Returns a handlerConfig that can be used to attach OpenAPI documentation via WithAPIConfig.
 func (m *ServeMux) HandleFunc(pattern string, handler HandlerFunc, mdwrs ...interface{}) *handlerConfig {
 	wrappedHandler := wrapMiddlewares(handler, getHandlerMiddlewares(mdwrs))
 	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
@@ -646,10 +670,13 @@ func (m *ServeMux) HandleFunc(pattern string, handler HandlerFunc, mdwrs ...inte
 	}
 }
 
+// ServeHTTP implements the http.Handler interface.
+// It wraps the request, applies middlewares, and handles JSONP callbacks if configured.
 func (m *ServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m.ServeMux.ServeHTTP(w, r)
 }
 
+// ServeHTTP implements the Handler interface, allowing HandlerFunc to be used as a Handler.
 func (hf HandlerFunc) ServeHTTP(w ResponseWriter, r *Request) {
 	ctx := context.Background()
 

@@ -32,6 +32,10 @@ var (
 	funcMap             = htmlTemplate.FuncMap{}
 )
 
+// Configure initializes the template system with the provided configuration.
+// It sets up the filesystem, template extensions, i18n function name, and layouts,
+// then caches all templates found in the filesystem.
+// Panics if any required configuration value is missing or invalid.
 func Configure(cfg *Config) {
 	config = cfg
 
@@ -50,6 +54,8 @@ func Configure(cfg *Config) {
 	// layoutsCache = nil
 }
 
+// Configuration returns the current template configuration.
+// Returns the config and true if templates are configured, or an empty config and false if not configured.
 func Configuration() (Config, bool) {
 	if config == nil {
 		return Config{}, false
@@ -57,6 +63,9 @@ func Configuration() (Config, bool) {
 	return *config, true
 }
 
+// LookupTemplate retrieves a cached template by path.
+// If absolute is true, uses the path as-is. If false, prepends the configured base path.
+// Returns the template and true if found, or nil and false if not found.
 func LookupTemplate(path string, absolute bool) (*htmlTemplate.Template, bool) {
 	if absolute {
 		if nv, ok := templatesCache.Load(path); ok {
@@ -81,6 +90,8 @@ func LookupTemplate(path string, absolute bool) (*htmlTemplate.Template, bool) {
 	return foundTemplate, found
 }
 
+// Must is a helper that panics if err is not nil, otherwise returns v.
+// Useful for wrapping function calls during initialization.
 func Must[T any](v T, err error) T {
 	if err != nil {
 		panic(err)
