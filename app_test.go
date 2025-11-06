@@ -831,22 +831,21 @@ func (m *mockSSEWriter) getCalls() []string {
 	return calls
 }
 
-func TestSSE_ServeHTTP_PayloadIdNotEmpty(t *testing.T) {
-	payloadFunc := func() SSEPayload {
-		return SSEPayload{
-			Id: "message-123",
-		}
-	}
-
-	handler := SSE(payloadFunc, nil, nil, 10*time.Millisecond, nil)
+// sseTestHelper sets up and runs an SSE test, returning the mock writer's calls
+func sseTestHelper(t *testing.T, payloadFunc SSEPayloadFunc, errorFunc SSEErrorFunc, writeErr, flushErr error) (*mockSSEWriter, context.CancelFunc) {
+	t.Helper()
+	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
-	ctx, cancel := context.WithTimeout(req.Context(), 25*time.Millisecond)
-	defer cancel()
+	ctx, cancel := context.WithTimeout(req.Context(), 50*time.Millisecond)
 	req = req.WithContext(ctx)
 
 	rec := httptest.NewRecorder()
-	mockWriter := &mockSSEWriter{ResponseWriter: rec}
+	mockWriter := &mockSSEWriter{
+		ResponseWriter: rec,
+		writeError:     writeErr,
+		flushError:     flushErr,
+	}
 
 	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
 		return mockWriter
@@ -856,6 +855,19 @@ func TestSSE_ServeHTTP_PayloadIdNotEmpty(t *testing.T) {
 	r := &Request{Request: req}
 
 	go handler.ServeHTTP(rw, r)
+	return mockWriter, cancel
+}
+
+func TestSSE_ServeHTTP_PayloadIdNotEmpty(t *testing.T) {
+	payloadFunc := func() SSEPayload {
+		return SSEPayload{
+			Id: "message-123",
+		}
+	}
+
+	mockWriter, cancel := sseTestHelper(t, payloadFunc, nil, nil, nil)
+	defer cancel()
+
 	time.Sleep(20 * time.Millisecond)
 	cancel()
 	time.Sleep(10 * time.Millisecond)
@@ -880,24 +892,9 @@ func TestSSE_ServeHTTP_PayloadEventNotEmpty(t *testing.T) {
 		}
 	}
 
-	handler := SSE(payloadFunc, nil, nil, 10*time.Millisecond, nil)
-
-	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
-	ctx, cancel := context.WithTimeout(req.Context(), 25*time.Millisecond)
+	mockWriter, cancel := sseTestHelper(t, payloadFunc, nil, nil, nil)
 	defer cancel()
-	req = req.WithContext(ctx)
 
-	rec := httptest.NewRecorder()
-	mockWriter := &mockSSEWriter{ResponseWriter: rec}
-
-	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
-		return mockWriter
-	}
-
-	rw := ResponseWriter{ResponseWriter: rec}
-	r := &Request{Request: req}
-
-	go handler.ServeHTTP(rw, r)
 	time.Sleep(20 * time.Millisecond)
 	cancel()
 	time.Sleep(10 * time.Millisecond)
@@ -974,28 +971,10 @@ func TestSSE_ServeHTTP_PayloadDataWriteError(t *testing.T) {
 		capturedError.Store(err)
 	}
 
-	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
-
-	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
-	ctx, cancel := context.WithTimeout(req.Context(), 50*time.Millisecond)
-	defer cancel()
-	req = req.WithContext(ctx)
-
-	rec := httptest.NewRecorder()
 	writeErr := errors.New("write failed")
-	mockWriter := &mockSSEWriter{
-		ResponseWriter: rec,
-		writeError:     writeErr,
-	}
+	_, cancel := sseTestHelper(t, payloadFunc, errorFunc, writeErr, nil)
+	defer cancel()
 
-	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
-		return mockWriter
-	}
-
-	rw := ResponseWriter{ResponseWriter: rec}
-	r := &Request{Request: req}
-
-	go handler.ServeHTTP(rw, r)
 	time.Sleep(30 * time.Millisecond)
 
 	if !errorCalled.Load() {
@@ -1110,28 +1089,10 @@ func TestSSE_ServeHTTP_FlushError(t *testing.T) {
 		capturedError.Store(err)
 	}
 
-	handler := SSE(payloadFunc, nil, errorFunc, 10*time.Millisecond, nil)
-
-	req := httptest.NewRequest(http.MethodGet, "/sse", nil)
-	ctx, cancel := context.WithTimeout(req.Context(), 50*time.Millisecond)
-	defer cancel()
-	req = req.WithContext(ctx)
-
-	rec := httptest.NewRecorder()
 	flushErr := errors.New("flush failed")
-	mockWriter := &mockSSEWriter{
-		ResponseWriter: rec,
-		flushError:     flushErr,
-	}
+	_, cancel := sseTestHelper(t, payloadFunc, errorFunc, nil, flushErr)
+	defer cancel()
 
-	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
-		return mockWriter
-	}
-
-	rw := ResponseWriter{ResponseWriter: rec}
-	r := &Request{Request: req}
-
-	go handler.ServeHTTP(rw, r)
 	time.Sleep(30 * time.Millisecond)
 
 	if !errorCalled.Load() {
