@@ -799,3 +799,76 @@ func BenchmarkResponseWriter_Bytes(b *testing.B) {
 		rw.Bytes(data, "text/plain")
 	}
 }
+
+func TestResponseWriter_HTML(t *testing.T) {
+	setupResponseWriterTests()
+
+	tests := []struct {
+		name        string
+		path        string
+		data        any
+		wantError   bool
+		wantContain string
+	}{
+		{
+			name:        "valid template",
+			path:        "test",
+			data:        map[string]string{"Title": "Test Page"},
+			wantError:   false,
+			wantContain: "Test Page",
+		},
+		{
+			name:      "template not found",
+			path:      "nonexistent",
+			data:      nil,
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			rw := ResponseWriter{
+				ResponseWriter: w,
+				context:        context.Background(),
+			}
+
+			err := rw.HTML(tt.path, tt.data)
+			if (err != nil) != tt.wantError {
+				t.Errorf("HTML() error = %v, wantError %v", err, tt.wantError)
+				return
+			}
+
+			if !tt.wantError {
+				if ct := w.Header().Get("Content-Type"); ct != "text/html" {
+					t.Errorf("Expected Content-Type 'text/html', got %q", ct)
+				}
+			}
+		})
+	}
+}
+
+func TestResponseWriter_HTML_WithI18n(t *testing.T) {
+	setupResponseWriterTests()
+
+	w := httptest.NewRecorder()
+
+	// Create context with i18n printer
+	printer := i18n.GetI18nPrinter(language.English)
+	ctx := i18n.ContextWithI18nPrinter(context.Background(), printer)
+
+	rw := ResponseWriter{
+		ResponseWriter: w,
+		context:        ctx,
+	}
+
+	err := rw.HTML("test", map[string]string{"Title": "I18n Test"})
+	if err != nil {
+		t.Fatalf("HTML() error = %v", err)
+	}
+
+	if ct := w.Header().Get("Content-Type"); ct != "text/html" {
+		t.Errorf("Expected Content-Type 'text/html', got %q", ct)
+	}
+}
+
