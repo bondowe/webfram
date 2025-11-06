@@ -9,6 +9,7 @@ This repository uses GitHub Actions for Continuous Integration and Continuous De
 The main CI workflow (`.github/workflows/ci.yml`) includes the following jobs:
 
 ### 1. **Test Job**
+
 - **Runs on**: Ubuntu Latest
 - **Go Versions**: 1.22, 1.23
 - **Steps**:
@@ -23,6 +24,7 @@ The main CI workflow (`.github/workflows/ci.yml`) includes the following jobs:
   - Upload coverage artifacts
 
 ### 2. **Build Job**
+
 - **Runs on**: Ubuntu Latest
 - **Go Versions**: 1.22, 1.23
 - **Dependencies**: Requires test job to pass
@@ -33,6 +35,7 @@ The main CI workflow (`.github/workflows/ci.yml`) includes the following jobs:
   - Build example applications
 
 ### 3. **Lint Job**
+
 - **Runs on**: Ubuntu Latest
 - **Go Version**: 1.23
 - **Steps**:
@@ -41,6 +44,7 @@ The main CI workflow (`.github/workflows/ci.yml`) includes the following jobs:
   - Run golangci-lint with comprehensive checks
 
 ### 4. **Create Issue on Failure**
+
 - **Runs on**: Ubuntu Latest
 - **Triggers**: Only on failure of previous jobs
 - **Conditions**: Push, schedule, or manual dispatch events
@@ -130,7 +134,9 @@ When the CI pipeline fails on protected branches (main, develop), the system:
 
 ### Commit Message
 ```
+
 Add new feature
+
 ```
 
 ### Failed Jobs
