@@ -26,6 +26,7 @@ var (
 	htmlLayoutFileName  string
 	textLayoutFileName  string
 	templatesCache      sync.Map       // map[string][string, *template.Template]
+	partialsCache       sync.Map       // map[string]*htmlTemplate.Template - key: "folder|partialFilename"
 	layoutsCache        map[string]any = make(map[string]any)
 	layoutPatternString string
 	layoutPattern       *regexp.Regexp
@@ -201,24 +202,43 @@ func layoutExists(dir fs.FS, layoutName string) bool {
 }
 
 func lookUpPartial(folder, partialFilename string) *htmlTemplate.Template {
-	var partialPath string
-	if folder == "" || folder == "." {
-		partialPath = partialFilename
-	} else {
-		partialPath = folder + "/" + partialFilename
+	// Create cache key from starting folder and partial filename
+	cacheKey := folder + "|" + partialFilename
+
+	// Check if we've already resolved this partial from this folder
+	if cached, ok := partialsCache.Load(cacheKey); ok {
+		if cached == nil {
+			return nil
+		}
+		return cached.(*htmlTemplate.Template)
 	}
 
-	if tmpl, ok := LookupTemplate(partialPath, true); ok {
-		return tmpl
+	// Search up the directory tree
+	currentFolder := folder
+	for {
+		var partialPath string
+		if currentFolder == "" || currentFolder == "." {
+			partialPath = partialFilename
+		} else {
+			partialPath = currentFolder + "/" + partialFilename
+		}
+
+		if tmpl, ok := LookupTemplate(partialPath, true); ok {
+			// Cache the result for the original folder
+			partialsCache.Store(cacheKey, tmpl)
+			return tmpl
+		}
+
+		parentFolder := strings.ReplaceAll(filepath.Dir(currentFolder), "\\", "/")
+
+		if parentFolder == "." || parentFolder == "/" || parentFolder == currentFolder {
+			// Not found, cache nil to avoid repeated searches
+			partialsCache.Store(cacheKey, nil)
+			return nil
+		}
+
+		currentFolder = parentFolder
 	}
-
-	parentFolder := strings.ReplaceAll(filepath.Dir(folder), "\\", "/")
-
-	if parentFolder == "." || parentFolder == "/" {
-		return nil
-	}
-
-	return lookUpPartial(parentFolder, partialFilename)
 }
 
 func getPartialFunc(templatePath string) func(name string, data any) (htmlTemplate.HTML, error) {
