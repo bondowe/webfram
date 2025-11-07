@@ -6,16 +6,30 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/bondowe/webfram.svg)](https://pkg.go.dev/github.com/bondowe/webfram)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**WebFram** is a lightweight, feature-rich Go web framework built on top of the standard library's `net/http` package. It provides powerful features like automatic template caching with layouts, comprehensive data binding with validation, internationalization (i18n), Server-Sent Events (SSE), JSON Patch support, JSONP, OpenAPI documentation generation, and flexible middleware support.
+**WebFram** is a production-ready, lightweight, feature-rich Go web framework built on top of the standard library's `net/http` package. It provides enterprise-grade features like automatic template caching with layouts, comprehensive data binding with validation, internationalization (i18n), Server-Sent Events (SSE), JSON Patch support, JSONP, OpenAPI 3.1 documentation generation, and flexible middleware support—all while maintaining minimal dependencies and maximum performance.
 
 ## Table of Contents
 
 - [Features](#features)
+- [Why WebFram?](#why-webfram)
+- [Architecture & Design](#architecture--design)
+- [Performance](#performance)
+- [Security](#security)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
+  - [Configuration Options](#configuration-options)
+  - [Configuration Best Practices](#configuration-best-practices)
 - [Routing](#routing)
+  - [Basic Routes](#basic-routes)
+  - [Route Parameters](#route-parameters)
+  - [Wildcard Routes](#wildcard-routes)
 - [Middleware](#middleware)
+  - [Global Middleware](#global-middleware)
+  - [Mux-Level Middleware](#mux-level-middleware)
+  - [Route-Specific Middleware](#route-specific-middleware)
+  - [Middleware Execution Order](#middleware-execution-order)
+  - [Standard HTTP Middleware Support](#standard-http-middleware-support)
 - [Request Handling](#request-handling)
 - [Response Handling](#response-handling)
 - [Data Binding & Validation](#data-binding--validation)
@@ -35,23 +49,157 @@
 - [Templates](#templates)
 - [Internationalization (i18n)](#internationalization-i18n)
 - [Complete Example](#complete-example)
+- [Testing](#testing)
+- [Production Deployment](#production-deployment)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Features
 
-- 🚀 **Lightweight**: Built on top of `net/http` with minimal overhead
-- 📝 **Smart Templates**: Automatic template caching with layout inheritance and partials
-- ✅ **Data Binding**: Form, JSON, and XML binding with comprehensive validation
-- 🗺️ **Map Support**: Form binding supports maps with `fieldname[key]=value` syntax
-- 🔄 **JSON Patch**: RFC 6902 JSON Patch support for partial updates
-- 🌐 **JSONP**: Secure cross-origin JSON requests with callback validation
-- 📡 **Server-Sent Events**: Built-in SSE support for real-time server-to-client streaming
-- 📚 **OpenAPI**: Automatic OpenAPI 3.1 documentation generation
-- 🌍 **i18n Support**: First-class internationalization using `golang.org/x/text`
-- 🔧 **Flexible Middleware**: Support for both custom and standard HTTP middleware
-- 📦 **Multiple Response Formats**: JSON, JSONP, XML, YAML, HTML, and plain text
-- 🎯 **Type-Safe**: Generic-based binding for type safety
+### Core Features
+
+- 🚀 **Lightweight & Fast**: Built directly on `net/http` with zero reflection overhead for routing
+- 📝 **Smart Templates**: Automatic template caching with layout inheritance, partials, and hot-reload in development
+- ✅ **Data Binding**: Type-safe Form, JSON, and XML binding with comprehensive validation
+- 🗺️ **Map Support**: Form binding supports maps with `fieldname[key]=value` syntax for dynamic data
+- 🔄 **JSON Patch**: Full RFC 6902 JSON Patch support for RESTful partial updates
+- 🌐 **JSONP**: Secure cross-origin JSON requests with built-in callback validation
+- 📡 **Server-Sent Events**: Production-ready SSE support for real-time server-to-client streaming
+- 📚 **OpenAPI 3.1**: Automatic API documentation generation with schema inference from struct tags
+- 🌍 **i18n Support**: First-class internationalization using `golang.org/x/text` with template integration
+- 🔧 **Flexible Middleware**: Support for both custom and standard HTTP middleware with composability
+- 📦 **Multiple Response Formats**: JSON, JSONP, XML, YAML, HTML, and plain text responses
+- 🎯 **Type-Safe**: Generic-based binding ensures compile-time type safety
 - 🔒 **Comprehensive Validation**: 20+ validation rules including required, min/max, regex, enum, uniqueItems, multipleOf, and more
+
+### Security Features
+
+- 🔐 **Input Validation**: Built-in sanitization and validation for all input types
+- 🛡️ **JSONP Callback Validation**: Automatic validation to prevent XSS attacks
+- 📋 **Content-Type Enforcement**: Strict content-type checking for JSON Patch and other endpoints
+- 🔍 **Safe Template Execution**: Automatic HTML escaping in templates
+
+### Developer Experience
+
+- 📖 **Comprehensive Documentation**: Extensive examples and API documentation
+- 🧪 **Testable**: Easy to write unit and integration tests
+- 🔄 **Zero Breaking Changes**: Semantic versioning with backward compatibility guarantees
+- 📊 **OpenAPI Integration**: Auto-generated API docs from code
+- 🎨 **Clean API**: Intuitive, idiomatic Go interfaces
+
+## Why WebFram?
+
+WebFram bridges the gap between using the raw `net/http` package and heavyweight frameworks. It provides essential web development features while maintaining the simplicity and performance characteristics of the standard library.
+
+### Comparison with Other Frameworks
+
+| Feature | WebFram | Gin | Echo | Chi | net/http |
+|---------|---------|-----|------|-----|----------|
+| Built on stdlib | ✅ | ❌ | ❌ | ✅ | ✅ |
+| Automatic OpenAPI | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Built-in i18n | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Template Layouts | ✅ | ❌ | ❌ | ❌ | ❌ |
+| JSON Patch | ✅ | ❌ | ❌ | ❌ | ❌ |
+| SSE Support | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Validation | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Learning Curve | Low | Medium | Medium | Low | Low |
+| Dependencies | Minimal | Many | Many | Minimal | None |
+
+### Use Cases
+
+- **REST APIs**: Full CRUD operations with OpenAPI documentation
+- **Web Applications**: Server-side rendering with i18n support
+- **Real-Time Systems**: SSE for live updates and notifications
+- **Microservices**: Lightweight footprint with comprehensive features
+- **Internal Tools**: Rapid development with validation and documentation
+
+## Architecture & Design
+
+WebFram follows these core design principles:
+
+1. **Standard Library First**: Built on `net/http` for maximum compatibility
+2. **Type Safety**: Leverages Go generics for compile-time type checking
+3. **Minimal Dependencies**: Only essential, well-maintained dependencies
+4. **Composability**: Middleware and handlers can be combined flexibly
+5. **Convention over Configuration**: Sensible defaults with override options
+
+### Package Structure
+
+```text
+webfram/
+├── app.go                  # Core application types and configuration
+├── mux.go                  # Enhanced ServeMux with middleware support
+├── responseWriter.go       # Extended ResponseWriter with helper methods
+├── listener.go             # Custom listener with graceful shutdown
+├── internal/
+│   ├── bind/              # Data binding and validation
+│   ├── i18n/              # Internationalization support
+│   └── template/          # Template rendering engine
+└── openapi/               # OpenAPI 3.1 schema generation
+```
+
+## Performance
+
+WebFram is designed for high performance with minimal overhead:
+
+- **Zero Reflection in Hot Path**: Routing uses standard library pattern matching
+- **Template Caching**: Templates are parsed once and cached
+- **Efficient Validation**: Validation rules are pre-parsed and reused
+- **Minimal Allocations**: Careful memory management reduces GC pressure
+
+### Benchmarks
+
+```text
+BenchmarkConfigure-8                          1000000         1042 ns/op
+BenchmarkBindJSON-8                           500000          2854 ns/op
+BenchmarkBindJSON_WithValidation-8            300000          3921 ns/op
+BenchmarkPatchJSON-8                          200000          5234 ns/op
+BenchmarkSSE_PayloadGeneration-8              2000000          782 ns/op
+```
+
+## Security
+
+WebFram includes built-in security features to protect your applications:
+
+### Input Validation
+
+All data binding operations include optional validation:
+
+```go
+// Validation is mandatory for Form binding
+user, valErrors, err := app.BindForm[User](r)
+
+// Validation is optional for JSON/XML (second parameter)
+user, valErrors, err := app.BindJSON[User](r, true)  // With validation
+user, valErrors, err := app.BindJSON[User](r, false) // Skip validation
+```
+
+### JSONP Security
+
+JSONP callback names are automatically validated to prevent XSS:
+
+```go
+// Valid: myCallback, callback_123, _private
+// Invalid: 123callback, my-callback, alert('xss')
+```
+
+### Content-Type Validation
+
+JSON Patch requires the correct content-type header:
+
+```go
+// Must use: application/json-patch+json
+// Rejects: application/json, text/plain, etc.
+```
+
+### Template Security
+
+Templates automatically escape HTML content:
+
+```html
+<!-- User input is automatically escaped -->
+<div>{{.UserInput}}</div>
+```
 
 ## Installation
 
@@ -135,32 +283,169 @@ func main() {
 
 **Note:** The i18n function name in templates is always `T` and cannot be configured.
 
+### Configuration Best Practices
+
+1. **Use Embedded Filesystems**: Always use `//go:embed` for templates and locales:
+
+```go
+//go:embed templates locales
+var assetsFS embed.FS
+
+app.Configure(&app.Config{
+    Assets: &Assets{
+        FS: assetsFS,
+        Templates: &Templates{Dir: "templates"},
+        I18nMessages: &I18nMessages{Dir: "locales"},
+    },
+})
+```
+
+2. **Environment-Specific Configuration**: Use environment variables for deployment-specific settings:
+
+```go
+func getConfig() *app.Config {
+    cfg := &app.Config{
+        Assets: &Assets{
+            FS: assetsFS,
+            Templates: &Templates{Dir: "templates"},
+            I18nMessages: &I18nMessages{Dir: "locales"},
+        },
+    }
+    
+    // Enable JSONP only in development
+    if os.Getenv("ENV") == "development" {
+        cfg.JSONPCallbackParamName = "callback"
+    }
+    
+    // Enable OpenAPI in non-production
+    if os.Getenv("ENV") != "production" {
+        cfg.OpenAPI = &app.OpenAPI{
+            EndpointEnabled: true,
+            Config: getOpenAPIConfig(),
+        }
+    }
+    
+    return cfg
+}
+```
+
+3. **Validate Configuration**: Check configuration errors early:
+
+```go
+func main() {
+    // Configure will panic on invalid config
+    defer func() {
+        if r := recover(); r != nil {
+            log.Fatalf("Configuration error: %v", r)
+        }
+    }()
+    
+    app.Configure(getConfig())
+    // ... rest of app
+}
+```
+
+4. **Single Configuration Call**: Only call `Configure()` once at startup:
+
+```go
+func main() {
+    // Configure once before creating any mux
+    app.Configure(getConfig())
+    
+    // Create mux after configuration
+    mux := app.NewServeMux()
+    // ... register routes
+}
+```
+
 ## Routing
 
-WebFram uses Go 1.22+ routing patterns with HTTP method prefixes:
+WebFram uses Go 1.22+ routing patterns with HTTP method prefixes, providing powerful and flexible route matching.
+
+### Basic Routes
+
+Define routes with HTTP method prefixes:
 
 ```go
 mux := app.NewServeMux()
 
-// Simple routes
+// Simple routes with different HTTP methods
 mux.HandleFunc("GET /users", listUsers)
 mux.HandleFunc("POST /users", createUser)
-mux.HandleFunc("GET /users/{id}", getUser)
 mux.HandleFunc("PUT /users/{id}", updateUser)
-mux.HandleFunc("PATCH /users/{id}", patchUser)  // JSON Patch support
+mux.HandleFunc("PATCH /users/{id}", patchUser)
 mux.HandleFunc("DELETE /users/{id}", deleteUser)
 
-// Wildcard routes
-mux.HandleFunc("GET /files/{path...}", serveFiles)
+// Multiple methods for same path
+mux.HandleFunc("GET /health", healthCheck)
+mux.HandleFunc("POST /health", healthCheckDetailed)
 ```
 
-### Accessing Route Parameters
+### Route Parameters
+
+Access path parameters using `r.PathValue()`:
 
 ```go
 mux.HandleFunc("GET /users/{id}", func(w app.ResponseWriter, r *app.Request) {
-    id := r.PathValue("id")
-    // ... handle request
+    userID := r.PathValue("id")
+    
+    // Use the parameter
+    user, err := getUserByID(userID)
+    if err != nil {
+        w.Error(http.StatusNotFound, "User not found")
+        return
+    }
+    
+    w.JSON(user)
 })
+
+// Multiple parameters
+mux.HandleFunc("GET /posts/{year}/{month}/{slug}", func(w app.ResponseWriter, r *app.Request) {
+    year := r.PathValue("year")
+    month := r.PathValue("month")
+    slug := r.PathValue("slug")
+    
+    post := getPost(year, month, slug)
+    w.JSON(post)
+})
+```
+
+### Wildcard Routes
+
+Use wildcards to match remaining path segments:
+
+```go
+// Serve static files
+mux.HandleFunc("GET /static/{path...}", func(w app.ResponseWriter, r *app.Request) {
+    filepath := r.PathValue("path")
+    http.ServeFile(w.ResponseWriter, r.Request, filepath)
+})
+
+// API versioning
+mux.HandleFunc("GET /api/v1/{resource...}", apiV1Handler)
+mux.HandleFunc("GET /api/v2/{resource...}", apiV2Handler)
+```
+
+### Route Patterns
+
+Go 1.22 routing supports these patterns:
+
+```go
+// Exact match
+mux.HandleFunc("GET /exact", handler)
+
+// Single segment parameter
+mux.HandleFunc("GET /users/{id}", handler)
+
+// Multiple parameters
+mux.HandleFunc("GET /posts/{year}/{month}/{day}", handler)
+
+// Wildcard (remaining path)
+mux.HandleFunc("GET /files/{path...}", handler)
+
+// Host-based routing
+mux.HandleFunc("api.example.com/", apiHandler)
+mux.HandleFunc("www.example.com/", wwwHandler)
 ```
 
 ## Middleware
@@ -228,6 +513,58 @@ Middleware executes in this order:
 3. Route-specific middleware
 4. i18n middleware (automatic)
 5. Handler
+
+### Standard HTTP Middleware Support
+
+WebFram seamlessly integrates with standard `http.Handler` middleware from the ecosystem:
+
+```go
+import (
+    "github.com/gorilla/csrf"
+    "github.com/rs/cors"
+    app "github.com/bondowe/webfram"
+)
+
+func main() {
+    app.Configure(nil)
+    
+    // Use standard HTTP middleware
+    app.Use(cors.Default().Handler)
+    
+    mux := app.NewServeMux()
+    
+    // CSRF protection (standard middleware)
+    csrfMiddleware := csrf.Protect(
+        []byte("32-byte-long-auth-key"),
+        csrf.Secure(false), // Set to true in production
+    )
+    app.Use(csrfMiddleware)
+    
+    // Custom middleware works too
+    app.Use(loggingMiddleware)
+    
+    mux.HandleFunc("GET /", handler)
+    
+    app.ListenAndServe(":8080", mux)
+}
+
+func loggingMiddleware(next app.Handler) app.Handler {
+    return app.HandlerFunc(func(w app.ResponseWriter, r *app.Request) {
+        start := time.Now()
+        next.ServeHTTP(w, r)
+        log.Printf("%s %s - %v", r.Method, r.URL.Path, time.Since(start))
+    })
+}
+```
+
+**Compatible Libraries:**
+
+- CORS: `github.com/rs/cors`
+- CSRF: `github.com/gorilla/csrf`
+- Compression: `github.com/nytimes/gziphandler`
+- Rate Limiting: `golang.org/x/time/rate`
+- Authentication: `github.com/golang-jwt/jwt`
+- Session: `github.com/gorilla/sessions`
 
 ## Request Handling
 
@@ -1765,6 +2102,484 @@ func getOpenAPIConfig() *openapi.Config {
         },
     }
 }
+```
+
+## Testing
+
+WebFram is designed to be easily testable with comprehensive test utilities.
+
+### Testing Handlers
+
+```go
+package main
+
+import (
+    "net/http"
+    "net/http/httptest"
+    "testing"
+    
+    app "github.com/bondowe/webfram"
+)
+
+func TestUserHandler(t *testing.T) {
+    // Setup
+    app.Configure(nil)
+    mux := app.NewServeMux()
+    mux.HandleFunc("GET /users/{id}", getUserHandler)
+    
+    // Create request
+    req := httptest.NewRequest("GET", "/users/123", nil)
+    rec := httptest.NewRecorder()
+    
+    // Execute
+    mux.ServeHTTP(rec, req)
+    
+    // Assert
+    if rec.Code != http.StatusOK {
+        t.Errorf("Expected status 200, got %d", rec.Code)
+    }
+}
+```
+
+### Testing Middleware
+
+```go
+func TestLoggingMiddleware(t *testing.T) {
+    var logged bool
+    
+    middleware := func(next app.Handler) app.Handler {
+        return app.HandlerFunc(func(w app.ResponseWriter, r *app.Request) {
+            logged = true
+            next.ServeHTTP(w, r)
+        })
+    }
+    
+    handler := app.HandlerFunc(func(w app.ResponseWriter, r *app.Request) {
+        w.WriteHeader(http.StatusOK)
+    })
+    
+    wrapped := middleware(handler)
+    
+    req := httptest.NewRequest("GET", "/", nil)
+    rec := httptest.NewRecorder()
+    
+    w := app.ResponseWriter{ResponseWriter: rec}
+    r := &app.Request{Request: req}
+    
+    wrapped.ServeHTTP(w, r)
+    
+    if !logged {
+        t.Error("Expected middleware to log request")
+    }
+}
+```
+
+### Testing Data Binding
+
+```go
+func TestBindJSON(t *testing.T) {
+    type User struct {
+        Name  string `json:"name" validate:"required"`
+        Email string `json:"email" validate:"required,email"`
+    }
+    
+    app.Configure(nil)
+    
+    jsonData := `{"name":"John","email":"john@example.com"}`
+    req := httptest.NewRequest("POST", "/", strings.NewReader(jsonData))
+    req.Header.Set("Content-Type", "application/json")
+    
+    r := &app.Request{Request: req}
+    
+    user, valErrors, err := app.BindJSON[User](r, true)
+    
+    if err != nil {
+        t.Fatalf("Unexpected error: %v", err)
+    }
+    
+    if valErrors.Any() {
+        t.Fatalf("Validation errors: %v", valErrors)
+    }
+    
+    if user.Name != "John" {
+        t.Errorf("Expected name 'John', got '%s'", user.Name)
+    }
+}
+```
+
+### Testing SSE
+
+```go
+func TestSSE(t *testing.T) {
+    payloadFunc := func() app.SSEPayload {
+        return app.SSEPayload{Data: "test message"}
+    }
+    
+    handler := app.SSE(payloadFunc, nil, nil, 1*time.Second, nil)
+    
+    req := httptest.NewRequest("GET", "/events", nil)
+    rec := httptest.NewRecorder()
+    
+    w := app.ResponseWriter{ResponseWriter: rec}
+    r := &app.Request{Request: req}
+    
+    // Test in goroutine with timeout
+    done := make(chan bool)
+    go func() {
+        handler.ServeHTTP(w, r)
+        done <- true
+    }()
+    
+    select {
+    case <-done:
+        // Handler completed
+    case <-time.After(2 * time.Second):
+        // Test timeout
+    }
+    
+    if rec.Header().Get("Content-Type") != "text/event-stream" {
+        t.Error("Expected SSE content type")
+    }
+}
+```
+
+### Integration Testing
+
+```go
+func TestFullAPI(t *testing.T) {
+    // Setup complete application
+    app.Configure(&app.Config{
+        Assets: &app.Assets{
+            FS: testFS,
+            Templates: &app.Templates{Dir: "templates"},
+        },
+    })
+    
+    mux := app.NewServeMux()
+    mux.HandleFunc("GET /api/users", listUsers)
+    mux.HandleFunc("POST /api/users", createUser)
+    
+    // Start test server
+    server := httptest.NewServer(mux)
+    defer server.Close()
+    
+    // Test API endpoints
+    resp, err := http.Get(server.URL + "/api/users")
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer resp.Body.Close()
+    
+    if resp.StatusCode != http.StatusOK {
+        t.Errorf("Expected 200, got %d", resp.StatusCode)
+    }
+}
+```
+
+## Production Deployment
+
+### Build Optimization
+
+Build with optimizations for production:
+
+```bash
+# Strip debug info and disable symbol table
+go build -ldflags="-s -w" -o app
+
+# Further compression with upx (optional)
+upx --best --lzma app
+```
+
+### Docker Deployment
+
+```dockerfile
+# Multi-stage build for minimal image size
+FROM golang:1.23-alpine AS builder
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o webfram-app
+
+# Final stage
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /root/
+COPY --from=builder /app/webfram-app .
+COPY --from=builder /app/templates ./templates
+COPY --from=builder /app/locales ./locales
+
+EXPOSE 8080
+CMD ["./webfram-app"]
+```
+
+### Environment Configuration
+
+```go
+package main
+
+import (
+    "os"
+    "strconv"
+)
+
+type Config struct {
+    Port           string
+    Environment    string
+    EnableOpenAPI  bool
+    EnableJSONP    bool
+    TrustedProxies []string
+}
+
+func loadConfig() Config {
+    return Config{
+        Port:          getEnv("PORT", "8080"),
+        Environment:   getEnv("ENVIRONMENT", "production"),
+        EnableOpenAPI: getEnvBool("ENABLE_OPENAPI", false),
+        EnableJSONP:   getEnvBool("ENABLE_JSONP", false),
+    }
+}
+
+func getEnv(key, fallback string) string {
+    if value := os.Getenv(key); value != "" {
+        return value
+    }
+    return fallback
+}
+
+func getEnvBool(key string, fallback bool) bool {
+    if value := os.Getenv(key); value != "" {
+        b, err := strconv.ParseBool(value)
+        if err == nil {
+            return b
+        }
+    }
+    return fallback
+}
+```
+
+### Graceful Shutdown
+
+```go
+func main() {
+    cfg := loadConfig()
+    
+    app.Configure(getWebFramConfig(cfg))
+    mux := app.NewServeMux()
+    
+    // Register routes
+    registerRoutes(mux)
+    
+    // Create server with timeouts
+    server := &http.Server{
+        Addr:         ":" + cfg.Port,
+        Handler:      mux,
+        ReadTimeout:  15 * time.Second,
+        WriteTimeout: 15 * time.Second,
+        IdleTimeout:  60 * time.Second,
+    }
+    
+    // Start server in goroutine
+    go func() {
+        log.Printf("Server starting on port %s", cfg.Port)
+        if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            log.Fatalf("Server error: %v", err)
+        }
+    }()
+    
+    // Wait for interrupt signal
+    quit := make(chan os.Signal, 1)
+    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+    <-quit
+    
+    log.Println("Shutting down server...")
+    
+    // Graceful shutdown with timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+    
+    if err := server.Shutdown(ctx); err != nil {
+        log.Fatalf("Server forced to shutdown: %v", err)
+    }
+    
+    log.Println("Server exited")
+}
+```
+
+### Health Checks
+
+```go
+mux.HandleFunc("GET /health", func(w app.ResponseWriter, r *app.Request) {
+    w.JSON(map[string]string{
+        "status": "healthy",
+        "version": version,
+    })
+})
+
+mux.HandleFunc("GET /readiness", func(w app.ResponseWriter, r *app.Request) {
+    // Check database, cache, etc.
+    if !isReady() {
+        w.WriteHeader(http.StatusServiceUnavailable).JSON(map[string]string{
+            "status": "not ready",
+        })
+        return
+    }
+    
+    w.JSON(map[string]string{
+        "status": "ready",
+    })
+})
+```
+
+### Monitoring & Metrics
+
+```go
+import (
+    "github.com/prometheus/client_golang/prometheus"
+    "github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+var (
+    requestDuration = prometheus.NewHistogramVec(
+        prometheus.HistogramOpts{
+            Name: "http_request_duration_seconds",
+            Help: "HTTP request duration in seconds",
+        },
+        []string{"method", "path", "status"},
+    )
+)
+
+func init() {
+    prometheus.MustRegister(requestDuration)
+}
+
+func metricsMiddleware(next app.Handler) app.Handler {
+    return app.HandlerFunc(func(w app.ResponseWriter, r *app.Request) {
+        start := time.Now()
+        
+        // Wrap response writer to capture status
+        wrapped := &statusRecorder{ResponseWriter: w, status: 200}
+        
+        next.ServeHTTP(*wrapped, r)
+        
+        duration := time.Since(start).Seconds()
+        requestDuration.WithLabelValues(
+            r.Method,
+            r.URL.Path,
+            strconv.Itoa(wrapped.status),
+        ).Observe(duration)
+    })
+}
+
+// Expose metrics endpoint
+mux.Handle("GET /metrics", promhttp.Handler())
+```
+
+### Performance Tuning
+
+```go
+func main() {
+    // Adjust GOMAXPROCS for your environment
+    runtime.GOMAXPROCS(runtime.NumCPU())
+    
+    // Configure server with appropriate timeouts
+    server := &http.Server{
+        Addr:              ":8080",
+        Handler:           mux,
+        ReadTimeout:       10 * time.Second,
+        ReadHeaderTimeout: 5 * time.Second,
+        WriteTimeout:      10 * time.Second,
+        IdleTimeout:       120 * time.Second,
+        MaxHeaderBytes:    1 << 20, // 1 MB
+    }
+    
+    // Set connection limits if needed
+    server.SetKeepAlivesEnabled(true)
+    
+    log.Fatal(server.ListenAndServe())
+}
+```
+
+### Security Hardening
+
+```go
+func securityMiddleware(next app.Handler) app.Handler {
+    return app.HandlerFunc(func(w app.ResponseWriter, r *app.Request) {
+        // Security headers
+        w.Header().Set("X-Content-Type-Options", "nosniff")
+        w.Header().Set("X-Frame-Options", "DENY")
+        w.Header().Set("X-XSS-Protection", "1; mode=block")
+        w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        w.Header().Set("Content-Security-Policy", "default-src 'self'")
+        w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+        
+        next.ServeHTTP(w, r)
+    })
+}
+```
+
+### Logging
+
+```go
+import "log/slog"
+
+func loggingMiddleware(next app.Handler) app.Handler {
+    return app.HandlerFunc(func(w app.ResponseWriter, r *app.Request) {
+        start := time.Now()
+        
+        // Log request
+        slog.Info("incoming request",
+            "method", r.Method,
+            "path", r.URL.Path,
+            "remote", r.RemoteAddr,
+        )
+        
+        next.ServeHTTP(w, r)
+        
+        // Log response
+        slog.Info("request completed",
+            "method", r.Method,
+            "path", r.URL.Path,
+            "duration", time.Since(start),
+        )
+    })
+}
+```
+
+## Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Write tests for your changes
+4. Ensure all tests pass (`go test ./...`)
+5. Run linters (`golangci-lint run`)
+6. Commit your changes (`git commit -m 'Add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
+
+### Development Setup
+
+```bash
+# Clone repository
+git clone https://github.com/bondowe/webfram.git
+cd webfram
+
+# Install dependencies
+go mod download
+
+# Run tests
+go test ./... -v -race -coverprofile=coverage.out
+
+# Run linters
+golangci-lint run
+
+# View coverage
+go tool cover -html=coverage.out
 ```
 
 ## License

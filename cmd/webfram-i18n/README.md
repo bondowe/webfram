@@ -1,26 +1,31 @@
-# I18n Extraction Tool
+# WebFram I18n Extraction Tool
 
-A command-line tool for extracting translatable strings from Go code and templates, and managing translation catalogs in JSON format for webfram applications.
+A powerful command-line tool for extracting translatable strings from Go code and templates, and managing translation catalogs in JSON format for WebFram applications. Streamlines the internationalization workflow with automatic placeholder detection, plural forms support, and intelligent catalog merging.
 
 ## Overview
 
-This tool automatically extracts translatable strings from:
+This tool automates the tedious process of managing translations by extracting translatable strings from:
 
-- **Go source files**: Detects i18n printer methods (`Sprintf`, `Printf`, `Fprintf`, etc.)
-- **Go templates**: Detects `{{T "..." ...}}` template function calls
+- **Go source files**: Automatically detects i18n printer methods (`Sprintf`, `Printf`, `Fprintf`, `Sprint`, `Print`, `Fprint`, `Sprintln`, `Println`, `Fprintln`)
+- **Go HTML templates**: Detects `{{T "..." ...}}` template function calls in `.go.html` files
+- **Go text templates**: Detects `{{T "..." ...}}` template function calls in `.go.txt` files
 
-It generates and maintains JSON catalog files compatible with Go's `golang.org/x/text/message` package, preserving existing translations while adding new strings and removing obsolete ones.
+It generates and maintains JSON catalog files compatible with Go's `golang.org/x/text/message` package, preserving existing translations while intelligently adding new strings and removing obsolete ones.
 
 ## Features
 
-- ✅ Extracts translations from both Go code and HTML/text templates
-- ✅ Automatically detects placeholder types (`%s`, `%d`, `%v`, etc.)
-- ✅ Supports plural forms for messages with integer placeholders
-- ✅ Preserves existing translations when updating catalogs
-- ✅ Maintains alphabetically sorted message entries
-- ✅ Generates detailed extraction reports
-- ✅ Configurable extraction modes and directories
-- ✅ Customizable language list via command-line flag
+- ✅ **Dual Source Extraction**: Extracts translations from both Go code and HTML/text templates in a single run
+- ✅ **Intelligent Type Detection**: Automatically detects placeholder types (`%s`, `%d`, `%v`, etc.) with high accuracy
+- ✅ **Plural Forms Support**: Generates plural form fields (`zero`, `one`, `two`, `few`, `many`, `other`) for messages with integer placeholders
+- ✅ **Smart Catalog Merging**: Preserves existing translations when updating catalogs, never overwrites your work
+- ✅ **Alphabetical Sorting**: Maintains alphabetically sorted message entries for easy navigation and diff tracking
+- ✅ **Detailed Reporting**: Generates comprehensive extraction reports showing new, updated, and removed translations
+- ✅ **Flexible Modes**: Configure extraction for templates-only, code-only, or both
+- ✅ **Multi-Language Support**: Generate catalogs for unlimited languages in a single command
+- ✅ **Validation**: Detects and reports duplicate message IDs and malformed translations
+- ✅ **Performance**: Fast extraction even for large codebases with thousands of translatable strings
+- ✅ **Cross-Platform**: Works on Windows, macOS, and Linux
+- ✅ **Zero Configuration**: Sensible defaults with optional customization
 
 ## Installation
 
@@ -61,17 +66,23 @@ go run cmd/webfram-i18n/main.go -languages "en,fr" -templates ./templates
 
 #### Extract from both templates and code (most common)
 
+Ideal for full-stack applications with server-side rendering:
+
 ```bash
 go run cmd/webfram-i18n/main.go -languages "en,fr" -templates ./templates
 ```
 
 #### Extract only from Go code
 
+Perfect for API-only services or microservices:
+
 ```bash
 go run cmd/webfram-i18n/main.go -languages "en,fr,es" -mode code
 ```
 
 #### Extract from custom directories
+
+For projects with non-standard structure:
 
 ```bash
 go run cmd/webfram-i18n/main.go \
@@ -84,23 +95,48 @@ go run cmd/webfram-i18n/main.go \
 
 #### Extract for multiple languages
 
+Large international application:
+
 ```bash
 go run cmd/webfram-i18n/main.go -languages "en,de,ja,zh" -templates ./templates
 ```
 
 #### Extract for a single language
 
+During initial development:
+
 ```bash
 go run cmd/webfram-i18n/main.go -languages "en" -mode code
 ```
 
-#### Extract from current directory code with custom locales
+#### Extract with custom locale directory
+
+For projects using a different translations structure:
 
 ```bash
 go run cmd/webfram-i18n/main.go \
   -languages "en,fr,de,es,it,pt" \
   -mode code \
   -locales ./translations
+```
+
+#### CI/CD Integration
+
+Automate translation extraction in your build pipeline:
+
+```bash
+#!/bin/bash
+# Extract translations and check for changes
+go run cmd/webfram-i18n/main.go -languages "en,fr,de,es" -templates ./templates
+
+# Check if any translations were added or modified
+if git diff --quiet locales/; then
+    echo "No translation changes detected"
+else
+    echo "Translation files have been updated"
+    git add locales/
+    git commit -m "chore: update translation catalogs"
+fi
 ```
 ```
 
@@ -570,43 +606,348 @@ go run cmd/webfram-i18n/main.go \
 
 Then translate only the differences in the variant files.
 
+### Advanced Workflow Patterns
+
+#### Continuous Translation Updates
+
+```bash
+#!/bin/bash
+# run_i18n_update.sh - Run after adding new translatable strings
+
+echo "Extracting translations..."
+go run cmd/webfram-i18n/main.go -languages "en,fr,de,es,ja" -templates ./templates
+
+echo "
+Files updated:"
+ls -lh locales/
+
+echo "
+Please review and translate new strings in locales/*.json"
+echo "Look for entries where 'translation' field is empty"
+```
+
+#### Pre-commit Hook
+
+Automate extraction before commits:
+
+```bash
+#!/bin/bash
+# .git/hooks/pre-commit
+
+echo "Checking for untranslated strings..."
+go run cmd/webfram-i18n/main.go -languages "en,fr" -templates ./templates > /dev/null
+
+if git diff --name-only | grep -q "locales/"; then
+    echo "Warning: Translation files have been updated"
+    echo "Please review the changes in locales/ directory"
+    exit 1
+fi
+```
+
+#### Translation Status Report
+
+Check translation completeness:
+
+```bash
+#!/bin/bash
+# check_translations.sh
+
+for file in locales/messages.*.json; do
+    lang=$(basename "$file" .json | sed 's/messages.//')
+    total=$(jq '.messages | length' "$file")
+    untranslated=$(jq '[.messages[] | select(.translation == "")] | length' "$file")
+    percent=$(( (total - untranslated) * 100 / total ))
+    
+    echo "$lang: $percent% complete ($untranslated/$total untranslated)"
+done
+```
+
 ## Troubleshooting
 
 ### Translations not appearing in application
 
-1. Ensure catalogs are embedded: `//go:embed locales/*.json`
-2. Check that i18n is configured in `app.Configure()`
-3. Verify the language tag matches the catalog filename
-4. Check console output for loading errors
+**Symptoms**: Your app runs but doesn't show translated text.
+
+**Solutions**:
+
+1. Ensure catalogs are embedded:
+
+```go
+//go:embed locales/*.json
+var i18nFS embed.FS
+```
+
+2. Check that i18n is configured:
+
+```go
+app.Configure(&app.Config{
+    Assets: &app.Assets{
+        FS: i18nFS,
+        I18nMessages: &app.I18nMessages{Dir: "locales"},
+    },
+})
+```
+
+3. Verify the language tag matches the catalog filename:
+
+```go
+// If you have messages.fr-FR.json, use:
+printer := app.GetI18nPrinter(language.MustParse("fr-FR"))
+```
+
+4. Check console output for loading errors:
+
+```text
+// Should see:
+Loaded messages for language: en from locales/messages.en.json
+Loaded messages for language: fr from locales/messages.fr.json
+```
 
 ### Extraction tool not finding strings
 
-1. Verify the correct directories are specified with flags
-2. Check that Go files use i18n printer methods (not `fmt` package directly)
-3. Ensure template files use `{{T "..." ...}}` syntax
-4. Review the extraction summary output for clues
+**Symptoms**: The tool runs but doesn't extract expected strings.
+
+**Solutions**:
+
+1. Verify correct directories with flags:
+
+```bash
+# Check what directories you're scanning
+go run cmd/webfram-i18n/main.go \
+  -languages "en" \
+  -code ./path/to/code \
+  -templates ./path/to/templates
+```
+
+2. Ensure Go files use i18n printer methods, not `fmt` directly:
+
+```go
+// ✅ This will be extracted
+printer := app.GetI18nPrinter(language.English)
+msg := printer.Sprintf("Hello %s", name)
+
+// ❌ This will NOT be extracted
+msg := fmt.Sprintf("Hello %s", name)
+```
+
+3. Ensure template files use correct syntax:
+
+```html
+<!-- ✅ This will be extracted -->
+<h1>{{T "Welcome to %s" .AppName}}</h1>
+
+<!-- ❌ This will NOT be extracted -->
+<h1>{{.Title}}</h1>
+```
+
+4. Review the extraction summary output:
+
+```text
+Found 5 translations in templates
+Found 12 translations in Go code
+Total unique translations: 15
+```
 
 ### Placeholders not working correctly
 
-1. Check that placeholder format verbs match the argument types
-2. Verify placeholders in translations match the source message
-3. Ensure argument order is preserved in translations
+**Symptoms**: Variables not showing in translated strings.
+
+**Solutions**:
+
+1. Check placeholder format verbs match argument types:
+
+```go
+// ✅ Correct
+printer.Sprintf("You have %d messages", 5)        // %d for int
+printer.Sprintf("Hello %s", "John")              // %s for string
+printer.Sprintf("Price: $%.2f", 19.99)           // %f for float
+
+// ❌ Incorrect
+printer.Sprintf("You have %s messages", 5)        // Wrong: %s for int
+printer.Sprintf("Price: $%d", 19.99)             // Wrong: %d for float
+```
+
+2. Verify placeholders in translations match source:
+
+```json
+{
+  "id": "You have %d messages",
+  "translation": "Vous avez %d messages"  // ✅ Same placeholder
+}
+```
+
+3. Ensure argument order is preserved:
+
+```json
+{
+  "id": "Welcome %s, you have %d messages",
+  "translation": "Bienvenue %s, vous avez %d messages"  // ✅ Same order
+}
+```
 
 ### Invalid language codes
 
-If you see an error about invalid languages:
+**Symptoms**: Error about invalid languages when running tool.
 
-1. Ensure language codes follow BCP 47 format (e.g., `en`, `en-US`, `fr-CA`)
-2. Check for typos in your `-languages` flag
-3. Remove any extra spaces or invalid characters
+**Solutions**:
+
+1. Use BCP 47 format (ISO 639-1 language + optional ISO 3166-1 region):
+
+```bash
+# ✅ Correct
+-languages "en,fr,de,es,pt"
+-languages "en-US,en-GB,fr-FR,pt-BR"
+
+# ❌ Incorrect
+-languages "english,french"           # Use codes, not names
+-languages "en_US,fr_FR"             # Use hyphen, not underscore
+```
+
+2. Check for typos:
+
+```bash
+# Common typos:
+-languages "eng"     # Should be: en
+-languages "fra"     # Should be: fr
+-languages "esp"     # Should be: es
+```
+
+3. Remove extra spaces:
+
+```bash
+# ✅ Correct (spaces are auto-trimmed, but better without)
+-languages "en,fr,de"
+
+# ⚠️ Acceptable but not recommended
+-languages "en, fr, de"
+```
 
 ### Missing language files
 
-If expected language files aren't created:
+**Symptoms**: Expected language files aren't created.
 
-1. Verify the `-languages` flag is set correctly
-2. Check that the `-locales` directory path is correct and writable
-3. Review the console output for any errors during file creation
+**Solutions**:
+
+1. Verify the `-languages` flag:
+
+```bash
+# Check spelling and format
+go run cmd/webfram-i18n/main.go -languages "en,fr,de" -mode code
+```
+
+2. Check `-locales` directory path and permissions:
+
+```bash
+# Verify directory exists and is writable
+ls -la ./locales
+mkdir -p ./locales  # Create if doesn't exist
+```
+
+3. Review console output for errors:
+
+```text
+Error creating file: open ./locales/messages.fr.json: permission denied
+```
+
+4. Check disk space:
+
+```bash
+df -h .
+```
+
+### Duplicate message IDs
+
+**Symptoms**: Warning about duplicate translations.
+
+**Solutions**:
+
+1. Use unique, descriptive message IDs:
+
+```go
+// ❌ Avoid generic messages
+printer.Sprintf("Error")           // Too generic
+printer.Sprintf("Submit")          // Too generic
+
+// ✅ Use specific context
+printer.Sprintf("Login error: Invalid credentials")
+printer.Sprintf("Submit user registration form")
+```
+
+2. Add context to distinguish similar messages:
+
+```go
+// Different contexts
+printer.Sprintf("Dashboard: Welcome %s", name)      // Dashboard greeting
+printer.Sprintf("Email: Welcome %s", name)          // Email greeting
+printer.Sprintf("Notification: Welcome %s", name)   // Notification greeting
+```
+
+### Performance issues with large codebases
+
+**Symptoms**: Tool takes too long to extract translations.
+
+**Solutions**:
+
+1. Use specific directories instead of scanning entire project:
+
+```bash
+# ✅ Scan specific directories
+go run cmd/webfram-i18n/main.go \
+  -languages "en" \
+  -code ./cmd ./internal ./pkg \
+  -templates ./templates
+
+# ❌ Don't scan everything
+go run cmd/webfram-i18n/main.go \
+  -languages "en" \
+  -code ./
+```
+
+2. Exclude vendor and generated code:
+
+```bash
+# The tool automatically skips vendor/, but you can help by
+# organizing code to avoid scanning unnecessary directories
+```
+
+3. Run for fewer languages during development:
+
+```bash
+# During development, only extract for base language
+go run cmd/webfram-i18n/main.go -languages "en" -mode code
+
+# Full extraction for production/release
+go run cmd/webfram-i18n/main.go -languages "en,fr,de,es,ja,zh" -templates ./templates
+```
+
+### Translation file merge conflicts
+
+**Symptoms**: Git merge conflicts in translation JSON files.
+
+**Solutions**:
+
+1. Always pull latest changes before running extraction:
+
+```bash
+git pull origin main
+go run cmd/webfram-i18n/main.go -languages "en,fr" -templates ./templates
+```
+
+2. Use a merge strategy for JSON files in `.gitattributes`:
+
+```text
+locales/*.json merge=union
+```
+
+3. Manually resolve conflicts, then re-run extraction:
+
+```bash
+# Resolve conflicts in your editor
+# Then re-run to ensure proper formatting
+go run cmd/webfram-i18n/main.go -languages "en,fr" -templates ./templates
+git add locales/
+git commit -m "Resolve translation conflicts"
+```
 
 ## Related Files
 
