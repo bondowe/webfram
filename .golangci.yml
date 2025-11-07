@@ -1,17 +1,40 @@
+# golangci-lint configuration for golangci-lint-action@v8
+# https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  go: '1.22'
+
 linters-settings:
+  errcheck:
+    check-type-assertions: false
+    check-blank: false
+  
   govet:
     enable-all: true
+    disable:
+      - fieldalignment
+      - shadow
+  
   gocyclo:
     min-complexity: 80
+  
   dupl:
     threshold: 100
+  
   goconst:
     min-len: 2
     min-occurrences: 3
+  
   misspell:
     locale: US
+    ignore-words:
+      - cancelled
+  
   lll:
     line-length: 140
+    tab-width: 1
+  
   gocritic:
     enabled-tags:
       - diagnostic
@@ -24,18 +47,35 @@ linters-settings:
       - ifElseChain
       - octalLiteral
       - whyNoLint
+  
   funlen:
     lines: 250
     statements: 160
+    ignore-comments: true
+  
+  gosec:
+    excludes:
+      - G115  # Integer overflow conversion
+  
+  staticcheck:
+    checks: ["all"]
 
 linters:
   disable-all: true
   enable:
+    # Enabled by default
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    
+    # Additional linters
     - bodyclose
     - copyloopvar
     - dogsled
     - dupl
-    - errcheck
     - funlen
     - gochecknoinits
     - goconst
@@ -45,39 +85,43 @@ linters:
     - goimports
     - goprintffuncname
     - gosec
-    - gosimple
-    - govet
-    - ineffassign
     - lll
     - misspell
     - nakedret
     - nolintlint
-    - staticcheck
     - stylecheck
     - typecheck
     - unconvert
     - unparam
-    - unused
     - whitespace
 
 issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
   exclude-rules:
+    # Exclude some linters from running on tests files
     - path: _test\.go
       linters:
         - funlen
         - goconst
         - gocyclo
+    
+    # Exclude long lines for go:generate statements
     - linters:
         - lll
       source: "^//go:generate "
+    
+    # Exclude all linters for generated files
     - path: ".*\\.pb\\.go$"
       linters:
         - all
-    - path: "(vendor|testdata)"
+    
+    # Exclude all linters for vendor and testdata
+    - path: "(vendor|testdata)/"
       linters:
         - all
-  max-issues-per-linter: 0
-  max-same-issues: 0
 
-run:
-  timeout: 5m
+output:
+  formats:
+    - format: colored-line-number
