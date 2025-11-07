@@ -2346,7 +2346,7 @@ func main() {
     mux.Handle("GET /events", app.SSE(
         func() app.SSEPayload {
             return app.SSEPayload{
-                Id:       uuid.New().String(),
+                ID:       uuid.New().String(),
                 Event:    "TIME_UPDATE",
                 Comments: []string{"Server time update"},
                 Data:     fmt.Sprintf("Current server time: %s", time.Now().Format(time.RFC3339)),
