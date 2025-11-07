@@ -20,6 +20,10 @@
 - [Configuration](#configuration)
   - [Configuration Options](#configuration-options)
   - [Configuration Best Practices](#configuration-best-practices)
+- [Server Configuration](#server-configuration)
+  - [ListenAndServe](#listenandserve)
+  - [ServerConfig Options](#serverconfig-options)
+  - [Server Configuration Examples](#server-configuration-examples)
 - [Routing](#routing)
   - [Basic Routes](#basic-routes)
   - [Route Parameters](#route-parameters)
@@ -226,8 +230,8 @@ func main() {
         w.JSON(map[string]string{"message": "Hello, World!"})
     })
 
-    // Start the server
-    app.ListenAndServe(":8080", mux)
+    // Start the server (nil for default server configuration)
+    app.ListenAndServe(":8080", mux, nil)
 }
 ```
 
@@ -261,7 +265,10 @@ func main() {
         },
     })
 
-    // ... rest of your app
+    mux := app.NewServeMux()
+    // ... register routes
+    
+    app.ListenAndServe(":8080", mux, nil)
 }
 ```
 
@@ -370,6 +377,238 @@ func main() {
     // ... register routes
 }
 ```
+
+## Server Configuration
+
+### ListenAndServe
+
+The `ListenAndServe` function starts an HTTP server with the specified address, multiplexer, and optional server configuration. It provides automatic graceful shutdown, OpenAPI endpoint registration, and configurable server timeouts.
+
+**Signature:**
+```go
+func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig)
+```
+
+**Parameters:**
+- `addr`: Server address (e.g., `:8080`, `localhost:3000`, `0.0.0.0:8080`)
+- `mux`: ServeMux instance with registered routes
+- `cfg`: Optional ServerConfig for customizing server behavior (can be `nil` for defaults)
+
+**Features:**
+- Automatically registers OpenAPI endpoint if configured
+- Graceful shutdown on SIGINT/SIGTERM signals
+- Configurable timeouts with sensible defaults
+- Panics on startup or shutdown errors for fail-fast behavior
+
+**Basic Usage:**
+```go
+mux := app.NewServeMux()
+mux.HandleFunc("GET /hello", handleHello)
+
+// Use default server configuration
+app.ListenAndServe(":8080", mux, nil)
+```
+
+**With Custom Configuration:**
+```go
+mux := app.NewServeMux()
+mux.HandleFunc("GET /hello", handleHello)
+
+// Custom server configuration
+serverCfg := &app.ServerConfig{
+    ReadTimeout:       30 * time.Second,
+    WriteTimeout:      30 * time.Second,
+    IdleTimeout:       120 * time.Second,
+    MaxHeaderBytes:    1 << 20, // 1 MB
+    ReadHeaderTimeout: 10 * time.Second,
+}
+
+app.ListenAndServe(":8080", mux, serverCfg)
+```
+
+### ServerConfig Options
+
+The `ServerConfig` struct allows fine-grained control over HTTP server behavior:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `ReadTimeout` | `time.Duration` | `15s` | Maximum duration for reading entire request |
+| `ReadHeaderTimeout` | `time.Duration` | `15s` | Maximum duration for reading request headers |
+| `WriteTimeout` | `time.Duration` | `15s` | Maximum duration for writing response |
+| `IdleTimeout` | `time.Duration` | `60s` | Maximum idle time for keep-alive connections |
+| `MaxHeaderBytes` | `int` | `1048576` (1MB) | Maximum size of request headers |
+| `TLSConfig` | `*tls.Config` | `nil` | TLS configuration for HTTPS |
+| `ConnState` | `func(net.Conn, http.ConnState)` | `nil` | Callback for connection state changes |
+| `BaseContext` | `func(net.Listener) context.Context` | `nil` | Base context for all requests |
+| `ConnContext` | `func(context.Context, net.Conn) context.Context` | `nil` | Per-connection context function |
+| `ErrorLog` | `*slog.Logger` | `nil` | Custom error logger |
+| `HTTP2` | `*http.HTTP2Config` | `nil` | HTTP/2 server configuration |
+| `Protocols` | `*http.Protocols` | `nil` | HTTP protocol configuration |
+| `TLSNextProto` | `map[string]func(...)` | `nil` | NPN/ALPN protocol upgrade functions |
+| `DisableGeneralOptionsHandler` | `bool` | `false` | Disable automatic OPTIONS handling |
+
+### Server Configuration Examples
+
+#### Production Server with Timeouts
+
+```go
+func main() {
+    app.Configure(getConfig())
+    mux := app.NewServeMux()
+    registerRoutes(mux)
+
+    serverCfg := &app.ServerConfig{
+        ReadTimeout:       30 * time.Second,
+        WriteTimeout:      30 * time.Second,
+        IdleTimeout:       120 * time.Second,
+        ReadHeaderTimeout: 10 * time.Second,
+        MaxHeaderBytes:    2 << 20, // 2 MB
+    }
+
+    app.ListenAndServe(":8080", mux, serverCfg)
+}
+```
+
+#### HTTPS Server with TLS
+
+```go
+func main() {
+    // Load TLS certificates
+    cert, err := tls.LoadX509KeyPair("server.crt", "server.key")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    tlsConfig := &tls.Config{
+        Certificates: []tls.Certificate{cert},
+        MinVersion:   tls.VersionTLS13,
+        CipherSuites: []uint16{
+            tls.TLS_AES_128_GCM_SHA256,
+            tls.TLS_AES_256_GCM_SHA384,
+            tls.TLS_CHACHA20_POLY1305_SHA256,
+        },
+    }
+
+    mux := app.NewServeMux()
+    registerRoutes(mux)
+
+    serverCfg := &app.ServerConfig{
+        TLSConfig:         tlsConfig,
+        ReadTimeout:       30 * time.Second,
+        WriteTimeout:      30 * time.Second,
+        IdleTimeout:       120 * time.Second,
+        ReadHeaderTimeout: 10 * time.Second,
+    }
+
+    app.ListenAndServe(":443", mux, serverCfg)
+}
+```
+
+#### Custom Connection Tracking
+
+```go
+func main() {
+    var activeConnections atomic.Int32
+
+    mux := app.NewServeMux()
+    registerRoutes(mux)
+
+    serverCfg := &app.ServerConfig{
+        ConnState: func(conn net.Conn, state http.ConnState) {
+            switch state {
+            case http.StateNew:
+                count := activeConnections.Add(1)
+                log.Printf("New connection from %s (total: %d)", conn.RemoteAddr(), count)
+            case http.StateClosed:
+                count := activeConnections.Add(-1)
+                log.Printf("Connection closed from %s (total: %d)", conn.RemoteAddr(), count)
+            }
+        },
+        ReadTimeout:  30 * time.Second,
+        WriteTimeout: 30 * time.Second,
+    }
+
+    app.ListenAndServe(":8080", mux, serverCfg)
+}
+```
+
+#### Custom Request Context
+
+```go
+func main() {
+    mux := app.NewServeMux()
+    registerRoutes(mux)
+
+    serverCfg := &app.ServerConfig{
+        BaseContext: func(listener net.Listener) context.Context {
+            // Create base context with common values
+            ctx := context.Background()
+            ctx = context.WithValue(ctx, "serverStartTime", time.Now())
+            return ctx
+        },
+        ConnContext: func(ctx context.Context, conn net.Conn) context.Context {
+            // Add per-connection values
+            return context.WithValue(ctx, "remoteAddr", conn.RemoteAddr().String())
+        },
+    }
+
+    app.ListenAndServe(":8080", mux, serverCfg)
+}
+```
+
+#### HTTP/2 Configuration
+
+```go
+func main() {
+    mux := app.NewServeMux()
+    registerRoutes(mux)
+
+    serverCfg := &app.ServerConfig{
+        HTTP2: &http.HTTP2Config{
+            MaxConcurrentStreams:         250,
+            MaxUploadBufferPerConnection: 1 << 20, // 1 MB
+        },
+        ReadTimeout:  30 * time.Second,
+        WriteTimeout: 30 * time.Second,
+    }
+
+    app.ListenAndServe(":8080", mux, serverCfg)
+}
+```
+
+#### Development vs Production Configuration
+
+```go
+func getServerConfig() *app.ServerConfig {
+    if os.Getenv("ENV") == "production" {
+        return &app.ServerConfig{
+            ReadTimeout:       30 * time.Second,
+            WriteTimeout:      30 * time.Second,
+            IdleTimeout:       120 * time.Second,
+            ReadHeaderTimeout: 10 * time.Second,
+            MaxHeaderBytes:    2 << 20, // 2 MB
+        }
+    }
+    
+    // Development: more lenient timeouts for debugging
+    return &app.ServerConfig{
+        ReadTimeout:       5 * time.Minute,
+        WriteTimeout:      5 * time.Minute,
+        IdleTimeout:       10 * time.Minute,
+        ReadHeaderTimeout: 1 * time.Minute,
+    }
+}
+
+func main() {
+    app.Configure(getConfig())
+    mux := app.NewServeMux()
+    registerRoutes(mux)
+
+    app.ListenAndServe(":8080", mux, getServerConfig())
+}
+```
+
+**Note:** `ListenAndServe` blocks until the server is shut down. It automatically handles graceful shutdown on receiving SIGINT or SIGTERM signals, ensuring all active connections are properly closed before the process exits.
 
 ## Routing
 
@@ -558,7 +797,7 @@ func main() {
     
     mux.HandleFunc("GET /", handler)
     
-    app.ListenAndServe(":8080", mux)
+    app.ListenAndServe(":8080", mux, nil)
 }
 
 func loggingMiddleware(next app.Handler) app.Handler {
@@ -2123,7 +2362,7 @@ func main() {
     // Start server
     log.Println("Server starting on :8080")
     log.Println("OpenAPI docs: http://localhost:8080/openapi.json")
-    app.ListenAndServe(":8080", mux)
+    app.ListenAndServe(":8080", mux, nil)
 }
 
 func getOpenAPIConfig() *openapi.Config {
@@ -2405,26 +2644,49 @@ func getEnvBool(key string, fallback bool) bool {
 
 ### Graceful Shutdown
 
+**Automatic Graceful Shutdown:**
+
+The `ListenAndServe` function automatically handles graceful shutdown on SIGINT/SIGTERM:
+
 ```go
 func main() {
     cfg := loadConfig()
     
     app.Configure(getWebFramConfig(cfg))
     mux := app.NewServeMux()
-    
-    // Register routes
     registerRoutes(mux)
     
-    // Create server with timeouts
+    serverCfg := &app.ServerConfig{
+        ReadTimeout:  30 * time.Second,
+        WriteTimeout: 30 * time.Second,
+        IdleTimeout:  120 * time.Second,
+    }
+    
+    // ListenAndServe handles graceful shutdown automatically
+    app.ListenAndServe(":"+cfg.Port, mux, serverCfg)
+}
+```
+
+**Manual Graceful Shutdown (if needed):**
+
+If you need custom shutdown logic, you can use the standard library directly:
+
+```go
+func main() {
+    cfg := loadConfig()
+    
+    app.Configure(getWebFramConfig(cfg))
+    mux := app.NewServeMux()
+    registerRoutes(mux)
+    
     server := &http.Server{
         Addr:         ":" + cfg.Port,
         Handler:      mux,
-        ReadTimeout:  15 * time.Second,
-        WriteTimeout: 15 * time.Second,
-        IdleTimeout:  60 * time.Second,
+        ReadTimeout:  30 * time.Second,
+        WriteTimeout: 30 * time.Second,
+        IdleTimeout:  120 * time.Second,
     }
     
-    // Start server in goroutine
     go func() {
         log.Printf("Server starting on port %s", cfg.Port)
         if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -2432,14 +2694,12 @@ func main() {
         }
     }()
     
-    // Wait for interrupt signal
     quit := make(chan os.Signal, 1)
     signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
     <-quit
     
     log.Println("Shutting down server...")
     
-    // Graceful shutdown with timeout
     ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
     defer cancel()
     
