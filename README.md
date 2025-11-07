@@ -217,7 +217,6 @@ go get github.com/bondowe/webfram
 package main
 
 import (
-    "net/http"
     app "github.com/bondowe/webfram"
 )
 
@@ -933,7 +932,8 @@ w.Error(http.StatusBadRequest, "Invalid request")
 
 ```go
 w.Header().Set("X-Custom-Header", "value")
-w.WriteHeader(http.StatusOK).JSON(data)
+w.WriteHeader(http.StatusOK)
+w.JSON(data)
 ```
 
 ## Data Binding & Validation
@@ -963,7 +963,8 @@ mux.HandleFunc("POST /users", func(w app.ResponseWriter, r *app.Request) {
     }
     
     if valErrors.Any() {
-        w.WriteHeader(http.StatusBadRequest).JSON(valErrors)
+        w.WriteHeader(http.StatusBadRequest)
+        w.JSON(valErrors)
         return
     }
     
@@ -1000,7 +1001,8 @@ mux.HandleFunc("POST /api/users", func(w app.ResponseWriter, r *app.Request) {
     }
     
     if valErrors.Any() {
-        w.WriteHeader(http.StatusBadRequest).JSON(valErrors)
+        w.WriteHeader(http.StatusBadRequest)
+        w.JSON(valErrors)
         return
     }
     
@@ -1043,7 +1045,8 @@ mux.HandleFunc("POST /api/users", func(w app.ResponseWriter, r *app.Request) {
     }
     
     if valErrors.Any() {
-        w.WriteHeader(http.StatusBadRequest).XML(valErrors)
+        w.WriteHeader(http.StatusBadRequest)
+        w.XML(valErrors)
         return
     }
     
@@ -1123,7 +1126,8 @@ mux.HandleFunc("POST /config", func(w app.ResponseWriter, r *app.Request) {
     }
     
     if valErrors.Any() {
-        w.WriteHeader(http.StatusBadRequest).JSON(valErrors)
+        w.WriteHeader(http.StatusBadRequest)
+        w.JSON(valErrors)
         return
     }
     
@@ -1226,7 +1230,8 @@ if err != nil {
 
 if valErrors.Any() {
     // Validation errors - return structured error response
-    w.WriteHeader(http.StatusBadRequest).JSON(valErrors)
+    w.WriteHeader(http.StatusBadRequest)
+    w.JSON(valErrors)
     return
 }
 
@@ -1338,7 +1343,8 @@ mux.HandleFunc("PATCH /users/{id}", func(w app.ResponseWriter, r *app.Request) {
     }
     
     if len(valErrors) > 0 {
-        w.WriteHeader(http.StatusBadRequest).JSON(app.ValidationErrors{Errors: valErrors})
+        w.WriteHeader(http.StatusBadRequest)
+        w.JSON(app.ValidationErrors{Errors: valErrors})
         return
     }
     
@@ -1446,7 +1452,8 @@ if err != nil {
 
 if len(valErrors) > 0 {
     // Validation failed after applying patch
-    w.WriteHeader(http.StatusBadRequest).JSON(app.ValidationErrors{Errors: valErrors})
+    w.WriteHeader(http.StatusBadRequest)
+    w.JSON(app.ValidationErrors{Errors: valErrors})
     return
 }
 ```
@@ -2274,12 +2281,14 @@ func main() {
         }
         
         if valErrors.Any() {
-            w.WriteHeader(http.StatusBadRequest).JSON(valErrors)
+            w.WriteHeader(http.StatusBadRequest)
+            w.JSON(valErrors)
             return
         }
 
         user.ID = uuid.New()
-        w.WriteHeader(http.StatusCreated).JSON(user)
+        w.WriteHeader(http.StatusCreated)
+        w.JSON(user)
     }).WithAPIConfig(&app.APIConfig{
         OperationID: "createUser",
         Summary:     "Create a new user",
@@ -2325,7 +2334,8 @@ func main() {
         }
         
         if len(valErrors) > 0 {
-            w.WriteHeader(http.StatusBadRequest).JSON(app.ValidationErrors{Errors: valErrors})
+            w.WriteHeader(http.StatusBadRequest)
+            w.JSON(app.ValidationErrors{Errors: valErrors})
             return
         }
         
@@ -2724,7 +2734,8 @@ mux.HandleFunc("GET /health", func(w app.ResponseWriter, r *app.Request) {
 mux.HandleFunc("GET /readiness", func(w app.ResponseWriter, r *app.Request) {
     // Check database, cache, etc.
     if !isReady() {
-        w.WriteHeader(http.StatusServiceUnavailable).JSON(map[string]string{
+        w.WriteHeader(http.StatusServiceUnavailable)
+        w.JSON(map[string]string{
             "status": "not ready",
         })
         return
