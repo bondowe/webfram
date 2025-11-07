@@ -121,7 +121,7 @@ func TestGenerateJSONSchema_Struct(t *testing.T) {
 
 	// CreatedAt format should map to "date"
 	createdSchemaOrRef := props["created_at"]
-	if createdSchemaOrRef.Schema == nil || createdSchemaOrRef.Schema.Format != "date" {
+	if createdSchemaOrRef.Schema == nil || createdSchemaOrRef.Format != "date" {
 		t.Fatalf("expected created_at format 'date', got %v", createdSchemaOrRef.Schema)
 	}
 
@@ -137,40 +137,40 @@ func TestGenerateJSONSchema_Struct(t *testing.T) {
 
 	// Tags slice constraints
 	tagsSchemaOrRef := props["tags"]
-	if tagsSchemaOrRef.Schema == nil || tagsSchemaOrRef.Schema.Type != "array" {
+	if tagsSchemaOrRef.Schema == nil || tagsSchemaOrRef.Type != "array" {
 		t.Fatalf("expected tags to be an array")
 	}
-	if tagsSchemaOrRef.Schema.MinItems == nil || *tagsSchemaOrRef.Schema.MinItems != 1 {
-		t.Fatalf("expected tags minItems=1, got %v", tagsSchemaOrRef.Schema.MinItems)
+	if tagsSchemaOrRef.MinItems == nil || *tagsSchemaOrRef.MinItems != 1 {
+		t.Fatalf("expected tags minItems=1, got %v", tagsSchemaOrRef.MinItems)
 	}
-	if tagsSchemaOrRef.Schema.MaxItems == nil || *tagsSchemaOrRef.Schema.MaxItems != 5 {
-		t.Fatalf("expected tags maxItems=5, got %v", tagsSchemaOrRef.Schema.MaxItems)
+	if tagsSchemaOrRef.MaxItems == nil || *tagsSchemaOrRef.MaxItems != 5 {
+		t.Fatalf("expected tags maxItems=5, got %v", tagsSchemaOrRef.MaxItems)
 	}
-	if !tagsSchemaOrRef.Schema.UniqueItems {
+	if !tagsSchemaOrRef.UniqueItems {
 		t.Fatalf("expected tags uniqueItems=true")
 	}
 
 	// Ints slice should have item type integer
 	intsSchemaOrRef := props["ints"]
-	if intsSchemaOrRef.Schema == nil || intsSchemaOrRef.Schema.Type != "array" {
+	if intsSchemaOrRef.Schema == nil || intsSchemaOrRef.Type != "array" {
 		t.Fatalf("expected ints to be an array")
 	}
-	if intsSchemaOrRef.Schema.Items == nil || intsSchemaOrRef.Schema.Items.Schema == nil ||
-		intsSchemaOrRef.Schema.Items.Schema.Type != "integer" {
+	if intsSchemaOrRef.Items == nil || intsSchemaOrRef.Items.Schema == nil ||
+		intsSchemaOrRef.Items.Type != "integer" {
 		t.Fatalf("expected ints items type integer")
 	}
 
 	// Floats slice item type number
 	floatsSchemaOrRef := props["floats"]
-	if floatsSchemaOrRef.Schema == nil || floatsSchemaOrRef.Schema.Items == nil ||
-		floatsSchemaOrRef.Schema.Items.Schema == nil || floatsSchemaOrRef.Schema.Items.Schema.Type != "number" {
+	if floatsSchemaOrRef.Schema == nil || floatsSchemaOrRef.Items == nil ||
+		floatsSchemaOrRef.Items.Schema == nil || floatsSchemaOrRef.Items.Type != "number" {
 		t.Fatalf("expected floats items type number")
 	}
 
 	// Bools slice item type boolean
 	boolsSchemaOrRef := props["bools"]
-	if boolsSchemaOrRef.Schema == nil || boolsSchemaOrRef.Schema.Items == nil ||
-		boolsSchemaOrRef.Schema.Items.Schema == nil || boolsSchemaOrRef.Schema.Items.Schema.Type != "boolean" {
+	if boolsSchemaOrRef.Schema == nil || boolsSchemaOrRef.Items == nil ||
+		boolsSchemaOrRef.Items.Schema == nil || boolsSchemaOrRef.Items.Type != "boolean" {
 		t.Fatalf("expected bools items type boolean")
 	}
 }
@@ -183,18 +183,18 @@ func TestGenerateJSONSchema_TopLevelSlice(t *testing.T) {
 	if schemaOrRef == nil || schemaOrRef.Schema == nil {
 		t.Fatalf("expected array schema for top-level slice")
 	}
-	if schemaOrRef.Schema.Type != "array" {
-		t.Fatalf("expected schema type array, got %s", schemaOrRef.Schema.Type)
+	if schemaOrRef.Type != "array" {
+		t.Fatalf("expected schema type array, got %s", schemaOrRef.Type)
 	}
 
 	// Items should reference Person component
-	if schemaOrRef.Schema.Items == nil || schemaOrRef.Schema.Items.Ref == "" {
-		t.Fatalf("expected items to be a reference to Person component, got %v", schemaOrRef.Schema.Items)
+	if schemaOrRef.Items == nil || schemaOrRef.Items.Ref == "" {
+		t.Fatalf("expected items to be a reference to Person component, got %v", schemaOrRef.Items)
 	}
 
 	expectedRef := "#/components/schemas/" + reflect.TypeOf(Person{}).String()
-	if schemaOrRef.Schema.Items.Ref != expectedRef {
-		t.Fatalf("expected items ref %s, got %s", expectedRef, schemaOrRef.Schema.Items.Ref)
+	if schemaOrRef.Items.Ref != expectedRef {
+		t.Fatalf("expected items ref %s, got %s", expectedRef, schemaOrRef.Items.Ref)
 	}
 
 	// Ensure Person component exists

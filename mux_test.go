@@ -1416,11 +1416,11 @@ func TestMapParameters_Basic(t *testing.T) {
 		t.Errorf("Expected 2 parameters, got %d", len(result))
 	}
 
-	if result[0].Parameter.Name != "id" {
-		t.Errorf("Expected first parameter name 'id', got %q", result[0].Parameter.Name)
+	if result[0].Name != "id" {
+		t.Errorf("Expected first parameter name 'id', got %q", result[0].Name)
 	}
 
-	if !result[0].Parameter.Required {
+	if !result[0].Required {
 		t.Error("Expected first parameter to be required")
 	}
 }

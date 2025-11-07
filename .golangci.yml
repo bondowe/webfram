@@ -1,5 +1,7 @@
-# golangci-lint configuration for golangci-lint-action@v8
+# golangci-lint configuration v2 format for golangci-lint-action@v8
 # https://golangci-lint.run/usage/configuration/
+
+version: 2
 
 run:
   timeout: 5m
@@ -11,7 +13,44 @@ linters-settings:
     check-blank: false
   
   govet:
-    enable-all: true
+    settings:
+      printf:
+        funcs:
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Infof
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Warnf
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Errorf
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Fatalf
+    enable:
+      - asmdecl
+      - assign
+      - atomic
+      - bools
+      - buildtag
+      - cgocall
+      - composites
+      - copylocks
+      - directive
+      - errorsas
+      - framepointer
+      - httpresponse
+      - ifaceassert
+      - loopclosure
+      - lostcancel
+      - nilfunc
+      - printf
+      - shift
+      - sigchanyzer
+      - slog
+      - stdmethods
+      - stringintconv
+      - structtag
+      - testinggoroutine
+      - tests
+      - timeformat
+      - unmarshal
+      - unreachable
+      - unsafeptr
+      - unusedresult
     disable:
       - fieldalignment
       - shadow
@@ -58,14 +97,14 @@ linters-settings:
       - G115  # Integer overflow conversion
   
   staticcheck:
-    checks: ["all"]
+    checks:
+      - all
 
 linters:
   disable-all: true
   enable:
     # Enabled by default
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
@@ -81,16 +120,12 @@ linters:
     - goconst
     - gocritic
     - gocyclo
-    - gofmt
-    - goimports
     - goprintffuncname
     - gosec
     - lll
     - misspell
     - nakedret
     - nolintlint
-    - stylecheck
-    - typecheck
     - unconvert
     - unparam
     - whitespace
@@ -124,4 +159,5 @@ issues:
 
 output:
   formats:
-    - format: colored-line-number
+    colored-line-number:
+      path: stdout

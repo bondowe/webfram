@@ -151,7 +151,7 @@ func main() {
 	}
 
 	// Create locales directory if it doesn't exist
-	if err := os.MkdirAll(*localesDir, 0755); err != nil {
+	if err := os.MkdirAll(*localesDir, 0750); err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating locales directory: %v\n", err)
 		os.Exit(1)
 	}

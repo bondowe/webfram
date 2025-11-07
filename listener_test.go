@@ -107,7 +107,11 @@ func TestListenAndServe_ServerStartsSuccessfully(t *testing.T) {
 		t.Fatal(err)
 	}
 	addr := listener.Addr().String()
-	listener.Close()
+	err = listener.Close()
+
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Start server in a goroutine
 	serverStarted := make(chan bool)
@@ -144,7 +148,10 @@ func TestListenAndServe_ServerStartsSuccessfully(t *testing.T) {
 	if err != nil {
 		t.Logf("Failed to connect to server (expected if server hasn't started yet): %v", err)
 	} else {
-		resp.Body.Close()
+		err = resp.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
 		}
@@ -186,7 +193,11 @@ func TestListenAndServe_WithCustomConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	addr := listener.Addr().String()
-	listener.Close()
+	err = listener.Close()
+
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	customLog := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 
@@ -220,7 +231,9 @@ func TestListenAndServe_WithCustomConfig(t *testing.T) {
 	// Make a request to trigger connection state
 	resp, err := http.Get("http://" + addr + "/test")
 
-	if err == nil {
+	if err != nil {
+		t.Logf("Failed to connect to server (expected if server hasn't started yet): %v", err)
+	} else {
 		defer resp.Body.Close()
 	}
 
@@ -278,7 +291,11 @@ func TestListenAndServe_WithOpenAPIEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	addr := listener.Addr().String()
-	listener.Close()
+	err = listener.Close()
+
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	serverStopped := make(chan bool)
 
@@ -433,7 +450,11 @@ func TestListenAndServe_HandlesMultipleRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	addr := listener.Addr().String()
-	listener.Close()
+	err = listener.Close()
+
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	serverStopped := make(chan bool)
 
