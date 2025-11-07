@@ -236,26 +236,25 @@ func main() {
 WebFram can be configured with templates, i18n, JSONP, and OpenAPI settings:
 
 ```go
-//go:embed templates
-var templatesFS embed.FS
-
-//go:embed locales/*.json
-var i18nFS embed.FS
+//go:embed assets
+var assetsFS embed.FS
 
 func main() {
     app.Configure(&app.Config{
-        Templates: &app.TemplateConfig{
-            FS:                    templatesFS,
-            TemplatesPath:         "templates",
-            LayoutBaseName:        "layout",
-            HTMLTemplateExtension: ".go.html",
-            TextTemplateExtension: ".go.txt",
-        },
-        I18n: &app.I18nConfig{
-            FS: i18nFS,
+        Assets: &app.Assets{
+            FS: assetsFS,
+            Templates: &app.Templates{
+                Dir:                   "templates",
+                LayoutBaseName:        "layout",
+                HTMLTemplateExtension: ".go.html",
+                TextTemplateExtension: ".go.txt",
+            },
+            I18nMessages: &app.I18nMessages{
+                Dir: "locales",
+            },
         },
         JSONPCallbackParamName: "callback", // Enable JSONP with custom param name
-        OpenAPI: &app.OpenAPIConfig{
+        OpenAPI: &app.OpenAPI{
             EndpointEnabled: true,
             URLPath:         "GET /openapi.json", // Optional, defaults to GET /openapi.json
             Config:          getOpenAPIConfig(),
@@ -270,12 +269,12 @@ func main() {
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `Templates.FS` | `nil` (required) | File system containing templates |
-| `Templates.TemplatesPath` | `""` | Root path for templates within FS |
-| `Templates.LayoutBaseName` | `"layout"` | Base name for layout files |
-| `Templates.HTMLTemplateExtension` | `".go.html"` | Extension for HTML templates |
-| `Templates.TextTemplateExtension` | `".go.txt"` | Extension for text templates |
-| `I18n.FS` | `os.DirFS("i18n")` | File system for i18n message files |
+| `Assets.FS` | `nil` (required) | Embedded file system (e.g., `//go:embed assets`) |
+| `Assets.Templates.Dir` | `"templates"` | Path to templates directory **within** the embedded FS |
+| `Assets.Templates.LayoutBaseName` | `"layout"` | Base name for layout files |
+| `Assets.Templates.HTMLTemplateExtension` | `".go.html"` | Extension for HTML templates |
+| `Assets.Templates.TextTemplateExtension` | `".go.txt"` | Extension for text templates |
+| `Assets.I18nMessages.Dir` | `"i18n"` | Path to locales directory **within** the embedded FS |
 | `JSONPCallbackParamName` | `""` (disabled) | Query parameter name for JSONP callbacks |
 | `OpenAPI.EndpointEnabled` | `false` | Enable/disable OpenAPI endpoint |
 | `OpenAPI.URLPath` | `"GET /openapi.json"` | Path for OpenAPI spec endpoint |
@@ -283,19 +282,29 @@ func main() {
 
 **Note:** The i18n function name in templates is always `T` and cannot be configured.
 
+**Important:** The `Templates.Dir` and `I18nMessages.Dir` are relative paths within the embedded filesystem. For example, if you embed `assets` directory with `//go:embed assets`, and your templates are in `assets/templates/`, then set `Templates.Dir` to `"templates"`.
+
 ### Configuration Best Practices
 
-1. **Use Embedded Filesystems**: Always use `//go:embed` for templates and locales:
+1. **Use Embedded Filesystems**: Always use `//go:embed` for your assets directory:
 
 ```go
-//go:embed templates locales
+// Project structure:
+// assets/
+//   ├── templates/
+//   │   └── index.go.html
+//   └── locales/
+//       └── messages.en.json
+
+//go:embed assets
 var assetsFS embed.FS
 
 app.Configure(&app.Config{
-    Assets: &Assets{
+    Assets: &app.Assets{
         FS: assetsFS,
-        Templates: &Templates{Dir: "templates"},
-        I18nMessages: &I18nMessages{Dir: "locales"},
+        // Paths are relative to the embedded FS root
+        Templates: &app.Templates{Dir: "templates"},
+        I18nMessages: &app.I18nMessages{Dir: "locales"},
     },
 })
 ```
@@ -303,12 +312,16 @@ app.Configure(&app.Config{
 2. **Environment-Specific Configuration**: Use environment variables for deployment-specific settings:
 
 ```go
+//go:embed assets
+var assetsFS embed.FS
+
 func getConfig() *app.Config {
     cfg := &app.Config{
-        Assets: &Assets{
+        Assets: &app.Assets{
             FS: assetsFS,
-            Templates: &Templates{Dir: "templates"},
-            I18nMessages: &I18nMessages{Dir: "locales"},
+            // Paths relative to embedded FS (assets/templates/ and assets/locales/)
+            Templates: &app.Templates{Dir: "templates"},
+            I18nMessages: &app.I18nMessages{Dir: "locales"},
         },
     }
     
@@ -1370,7 +1383,7 @@ Configure OpenAPI in your application:
 
 ```go
 app.Configure(&app.Config{
-    OpenAPI: &app.OpenAPIConfig{
+    OpenAPI: &app.OpenAPI{
         EndpointEnabled: true,
         URLPath:         "GET /openapi.json", // Optional, defaults to GET /openapi.json
         Config:          getOpenAPIConfig(),
@@ -1707,38 +1720,55 @@ WebFram provides a powerful templating system with automatic caching, layout inh
 
 ### Template Configuration
 
-Templates must be provided via an embedded file system and a base path:
+Templates must be provided via an embedded file system. The template directory path is relative to the embedded filesystem root:
 
 ```go
-//go:embed templates
-var templatesFS embed.FS
+// Your project structure:
+// assets/
+//   └── templates/
+//       ├── layout.go.html
+//       └── index.go.html
+
+//go:embed assets
+var assetsFS embed.FS
 
 app.Configure(&app.Config{
-    Templates: &app.TemplateConfig{
-        FS:                    templatesFS,
-        TemplatesPath:         "templates",
-        LayoutBaseName:        "layout",
-        HTMLTemplateExtension: ".go.html",
-        TextTemplateExtension: ".go.txt",
+    Assets: &app.Assets{
+        FS: assetsFS,
+        Templates: &app.Templates{
+            Dir:                   "templates",  // Path relative to embedded FS (assets/templates/)
+            LayoutBaseName:        "layout",
+            HTMLTemplateExtension: ".go.html",
+            TextTemplateExtension: ".go.txt",
+        },
     },
 })
 ```
 
 ### Template Structure
 
+Your project structure should have an `assets` directory containing both `templates` and `locales`:
+
 ```
-templates/
-├── layout.go.html              # Root layout (inherited by all)
-├── users/
-│   ├── layout.go.html          # Users layout (inherits from root)
-│   ├── list.go.html            # Inherits from users layout
-│   ├── details.go.html
-│   └── manage/
-│       ├── update.go.html
-│       └── delete.go.html
-├── _partOne.go.html            # Partial template
-└── openapi.html
+assets/
+├── templates/
+│   ├── layout.go.html              # Root layout (inherited by all)
+│   ├── users/
+│   │   ├── layout.go.html          # Users layout (inherits from root)
+│   │   ├── list.go.html            # Inherits from users layout
+│   │   ├── details.go.html
+│   │   └── manage/
+│   │       ├── update.go.html
+│   │       └── delete.go.html
+│   ├── _partOne.go.html            # Partial template
+│   └── openapi.html
+└── locales/
+    ├── messages.en.json
+    ├── messages.fr.json
+    └── messages.es.json
 ```
+
+The `assets` directory is embedded with `//go:embed assets`, and the `Templates.Dir` and `I18nMessages.Dir` paths are relative to this embedded filesystem.
 
 ### Layout Files
 
@@ -1860,12 +1890,15 @@ Create message files in JSON format in your locales directory:
 ### Configure i18n
 
 ```go
-//go:embed locales/*.json
-var i18nFS embed.FS
+//go:embed assets
+var assetsFS embed.FS
 
 app.Configure(&app.Config{
-    I18n: &app.I18nConfig{
-        FS: i18nFS,
+    Assets: &app.Assets{
+        FS: assetsFS,
+        I18nMessages: &app.I18nMessages{
+            Dir: "locales",
+        },
     },
 })
 ```
@@ -1910,11 +1943,16 @@ import (
     "golang.org/x/text/language"
 )
 
-//go:embed templates
-var templatesFS embed.FS
+// Project structure:
+// assets/
+//   ├── templates/
+//   │   └── index.go.html
+//   └── locales/
+//       ├── messages.en.json
+//       └── messages.fr.json
 
-//go:embed locales/*.json
-var i18nFS embed.FS
+//go:embed assets
+var assetsFS embed.FS
 
 type User struct {
     ID        uuid.UUID   `json:"id" xml:"id" form:"id"`
@@ -1936,15 +1974,17 @@ func loggingMiddleware(next app.Handler) app.Handler {
 func main() {
     // Configure the application
     app.Configure(&app.Config{
-        Templates: &app.TemplateConfig{
-            FS:            templatesFS,
-            TemplatesPath: "templates",
-        },
-        I18n: &app.I18nConfig{
-            FS: i18nFS,
+        Assets: &app.Assets{
+            FS: assetsFS,
+            Templates: &app.Templates{
+                Dir: "templates",
+            },
+            I18nMessages: &app.I18nMessages{
+                Dir: "locales",
+            },
         },
         JSONPCallbackParamName: "callback", // Enable JSONP support
-        OpenAPI: &app.OpenAPIConfig{
+        OpenAPI: &app.OpenAPI{
             EndpointEnabled: true,
             Config:          getOpenAPIConfig(),
         },
@@ -2180,7 +2220,7 @@ func TestLoggingMiddleware(t *testing.T) {
 func TestBindJSON(t *testing.T) {
     type User struct {
         Name  string `json:"name" validate:"required"`
-        Email string `json:"email" validate:"required,email"`
+        Email string `json:"email" validate:"required,format=email"`
     }
     
     app.Configure(nil)
@@ -2251,7 +2291,9 @@ func TestFullAPI(t *testing.T) {
     app.Configure(&app.Config{
         Assets: &app.Assets{
             FS: testFS,
-            Templates: &app.Templates{Dir: "templates"},
+            Templates: &app.Templates{
+                Dir: "templates",
+            },
         },
     })
     

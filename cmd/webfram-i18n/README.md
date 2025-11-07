@@ -153,13 +153,16 @@ import (
     "golang.org/x/text/language"
 )
 
-//go:embed locales/*.json
-var i18nFS embed.FS
+//go:embed locales
+var assetsFS embed.FS
 
 func main() {
     app.Configure(&app.Config{
-        I18n: &app.I18nConfig{
-            FS: i18nFS,
+        Assets: &app.Assets{
+            FS: assetsFS,
+            I18nMessages: &app.I18nMessages{
+                Dir: "locales",
+            },
         },
     })
     
@@ -673,8 +676,8 @@ done
 1. Ensure catalogs are embedded:
 
 ```go
-//go:embed locales/*.json
-var i18nFS embed.FS
+//go:embed locales
+var assetsFS embed.FS
 ```
 
 2. Check that i18n is configured:
@@ -682,7 +685,7 @@ var i18nFS embed.FS
 ```go
 app.Configure(&app.Config{
     Assets: &app.Assets{
-        FS: i18nFS,
+        FS: assetsFS,
         I18nMessages: &app.I18nMessages{Dir: "locales"},
     },
 })
