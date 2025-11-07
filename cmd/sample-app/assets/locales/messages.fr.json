@@ -56,6 +56,7 @@
     {
       "id": "Happy to see you, %s!",
       "message": "Happy to see you, %s!",
+      "translation": "Heureux de vous voir, %s !",
       "placeholders": {
         "arg_1": {
           "id": "arg_1",
