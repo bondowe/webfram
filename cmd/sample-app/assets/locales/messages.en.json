@@ -1,0 +1,131 @@
+{
+  "language": "en",
+  "messages": [
+    {
+      "id": "%s %s - %v",
+      "message": "%s %s - %v",
+      "placeholders": {
+        "arg_1": {
+          "id": "arg_1",
+          "string": "%s",
+          "type": "string",
+          "underlyingType": "string",
+          "expr": "arg1",
+          "argNum": 1
+        },
+        "arg_2": {
+          "id": "arg_2",
+          "string": "%s",
+          "type": "string",
+          "underlyingType": "string",
+          "expr": "arg2",
+          "argNum": 2
+        },
+        "arg_3": {
+          "id": "arg_3",
+          "string": "%v",
+          "type": "interface{}",
+          "underlyingType": "interface{}",
+          "expr": "arg3",
+          "argNum": 3
+        }
+      }
+    },
+    {
+      "id": "Client disconnected from events stream",
+      "message": "Client disconnected from events stream"
+    },
+    {
+      "id": "Current server time: %s",
+      "message": "Current server time: %s",
+      "placeholders": {
+        "arg_1": {
+          "id": "arg_1",
+          "string": "%s",
+          "type": "string",
+          "underlyingType": "string",
+          "expr": "arg1",
+          "argNum": 1
+        }
+      }
+    },
+    {
+      "id": "Email is required",
+      "message": "Email is required"
+    },
+    {
+      "id": "Happy to see you, %s!",
+      "message": "Happy to see you, %s!",
+      "placeholders": {
+        "arg_1": {
+          "id": "arg_1",
+          "string": "%s",
+          "type": "string",
+          "underlyingType": "string",
+          "expr": "arg1",
+          "argNum": 1
+        }
+      }
+    },
+    {
+      "id": "Invalid email",
+      "message": "Invalid email"
+    },
+    {
+      "id": "Must be admin, user, or guest",
+      "message": "Must be admin, user, or guest"
+    },
+    {
+      "id": "Name is required",
+      "message": "Name is required"
+    },
+    {
+      "id": "Name must be at least 3 characters",
+      "message": "Name must be at least 3 characters"
+    },
+    {
+      "id": "OpenAPI docs: http://localhost:8080/openapi.json",
+      "message": "OpenAPI docs: http://localhost:8080/openapi.json"
+    },
+    {
+      "id": "SSE error: %v\\n",
+      "message": "SSE error: %v\\n",
+      "placeholders": {
+        "arg_1": {
+          "id": "arg_1",
+          "string": "%v",
+          "type": "interface{}",
+          "underlyingType": "interface{}",
+          "expr": "arg1",
+          "argNum": 1
+        }
+      }
+    },
+    {
+      "id": "Server starting on :8080",
+      "message": "Server starting on :8080"
+    },
+    {
+      "id": "Welcome to %s! Clap %d times.",
+      "message": "Welcome to %s! Clap %d times.",
+      "placeholders": {
+        "arg_1": {
+          "id": "arg_1",
+          "string": "%s",
+          "type": "string",
+          "underlyingType": "string",
+          "expr": "arg1",
+          "argNum": 1
+        },
+        "arg_2": {
+          "id": "arg_2",
+          "string": "%d",
+          "type": "int",
+          "underlyingType": "int",
+          "expr": "arg2",
+          "argNum": 2
+        }
+      }
+    }
+  ]
+}

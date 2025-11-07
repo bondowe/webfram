@@ -247,13 +247,13 @@ func main() {
         Assets: &app.Assets{
             FS: assetsFS,
             Templates: &app.Templates{
-                Dir:                   "templates",
+                Dir:                   "assets/templates",
                 LayoutBaseName:        "layout",
                 HTMLTemplateExtension: ".go.html",
                 TextTemplateExtension: ".go.txt",
             },
             I18nMessages: &app.I18nMessages{
-                Dir: "locales",
+                Dir: "assets/locales",
             },
         },
         JSONPCallbackParamName: "callback", // Enable JSONP with custom param name
@@ -276,11 +276,11 @@ func main() {
 | Option | Default | Description |
 |--------|---------|-------------|
 | `Assets.FS` | `nil` (required) | Embedded file system (e.g., `//go:embed assets`) |
-| `Assets.Templates.Dir` | `"templates"` | Path to templates directory **within** the embedded FS |
+| `Assets.Templates.Dir` | `"assets/templates"` | Path to templates directory **within** the embedded FS |
 | `Assets.Templates.LayoutBaseName` | `"layout"` | Base name for layout files |
 | `Assets.Templates.HTMLTemplateExtension` | `".go.html"` | Extension for HTML templates |
 | `Assets.Templates.TextTemplateExtension` | `".go.txt"` | Extension for text templates |
-| `Assets.I18nMessages.Dir` | `"i18n"` | Path to locales directory **within** the embedded FS |
+| `Assets.I18nMessages.Dir` | `"assets/locales"` | Path to locales directory **within** the embedded FS |
 | `JSONPCallbackParamName` | `""` (disabled) | Query parameter name for JSONP callbacks |
 | `OpenAPI.EndpointEnabled` | `false` | Enable/disable OpenAPI endpoint |
 | `OpenAPI.URLPath` | `"GET /openapi.json"` | Path for OpenAPI spec endpoint |
@@ -288,7 +288,7 @@ func main() {
 
 **Note:** The i18n function name in templates is always `T` and cannot be configured.
 
-**Important:** The `Templates.Dir` and `I18nMessages.Dir` are relative paths within the embedded filesystem. For example, if you embed `assets` directory with `//go:embed assets`, and your templates are in `assets/templates/`, then set `Templates.Dir` to `"templates"`.
+**Important:** The `Templates.Dir` and `I18nMessages.Dir` are paths within the embedded filesystem. For example, if you embed `assets` directory with `//go:embed assets`, and your templates are in `assets/templates/`, then set `Templates.Dir` to `"assets/templates"`.
 
 ### Configuration Best Practices
 
@@ -308,9 +308,9 @@ var assetsFS embed.FS
 app.Configure(&app.Config{
     Assets: &app.Assets{
         FS: assetsFS,
-        // Paths are relative to the embedded FS root
-        Templates: &app.Templates{Dir: "templates"},
-        I18nMessages: &app.I18nMessages{Dir: "locales"},
+        // Paths are in the embedded FS root
+        Templates: &app.Templates{Dir: "assets/templates"},
+        I18nMessages: &app.I18nMessages{Dir: "assets/locales"},
     },
 })
 ```
@@ -326,8 +326,8 @@ func getConfig() *app.Config {
         Assets: &app.Assets{
             FS: assetsFS,
             // Paths relative to embedded FS (assets/templates/ and assets/locales/)
-            Templates: &app.Templates{Dir: "templates"},
-            I18nMessages: &app.I18nMessages{Dir: "locales"},
+            Templates: &app.Templates{Dir: "assets/templates"},
+            I18nMessages: &app.I18nMessages{Dir: "assets/locales"},
         },
     }
     
@@ -1982,7 +1982,7 @@ app.Configure(&app.Config{
     Assets: &app.Assets{
         FS: assetsFS,
         Templates: &app.Templates{
-            Dir:                   "templates",  // Path relative to embedded FS (assets/templates/)
+            Dir:                   "assets/templates",  // Path in embedded FS (assets/templates/)
             LayoutBaseName:        "layout",
             HTMLTemplateExtension: ".go.html",
             TextTemplateExtension: ".go.txt",
@@ -2014,7 +2014,7 @@ assets/
     └── messages.es.json
 ```
 
-The `assets` directory is embedded with `//go:embed assets`, and the `Templates.Dir` and `I18nMessages.Dir` paths are relative to this embedded filesystem.
+The `assets` directory is embedded with `//go:embed assets`, and the `Templates.Dir` and `I18nMessages.Dir` paths are in this embedded filesystem.
 
 ### Layout Files
 
@@ -2198,7 +2198,7 @@ app.Configure(&app.Config{
     Assets: &app.Assets{
         FS: assetsFS,
         I18nMessages: &app.I18nMessages{
-            Dir: "locales",
+            Dir: "assets/locales",
         },
     },
 })
@@ -2232,16 +2232,16 @@ The i18n function is automatically available in templates as `T` (not configurab
 package main
 
 import (
-    "embed"
-    "fmt"
-    "log"
-    "net/http"
-    "time"
-    
-    app "github.com/bondowe/webfram"
-    "github.com/bondowe/webfram/openapi"
-    "github.com/google/uuid"
-    "golang.org/x/text/language"
+ "embed"
+ "fmt"
+ "log"
+ "net/http"
+ "time"
+
+ app "github.com/bondowe/webfram"
+ "github.com/bondowe/webfram/openapi"
+ "github.com/google/uuid"
+ "golang.org/x/text/language"
 )
 
 // Project structure:
@@ -2256,195 +2256,199 @@ import (
 var assetsFS embed.FS
 
 type User struct {
-    ID        uuid.UUID   `json:"id" xml:"id" form:"id"`
-    Name      string      `json:"name" xml:"name" form:"name" validate:"required,minlength=3" errmsg:"required=Name is required;minlength=Name must be at least 3 characters"`
-    Email     string      `json:"email" xml:"email" form:"email" validate:"required,format=email" errmsg:"required=Email is required;format=Invalid email"`
-    Role      string      `json:"role" xml:"role" form:"role" validate:"enum=admin|user|guest" errmsg:"enum=Must be admin, user, or guest"`
-    Birthdate time.Time   `form:"birthdate" validate:"required" format:"2006-01-02"`
+ ID        uuid.UUID `json:"id" xml:"id" form:"id"`
+ Name      string    `json:"name" xml:"name" form:"name" validate:"required,minlength=3" errmsg:"required=Name is required;minlength=Name must be at least 3 characters"`
+ Email     string    `json:"email" xml:"email" form:"email" validate:"required,format=email" errmsg:"required=Email is required;format=Invalid email"`
+ Role      string    `json:"role" xml:"role" form:"role" validate:"enum=admin|user|guest" errmsg:"enum=Must be admin, user, or guest"`
+ Birthdate time.Time `form:"birthdate" validate:"required" format:"2006-01-02"`
 }
 
 func loggingMiddleware(next app.Handler) app.Handler {
-    return app.HandlerFunc(func(w app.ResponseWriter, r *app.Request) {
-        start := time.Now()
-        next.ServeHTTP(w, r)
-        duration := time.Since(start)
-        log.Printf("%s %s - %v", r.Method, r.URL.Path, duration)
-    })
+ return app.HandlerFunc(func(w app.ResponseWriter, r *app.Request) {
+  start := time.Now()
+  next.ServeHTTP(w, r)
+  duration := time.Since(start)
+  log.Printf("%s %s - %v", r.Method, r.URL.Path, duration)
+ })
 }
 
 func main() {
-    // Configure the application
-    app.Configure(&app.Config{
-        Assets: &app.Assets{
-            FS: assetsFS,
-            Templates: &app.Templates{
-                Dir: "templates",
-            },
-            I18nMessages: &app.I18nMessages{
-                Dir: "locales",
-            },
-        },
-        JSONPCallbackParamName: "callback", // Enable JSONP support
-        OpenAPI: &app.OpenAPI{
-            EndpointEnabled: true,
-            Config:          getOpenAPIConfig(),
-        },
-    })
+ // Configure the application
+ app.Configure(&app.Config{
+  Assets: &app.Assets{
+   FS: assetsFS,
+   Templates: &app.Templates{
+    Dir: "assets/templates",
+   },
+   I18nMessages: &app.I18nMessages{
+    Dir: "assets/locales",
+   },
+  },
+  JSONPCallbackParamName: "callback", // Enable JSONP support
+  OpenAPI: &app.OpenAPI{
+   EndpointEnabled: true,
+   Config:          getOpenAPIConfig(),
+  },
+ })
 
-    // Global middleware
-    app.Use(loggingMiddleware)
+ // Global middleware
+ app.Use(loggingMiddleware)
 
-    // Create mux
-    mux := app.NewServeMux()
+ // Create mux
+ mux := app.NewServeMux()
 
-    // Routes
-    mux.HandleFunc("GET /", func(w app.ResponseWriter, r *app.Request) {
-        err := w.HTML("index", nil)
-        if err != nil {
-            w.Error(http.StatusInternalServerError, err.Error())
-        }
-    })
+ // Routes
+ mux.HandleFunc("GET /", func(w app.ResponseWriter, r *app.Request) {
+  err := w.HTML("index", &struct {
+   Name string
+  }{
+   Name: "De ba Mbonze",
+  })
+  if err != nil {
+   w.Error(http.StatusInternalServerError, err.Error())
+  }
+ })
 
-    // JSON endpoint with JSONP support
-    mux.HandleFunc("GET /users", func(w app.ResponseWriter, r *app.Request) {
-        users := []User{
-            {ID: uuid.New(), Name: "John Doe", Email: "john@example.com"},
-            {ID: uuid.New(), Name: "Jane Smith", Email: "jane@example.com"},
-        }
-        w.JSON(users)
-    }).WithAPIConfig(&app.APIConfig{
-        OperationID: "listUsers",
-        Summary:     "List all users",
-        Tags:        []string{"Users"},
-        Responses: map[string]app.Response{
-            "200": {
-                Description: "List of users",
-                Content: map[string]app.TypeInfo{
-                    "application/json": {TypeHint: &[]User{}},
-                },
-            },
-        },
-    })
+ // JSON endpoint with JSONP support
+ mux.HandleFunc("GET /users", func(w app.ResponseWriter, r *app.Request) {
+  users := []User{
+   {ID: uuid.New(), Name: "John Doe", Email: "john@example.com"},
+   {ID: uuid.New(), Name: "Jane Smith", Email: "jane@example.com"},
+  }
+  w.JSON(users)
+ }).WithAPIConfig(&app.APIConfig{
+  OperationID: "listUsers",
+  Summary:     "List all users",
+  Tags:        []string{"Users"},
+  Responses: map[string]app.Response{
+   "200": {
+    Description: "List of users",
+    Content: map[string]app.TypeInfo{
+     "application/json": {TypeHint: &[]User{}},
+    },
+   },
+  },
+ })
 
-    // Create user with JSON
-    mux.HandleFunc("POST /api/users/json", func(w app.ResponseWriter, r *app.Request) {
-        user, valErrors, err := app.BindJSON[User](r, true)
-        
-        if err != nil {
-            w.Error(http.StatusBadRequest, err.Error())
-            return
-        }
-        
-        if valErrors.Any() {
-            w.WriteHeader(http.StatusBadRequest)
-            w.JSON(valErrors)
-            return
-        }
+ // Create user with JSON
+ mux.HandleFunc("POST /api/users/json", func(w app.ResponseWriter, r *app.Request) {
+  user, valErrors, err := app.BindJSON[User](r, true)
 
-        user.ID = uuid.New()
-        w.WriteHeader(http.StatusCreated)
-        w.JSON(user)
-    }).WithAPIConfig(&app.APIConfig{
-        OperationID: "createUser",
-        Summary:     "Create a new user",
-        Tags:        []string{"Users"},
-        RequestBody: &app.RequestBody{
-            Required: true,
-            Content: map[string]app.TypeInfo{
-                "application/json": {TypeHint: &User{}},
-            },
-        },
-        Responses: map[string]app.Response{
-            "201": {
-                Description: "User created",
-                Content: map[string]app.TypeInfo{
-                    "application/json": {TypeHint: &User{}},
-                },
-            },
-            "400": {Description: "Validation error"},
-        },
-    })
+  if err != nil {
+   w.Error(http.StatusBadRequest, err.Error())
+   return
+  }
 
-    // Update user with JSON Patch
-    mux.HandleFunc("PATCH /users/{id}", func(w app.ResponseWriter, r *app.Request) {
-        id := r.PathValue("id")
-        
-        // Fetch existing user
-        user := User{
-            ID:    uuid.MustParse(id),
-            Name:  "John Doe",
-            Email: "john@example.com",
-            Role:  "user",
-        }
-        
-        // Apply JSON Patch with validation
-        valErrors, err := app.PatchJSON(r, &user, true)
-        if err != nil {
-            if err == app.ErrMethodNotAllowed {
-                w.Error(http.StatusMethodNotAllowed, err.Error())
-                return
-            }
-            w.Error(http.StatusBadRequest, err.Error())
-            return
-        }
-        
-        if len(valErrors) > 0 {
-            w.WriteHeader(http.StatusBadRequest)
-            w.JSON(app.ValidationErrors{Errors: valErrors})
-            return
-        }
-        
-        w.JSON(user)
-    })
+  if valErrors.Any() {
+   w.WriteHeader(http.StatusBadRequest)
+   w.JSON(valErrors)
+   return
+  }
 
-    // SSE endpoint for real-time updates
-    mux.Handle("GET /events", app.SSE(
-        func() app.SSEPayload {
-            return app.SSEPayload{
-                ID:       uuid.New().String(),
-                Event:    "TIME_UPDATE",
-                Comments: []string{"Server time update"},
-                Data:     fmt.Sprintf("Current server time: %s", time.Now().Format(time.RFC3339)),
-            }
-        },
-        func() {
-            log.Println("Client disconnected from events stream")
-        },
-        func(err error) {
-            log.Printf("SSE error: %v\n", err)
-        },
-        5*time.Second,
-        nil,
-    ))
+  user.ID = uuid.New()
+  w.WriteHeader(http.StatusCreated)
+  w.JSON(user)
+ }).WithAPIConfig(&app.APIConfig{
+  OperationID: "createUser",
+  Summary:     "Create a new user",
+  Tags:        []string{"Users"},
+  RequestBody: &app.RequestBody{
+   Required: true,
+   Content: map[string]app.TypeInfo{
+    "application/json": {TypeHint: &User{}},
+   },
+  },
+  Responses: map[string]app.Response{
+   "201": {
+    Description: "User created",
+    Content: map[string]app.TypeInfo{
+     "application/json": {TypeHint: &User{}},
+    },
+   },
+   "400": {Description: "Validation error"},
+  },
+ })
 
-    // i18n example
-    mux.HandleFunc("GET /greeting", func(w app.ResponseWriter, r *app.Request) {
-        printer := app.GetI18nPrinter(language.Spanish)
-        msg := printer.Sprintf("Welcome to %s! Clap %d times.", "WebFram", 5)
-        w.JSON(map[string]string{"message": msg})
-    })
+ // Update user with JSON Patch
+ mux.HandleFunc("PATCH /users/{id}", func(w app.ResponseWriter, r *app.Request) {
+  id := r.PathValue("id")
 
-    // Start server
-    log.Println("Server starting on :8080")
-    log.Println("OpenAPI docs: http://localhost:8080/openapi.json")
-    app.ListenAndServe(":8080", mux, nil)
+  // Fetch existing user
+  user := User{
+   ID:    uuid.MustParse(id),
+   Name:  "John Doe",
+   Email: "john@example.com",
+   Role:  "user",
+  }
+
+  // Apply JSON Patch with validation
+  valErrors, err := app.PatchJSON(r, &user, true)
+  if err != nil {
+   if err == app.ErrMethodNotAllowed {
+    w.Error(http.StatusMethodNotAllowed, err.Error())
+    return
+   }
+   w.Error(http.StatusBadRequest, err.Error())
+   return
+  }
+
+  if len(valErrors) > 0 {
+   w.WriteHeader(http.StatusBadRequest)
+   w.JSON(app.ValidationErrors{Errors: valErrors})
+   return
+  }
+
+  w.JSON(user)
+ })
+
+ // SSE endpoint for real-time updates
+ mux.Handle("GET /events", app.SSE(
+  func() app.SSEPayload {
+   return app.SSEPayload{
+    ID:       uuid.New().String(),
+    Event:    "TIME_UPDATE",
+    Comments: []string{"Server time update"},
+    Data:     fmt.Sprintf("Current server time: %s", time.Now().Format(time.RFC3339)),
+   }
+  },
+  func() {
+   log.Println("Client disconnected from events stream")
+  },
+  func(err error) {
+   log.Printf("SSE error: %v\n", err)
+  },
+  5*time.Second,
+  nil,
+ ))
+
+ // i18n example
+ mux.HandleFunc("GET /greeting", func(w app.ResponseWriter, r *app.Request) {
+  printer := app.GetI18nPrinter(language.Spanish)
+  msg := printer.Sprintf("Welcome to %s! Clap %d times.", "WebFram", 5)
+  w.JSON(map[string]string{"message": msg})
+ })
+
+ // Start server
+ log.Println("Server starting on :8080")
+ log.Println("OpenAPI docs: http://localhost:8080/openapi.json")
+ app.ListenAndServe(":8080", mux, nil)
 }
 
 func getOpenAPIConfig() *openapi.Config {
-    return &openapi.Config{
-        Info: &openapi.Info{
-            Title:       "WebFram Example API",
-            Summary:     "An example API demonstrating WebFram features.",
-            Description: "This is an example API documentation generated by WebFram.",
-            Version:     "1.0.0",
-        },
-        Servers: []openapi.Server{
-            {
-                URL:         "http://localhost:8080",
-                Description: "Local development server",
-            },
-        },
-    }
+ return &openapi.Config{
+  Info: &openapi.Info{
+   Title:       "WebFram Example API",
+   Summary:     "An example API demonstrating WebFram features.",
+   Description: "This is an example API documentation generated by WebFram.",
+   Version:     "1.0.0",
+  },
+  Servers: []openapi.Server{
+   {
+    URL:         "http://localhost:8080",
+    Description: "Local development server",
+   },
+  },
+ }
 }
 ```
 
@@ -2596,7 +2600,7 @@ func TestFullAPI(t *testing.T) {
         Assets: &app.Assets{
             FS: testFS,
             Templates: &app.Templates{
-                Dir: "templates",
+                Dir: "assets/templates",
             },
         },
     })

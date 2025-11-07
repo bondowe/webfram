@@ -122,11 +122,11 @@ type (
 const (
 	jsonpCallbackMethodNameKey   contextKey = "jsonpCallbackMethodName"
 	defaultOpenAPIURLPath        string     = "GET /openapi.json"
-	defaultTemplateDir           string     = "templates"
+	defaultTemplateDir           string     = "assets/templates"
 	defaultLayoutBaseName        string     = "layout"
 	defaultHTMLTemplateExtension string     = ".go.html"
 	defaultTextTemplateExtension string     = ".go.txt"
-	defaultI18nMessagesDir       string     = "i18n"
+	defaultI18nMessagesDir       string     = "assets/locales"
 	defaultI18nFuncName          string     = "T"
 )
 
