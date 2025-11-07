@@ -2096,6 +2096,61 @@ mux.HandleFunc("GET /users", func(w app.ResponseWriter, r *app.Request) {
 
 WebFram provides built-in i18n support using `golang.org/x/text`. The i18n function is always available in templates as `T`.
 
+### Generating Message Files
+
+WebFram includes the `webfram-i18n` tool to automatically extract translatable strings from your Go code and templates, generating message files in the correct JSON format.
+
+**Installation:**
+
+```bash
+go install github.com/bondowe/webfram/cmd/webfram-i18n@latest
+```
+
+**Basic Usage:**
+
+Extract translations from both templates and code:
+
+```bash
+webfram-i18n -languages "en,fr,es" -templates ./assets/templates
+```
+
+Extract only from Go code (for API-only services):
+
+```bash
+webfram-i18n -languages "en,fr" -mode code
+```
+
+Extract only from templates:
+
+```bash
+webfram-i18n -languages "en,de" -mode templates -templates ./assets/templates
+```
+
+**Custom output directory:**
+
+```bash
+webfram-i18n -languages "en,fr" -templates ./assets/templates -locales ./assets/locales
+```
+
+**Command-Line Flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-languages` | _(required)_ | Comma-separated language codes (e.g., `en,fr,es`) |
+| `-templates` | _(required for templates mode)_ | Directory containing template files |
+| `-mode` | `both` | Extraction mode: `templates`, `code`, or `both` |
+| `-code` | `.` | Directory containing Go source files |
+| `-locales` | `./locales` | Output directory for message files |
+
+The tool will:
+
+- Extract translatable strings from `{{T "..." ...}}` in templates
+- Extract strings from i18n printer methods in Go code (`Sprintf`, `Printf`, etc.)
+- Generate or update `messages.<lang>.json` files
+- Preserve existing translations when updating
+- Automatically detect placeholder types (`%s`, `%d`, etc.)
+- Sort messages alphabetically for easy management
+
 ### Message Files
 
 Create message files in JSON format in your locales directory:
