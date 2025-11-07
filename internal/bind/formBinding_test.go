@@ -12,15 +12,15 @@ import (
 
 func newPost(values url.Values) *http.Request {
 	body := values.Encode()
-	r, _ := http.NewRequest("POST", "/", strings.NewReader(body))
+	r, _ := http.NewRequest(http.MethodPost, "/", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	return r
 }
 
 func TestFormBinding_BasicTypes(t *testing.T) {
 	type Person struct {
-		Name   string `form:"name" validate:"required"`
-		Age    int    `form:"age" validate:"min=1"`
+		Name   string `form:"name"   validate:"required"`
+		Age    int    `form:"age"    validate:"min=1"`
 		Active bool   `form:"active"`
 	}
 
@@ -79,7 +79,7 @@ func TestFormBinding_SliceUniqueAndLengthValidation(t *testing.T) {
 func TestFormBinding_UUIDAndTime(t *testing.T) {
 	type T struct {
 		Times []time.Time `form:"times" validate:"minItems=1"`
-		ID    uuid.UUID   `form:"id" validate:"required"`
+		ID    uuid.UUID   `form:"id"    validate:"required"`
 	}
 
 	values := url.Values{

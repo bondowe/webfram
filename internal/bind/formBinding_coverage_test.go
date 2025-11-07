@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Test convertStringToType with various types
+// Test convertStringToType with various types.
 func TestConvertStringToType(t *testing.T) {
 	tests := []struct {
 		targetType  reflect.Type
@@ -70,7 +70,7 @@ func TestConvertStringToType(t *testing.T) {
 	}
 }
 
-// Test validateField with various edge cases
+// Test validateField with various edge cases.
 func TestValidateField_EdgeCases(t *testing.T) {
 	tests := []struct {
 		fieldSetup func() (reflect.StructField, string, reflect.Kind)
@@ -170,7 +170,7 @@ func TestValidateField_EdgeCases(t *testing.T) {
 	}
 }
 
-// Test Form binding with nested structs
+// Test Form binding with nested structs.
 func TestForm_NestedStructs(t *testing.T) {
 	type Address struct {
 		Street string `form:"street" validate:"required"`
@@ -178,7 +178,7 @@ func TestForm_NestedStructs(t *testing.T) {
 	}
 
 	type Person struct {
-		Name    string  `form:"name" validate:"required"`
+		Name    string  `form:"name"    validate:"required"`
 		Address Address `form:"address"`
 	}
 
@@ -187,7 +187,7 @@ func TestForm_NestedStructs(t *testing.T) {
 	form.Add("address.street", "123 Main St")
 	form.Add("address.city", "Boston")
 
-	req := httptest.NewRequest("POST", "/", http.NoBody)
+	req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[Person](req)
@@ -210,7 +210,7 @@ func TestForm_NestedStructs(t *testing.T) {
 	}
 }
 
-// Test Form binding with nested structs and validation errors
+// Test Form binding with nested structs and validation errors.
 func TestForm_NestedStructsValidationError(t *testing.T) {
 	type Address struct {
 		Street string `form:"street" validate:"required"`
@@ -218,7 +218,7 @@ func TestForm_NestedStructsValidationError(t *testing.T) {
 	}
 
 	type Person struct {
-		Name    string  `form:"name" validate:"required"`
+		Name    string  `form:"name"    validate:"required"`
 		Address Address `form:"address"`
 	}
 
@@ -227,7 +227,7 @@ func TestForm_NestedStructsValidationError(t *testing.T) {
 	form.Add("address.city", "Boston")
 	// Missing required address.street
 
-	req := httptest.NewRequest("POST", "/", http.NoBody)
+	req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[Person](req)
@@ -255,7 +255,7 @@ func TestForm_NestedStructsValidationError(t *testing.T) {
 	}
 }
 
-// Test Form binding with various slice types
+// Test Form binding with various slice types.
 func TestForm_SliceTypes(t *testing.T) {
 	type FormData struct {
 		StringSlice []string    `form:"strings"`
@@ -277,7 +277,7 @@ func TestForm_SliceTypes(t *testing.T) {
 	form.Add("uuids", "550e8400-e29b-41d4-a716-446655440000")
 	form.Add("uuids", "550e8400-e29b-41d4-a716-446655440001")
 
-	req := httptest.NewRequest("POST", "/", http.NoBody)
+	req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[FormData](req)
@@ -306,7 +306,7 @@ func TestForm_SliceTypes(t *testing.T) {
 	}
 }
 
-// Test Form binding with invalid slice values
+// Test Form binding with invalid slice values.
 func TestForm_InvalidSliceValues(t *testing.T) {
 	type FormData struct {
 		Times []time.Time `form:"times"`
@@ -317,7 +317,7 @@ func TestForm_InvalidSliceValues(t *testing.T) {
 	form.Add("times", "not-a-time")
 	form.Add("uuids", "not-a-uuid")
 
-	req := httptest.NewRequest("POST", "/", http.NoBody)
+	req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[FormData](req)
@@ -339,14 +339,14 @@ func TestForm_InvalidSliceValues(t *testing.T) {
 	}
 }
 
-// Test Form with ParseForm error
-func TestForm_ParseFormError(t *testing.T) {
+// Test Form with ParseForm error.
+func TestForm_ParseFormError(_ *testing.T) {
 	type FormData struct {
 		Name string `form:"name"`
 	}
 
 	// Create a request with an invalid body that will cause ParseForm to fail
-	req := httptest.NewRequest("POST", "/", http.NoBody)
+	req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Body = nil // This will cause ParseForm to potentially fail in some edge cases
 
@@ -356,7 +356,7 @@ func TestForm_ParseFormError(t *testing.T) {
 	_ = err
 }
 
-// Test binding with time.Time fields
+// Test binding with time.Time fields.
 func TestForm_TimeFields(t *testing.T) {
 	type FormData struct {
 		CreatedAt time.Time `form:"created_at"`
@@ -367,7 +367,7 @@ func TestForm_TimeFields(t *testing.T) {
 	form.Add("created_at", "2023-01-15T10:30:00Z")
 	form.Add("updated_at", "2023-01-16T10:30:00Z")
 
-	req := httptest.NewRequest("POST", "/", http.NoBody)
+	req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[FormData](req)
@@ -390,7 +390,7 @@ func TestForm_TimeFields(t *testing.T) {
 	}
 }
 
-// Test field with tag "-" to skip binding
+// Test field with tag "-" to skip binding.
 func TestForm_SkippedFields(t *testing.T) {
 	type FormData struct {
 		Name     string `form:"name"`
@@ -403,7 +403,7 @@ func TestForm_SkippedFields(t *testing.T) {
 	form.Add("Internal", "should-be-skipped")
 	form.Add("id", "123")
 
-	req := httptest.NewRequest("POST", "/", http.NoBody)
+	req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 	req.PostForm = form
 
 	result, _, err := Form[FormData](req)
@@ -422,7 +422,7 @@ func TestForm_SkippedFields(t *testing.T) {
 	}
 }
 
-// Test binding with map types using bracket notation
+// Test binding with map types using bracket notation.
 func TestForm_MapFields(t *testing.T) {
 	type FormData struct {
 		Metadata map[string]string `form:"metadata"`
@@ -432,7 +432,7 @@ func TestForm_MapFields(t *testing.T) {
 	form.Add("metadata[key1]", "value1")
 	form.Add("metadata[key2]", "value2")
 
-	req := httptest.NewRequest("POST", "/", http.NoBody)
+	req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 	req.PostForm = form
 
 	result, validationErrors, err := Form[FormData](req)

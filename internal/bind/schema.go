@@ -13,7 +13,7 @@ import (
 
 const dateTimeFormat = "date-time"
 
-// registerStructSchema adds a struct type to components if not already registered
+// registerStructSchema adds a struct type to components if not already registered.
 func registerStructSchema(typName string, typ reflect.Type, components *openapi.Components) {
 	if _, ok := components.Schemas[typName]; ok {
 		return
@@ -53,7 +53,8 @@ func GenerateJSONSchema(t any, components *openapi.Components) *openapi.SchemaOr
 
 	var schemaOrRef *openapi.SchemaOrRef
 
-	if typ.Kind() == reflect.Struct {
+	switch typ.Kind() {
+	case reflect.Struct:
 		typName := typ.String()
 		// Check if schema already exists in components
 		if _, ok := components.Schemas[typName]; !ok {
@@ -79,14 +80,14 @@ func GenerateJSONSchema(t any, components *openapi.Components) *openapi.SchemaOr
 		schemaOrRef = &openapi.SchemaOrRef{
 			Ref: fmt.Sprintf("#/components/schemas/%s", typName),
 		}
-	} else if typ.Kind() == reflect.Slice {
+	case reflect.Slice:
 		schemaOrRef = &openapi.SchemaOrRef{
 			Schema: &openapi.Schema{
 				Type:  "array",
 				Items: generateSchemaForSliceElement(&reflect.StructField{Type: typ}, components),
 			},
 		}
-	} else {
+	default:
 		// For other types, create a simple schema
 		schemaOrRef = generateSchemaForField(&reflect.StructField{Type: typ}, components)
 	}
@@ -95,7 +96,7 @@ func GenerateJSONSchema(t any, components *openapi.Components) *openapi.SchemaOr
 }
 
 func generateSchemaForStruct(typ reflect.Type, schema *openapi.Schema, components *openapi.Components) {
-	for i := 0; i < typ.NumField(); i++ {
+	for i := range typ.NumField() {
 		field := typ.Field(i)
 
 		// Get the JSON tag to use as property name
@@ -283,13 +284,13 @@ func generateSchemaForSliceElement(field *reflect.StructField, components *opena
 func getIntegerFormat(field *reflect.StructField) string {
 	bitSize := field.Type.Bits()
 	switch bitSize {
-	case 8:
+	case 8: //nolint:mnd // int8 bit size
 		return "int8"
-	case 16:
+	case 16: //nolint:mnd // int16 bit size
 		return "int16"
-	case 32:
+	case 32: //nolint:mnd // int32 bit size
 		return "int32"
-	case 64:
+	case 64: //nolint:mnd // int64 bit size
 		return "int64"
 	default:
 		return ""
@@ -299,9 +300,9 @@ func getIntegerFormat(field *reflect.StructField) string {
 func getNumberFormat(field *reflect.StructField) string {
 	bitSize := field.Type.Bits()
 	switch bitSize {
-	case 32:
+	case 32: //nolint:mnd // float32 bit size
 		return "float"
-	case 64:
+	case 64: //nolint:mnd // float64 bit size
 		return "double"
 	default:
 		return ""

@@ -29,8 +29,8 @@ func findByField(errs []ValidationError, field string) *ValidationError {
 
 func TestRequiredAndMinIntValidation(t *testing.T) {
 	type User struct {
-		Name string `json:"name" validate:"required" errmsg:"required=Name is required"`
-		Age  int    `json:"age" validate:"min=18,max=65" errmsg:"min=Age must be at least 18;max=Age must be at most 65"`
+		Name string `json:"name" validate:"required"      errmsg:"required=Name is required"`
+		Age  int    `json:"age"  validate:"min=18,max=65" errmsg:"min=Age must be at least 18;max=Age must be at most 65"`
 	}
 
 	u := User{
@@ -143,9 +143,9 @@ func TestUUIDRequiredValidation(t *testing.T) {
 func TestMultipleRulesCombination(t *testing.T) {
 	type X struct {
 		Title string  `json:"title" validate:"required,minlength=3,maxlength=10" errmsg:"required=Required;minlength=Short;maxlength=Long"`
-		Role  string  `json:"role" validate:"enum=admin|user|guest" errmsg:"enum=Invalid"`
-		Nums  []int   `json:"nums" validate:"minItems=1,maxItems=3,uniqueItems" errmsg:"minItems=Need 1;maxItems=Max 3;uniqueItems=Unique"`
-		Score float64 `json:"score" validate:"min=0.5,max=10" errmsg:"min=Too low;max=Too high"`
+		Role  string  `json:"role"  validate:"enum=admin|user|guest"             errmsg:"enum=Invalid"`
+		Nums  []int   `json:"nums"  validate:"minItems=1,maxItems=3,uniqueItems" errmsg:"minItems=Need 1;maxItems=Max 3;uniqueItems=Unique"`
+		Score float64 `json:"score" validate:"min=0.5,max=10"                    errmsg:"min=Too low;max=Too high"`
 	}
 
 	x := X{

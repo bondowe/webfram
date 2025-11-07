@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -15,7 +15,7 @@ import (
 	"github.com/bondowe/webfram/openapi"
 )
 
-// contextKey is a custom type for context keys to avoid collisions
+// contextKey is a custom type for context keys to avoid collisions.
 type contextKey2 string
 
 const testContextKey2 contextKey2 = "test-key"
@@ -93,14 +93,23 @@ func TestListenAndServe_ServerStartsSuccessfully(t *testing.T) {
 	}
 
 	setupMuxTest()
-	mux := NewServeMux()
+	mux := setupTestMux()
+	addr := getFreeAddress(t)
+	serverStopped := startTestServer(t, addr, mux)
+	testServerResponse(t, addr)
+	stopTestServer(t, serverStopped)
+}
 
-	// Add a simple handler
-	mux.HandleFunc("GET /test", func(w ResponseWriter, r *Request) {
+func setupTestMux() *ServeMux {
+	mux := NewServeMux()
+	mux.HandleFunc("GET /test", func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 	})
+	return mux
+}
 
+func getFreeAddress(t *testing.T) string {
 	// Find a free port
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -108,55 +117,56 @@ func TestListenAndServe_ServerStartsSuccessfully(t *testing.T) {
 	}
 	addr := listener.Addr().String()
 	err = listener.Close()
-
 	if err != nil {
 		t.Fatal(err)
 	}
+	return addr
+}
 
-	// Start server in a goroutine
+func startTestServer(t *testing.T, addr string, mux *ServeMux) chan bool {
 	serverStarted := make(chan bool)
 	serverStopped := make(chan bool)
 
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// Server shutdown is expected
-				if err2, ok := r.(error); ok {
-					if !errors.Is(err2, http.ErrServerClosed) {
-						t.Errorf("Unexpected server error: %v", err2)
-					}
-				}
-			}
-			serverStopped <- true
-		}()
-
-		// Signal that we're about to start
+		defer handleServerPanic(t, serverStopped)
 		serverStarted <- true
-
-		// This will block until server stops
 		ListenAndServe(addr, mux, nil)
 	}()
 
-	// Wait for server to start
 	<-serverStarted
-
-	// Give the server a moment to actually start
 	time.Sleep(100 * time.Millisecond)
+	return serverStopped
+}
 
-	// Make a test request
+func handleServerPanic(t *testing.T, serverStopped chan bool) {
+	if r := recover(); r != nil {
+		if err, ok := r.(error); ok {
+			if !errors.Is(err, http.ErrServerClosed) {
+				t.Errorf("Unexpected server error: %v", err)
+			}
+		}
+	}
+	serverStopped <- true
+}
+
+func testServerResponse(t *testing.T, addr string) {
 	resp, err := http.Get("http://" + addr + "/test")
 	if err != nil {
 		t.Logf("Failed to connect to server (expected if server hasn't started yet): %v", err)
-	} else {
-		err = resp.Body.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("Expected status 200, got %d", resp.StatusCode)
-		}
+		return
 	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Fatal(closeErr)
+		}
+	}()
 
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+}
+
+func stopTestServer(t *testing.T, serverStopped chan bool) {
 	// Send interrupt signal to stop server
 	proc, err := os.FindProcess(os.Getpid())
 	if err != nil {
@@ -183,7 +193,7 @@ func TestListenAndServe_WithCustomConfig(t *testing.T) {
 	setupMuxTest()
 	mux := NewServeMux()
 
-	mux.HandleFunc("GET /test", func(w ResponseWriter, r *Request) {
+	mux.HandleFunc("GET /test", func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -199,7 +209,7 @@ func TestListenAndServe_WithCustomConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	customLog := log.New(os.Stdout, "TEST: ", log.LstdFlags)
+	customLog := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	cfg := &ServerConfig{
 		ReadTimeout:    10 * time.Second,
@@ -207,9 +217,9 @@ func TestListenAndServe_WithCustomConfig(t *testing.T) {
 		IdleTimeout:    30 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1MB
 		ErrorLog:       customLog,
-		ConnState: func(conn net.Conn, state http.ConnState) {
+		ConnState: func(_ net.Conn, _ http.ConnState) {
 		},
-		BaseContext: func(listener net.Listener) context.Context {
+		BaseContext: func(_ net.Listener) context.Context {
 			return context.WithValue(context.Background(), testContextKey2, "test-value")
 		},
 	}
@@ -281,7 +291,7 @@ func TestListenAndServe_WithOpenAPIEndpoint(t *testing.T) {
 
 	mux := NewServeMux()
 
-	mux.HandleFunc("GET /api/test", func(w ResponseWriter, r *Request) {
+	mux.HandleFunc("GET /api/test", func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -340,7 +350,7 @@ func TestServerConfig_AllFields(t *testing.T) {
 		MinVersion: tls.VersionTLS12,
 	}
 
-	errorLog := log.New(os.Stdout, "ERROR: ", log.LstdFlags)
+	errorLog := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	cfg := &ServerConfig{
 		DisableGeneralOptionsHandler: true,
@@ -353,14 +363,14 @@ func TestServerConfig_AllFields(t *testing.T) {
 		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){
 			"h2": nil,
 		},
-		ConnState: func(conn net.Conn, state http.ConnState) {
+		ConnState: func(_ net.Conn, _ http.ConnState) {
 			// Connection state handler
 		},
 		ErrorLog: errorLog,
-		BaseContext: func(listener net.Listener) context.Context {
+		BaseContext: func(_ net.Listener) context.Context {
 			return context.Background()
 		},
-		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+		ConnContext: func(ctx context.Context, _ net.Conn) context.Context {
 			return ctx
 		},
 	}
@@ -438,7 +448,7 @@ func TestListenAndServe_HandlesMultipleRequests(t *testing.T) {
 	mux := NewServeMux()
 
 	requestCount := 0
-	mux.HandleFunc("GET /count", func(w ResponseWriter, r *Request) {
+	mux.HandleFunc("GET /count", func(w ResponseWriter, _ *Request) {
 		requestCount++
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
@@ -471,9 +481,9 @@ func TestListenAndServe_HandlesMultipleRequests(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Make multiple requests
-	for i := 0; i < 5; i++ {
-		resp, err := http.Get("http://" + addr + "/count")
-		if err == nil {
+	for range 5 {
+		resp, reqErr := http.Get("http://" + addr + "/count")
+		if reqErr == nil {
 			resp.Body.Close()
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -567,13 +577,13 @@ func BenchmarkGetValueOrDefault(b *testing.B) {
 	defaultValue := 15 * time.Second
 
 	b.Run("ZeroValue", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			getValueOrDefault(time.Duration(0), defaultValue)
 		}
 	})
 
 	b.Run("NonZeroValue", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			getValueOrDefault(10*time.Second, defaultValue)
 		}
 	})

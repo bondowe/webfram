@@ -14,7 +14,7 @@ import (
 //go:embed testdata/locales/*.json
 var testMuxI18nFS embed.FS
 
-// Helper function to reset and setup app for mux tests
+// Helper function to reset and setup app for mux tests.
 func setupMuxTest() {
 	appConfigured = false
 	appMiddlewares = nil
@@ -31,7 +31,7 @@ func setupMuxTest() {
 	})
 }
 
-// Helper function to setup app with OpenAPI enabled
+// Helper function to setup app with OpenAPI enabled.
 func setupMuxTestWithOpenAPI() {
 	appConfigured = false
 	appMiddlewares = nil
@@ -101,7 +101,7 @@ func TestServeMux_HandleFunc_BasicHandler(t *testing.T) {
 	mux := NewServeMux()
 
 	called := false
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("Hello World"))
@@ -158,12 +158,12 @@ func TestServeMux_HandleFunc_MultipleRoutes(t *testing.T) {
 	route1Called := false
 	route2Called := false
 
-	mux.HandleFunc("GET /route1", func(w ResponseWriter, r *Request) {
+	mux.HandleFunc("GET /route1", func(w ResponseWriter, _ *Request) {
 		route1Called = true
 		w.WriteHeader(http.StatusOK)
 	})
 
-	mux.HandleFunc("GET /route2", func(w ResponseWriter, r *Request) {
+	mux.HandleFunc("GET /route2", func(w ResponseWriter, _ *Request) {
 		route2Called = true
 		w.WriteHeader(http.StatusOK)
 	})
@@ -201,7 +201,7 @@ func TestServeMux_HandleFunc_ReturnsHandlerConfig(t *testing.T) {
 
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -226,7 +226,7 @@ func TestServeMux_Handle_WithHandlerInterface(t *testing.T) {
 	mux := NewServeMux()
 
 	called := false
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		called = true
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte("Created"))
@@ -257,7 +257,7 @@ func TestServeMux_Handle_ReturnsHandlerConfig(t *testing.T) {
 
 	mux := NewServeMux()
 
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -296,7 +296,7 @@ func TestServeMux_Use_WithAppMiddleware(t *testing.T) {
 		t.Errorf("Expected 1 middleware, got %d", len(mux.middlewares))
 	}
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -336,7 +336,7 @@ func TestServeMux_Use_WithStandardMiddleware(t *testing.T) {
 		t.Errorf("Expected 1 middleware, got %d", len(mux.middlewares))
 	}
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -409,7 +409,7 @@ func TestServeMux_Use_MultipleMiddlewares(t *testing.T) {
 	mux.Use(mw1)
 	mux.Use(mw2)
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		executionOrder = append(executionOrder, "handler")
 		w.WriteHeader(http.StatusOK)
 	}
@@ -423,7 +423,12 @@ func TestServeMux_Use_MultipleMiddlewares(t *testing.T) {
 
 	expected := []string{"mw1-before", "mw2-before", "handler", "mw2-after", "mw1-after"}
 	if len(executionOrder) != len(expected) {
-		t.Fatalf("Expected %d calls, got %d: %v", len(expected), len(executionOrder), executionOrder)
+		t.Fatalf(
+			"Expected %d calls, got %d: %v",
+			len(expected),
+			len(executionOrder),
+			executionOrder,
+		)
 	}
 
 	for i, v := range expected {
@@ -451,7 +456,7 @@ func TestServeMux_HandleFunc_WithHandlerMiddleware(t *testing.T) {
 		})
 	}
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -492,7 +497,7 @@ func TestServeMux_HandleFunc_WithMultipleHandlerMiddlewares(t *testing.T) {
 		})
 	}
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		executionOrder = append(executionOrder, "handler")
 		w.WriteHeader(http.StatusOK)
 	}
@@ -555,7 +560,7 @@ func TestServeMux_MixedMuxAndHandlerMiddlewares(t *testing.T) {
 
 	mux.Use(muxMw)
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		executionOrder = append(executionOrder, "handler")
 		w.WriteHeader(http.StatusOK)
 	}
@@ -603,7 +608,7 @@ func TestHandlerFunc_ServeHTTP_Basic(t *testing.T) {
 	setupMuxTest()
 
 	called := false
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("test response"))
@@ -633,7 +638,7 @@ func TestHandlerFunc_ServeHTTP_SetsContext(t *testing.T) {
 	setupMuxTest()
 
 	var ctxSet bool
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		if w.Context() != nil {
 			ctxSet = true
 		}
@@ -668,7 +673,7 @@ func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Valid(t *testing.T) {
 		},
 	})
 
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		_ = w.JSON(map[string]string{"message": "test"})
 	})
 
@@ -705,7 +710,7 @@ func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Invalid(t *testing.T) {
 		},
 	})
 
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		_ = w.JSON(map[string]string{"message": "test"})
 	})
 
@@ -719,7 +724,11 @@ func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Invalid(t *testing.T) {
 	for _, callback := range invalidCallbacks {
 		t.Run(callback, func(t *testing.T) {
 			// URL encode the callback to avoid issues with special characters in URL
-			req := httptest.NewRequest(http.MethodGet, "/test?callback="+strings.ReplaceAll(callback, " ", "%20"), http.NoBody)
+			req := httptest.NewRequest(
+				http.MethodGet,
+				"/test?callback="+strings.ReplaceAll(callback, " ", "%20"),
+				http.NoBody,
+			)
 			rec := httptest.NewRecorder()
 			rw := ResponseWriter{ResponseWriter: rec}
 			r := &Request{Request: req}
@@ -727,7 +736,12 @@ func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Invalid(t *testing.T) {
 			handler.ServeHTTP(rw, r)
 
 			if rec.Code != http.StatusBadRequest {
-				t.Errorf("Expected status %d for invalid callback %q, got %d", http.StatusBadRequest, callback, rec.Code)
+				t.Errorf(
+					"Expected status %d for invalid callback %q, got %d",
+					http.StatusBadRequest,
+					callback,
+					rec.Code,
+				)
 			}
 
 			if !strings.Contains(rec.Body.String(), "invalid JSONP callback") {
@@ -746,7 +760,7 @@ func TestI18nMiddleware_WithAcceptLanguageHeader(t *testing.T) {
 
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -768,7 +782,7 @@ func TestI18nMiddleware_WithLanguageCookie(t *testing.T) {
 
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -793,7 +807,7 @@ func TestI18nMiddleware_DefaultsToEnglish(t *testing.T) {
 
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -843,7 +857,12 @@ func TestParseAcceptLanguage_ValidLanguages(t *testing.T) {
 			tag := parseAcceptLanguage(tt.acceptLang)
 			base, _ := tag.Base()
 			if base.String() != tt.wantBase {
-				t.Errorf("parseAcceptLanguage(%q) base = %v, want %v", tt.acceptLang, base, tt.wantBase)
+				t.Errorf(
+					"parseAcceptLanguage(%q) base = %v, want %v",
+					tt.acceptLang,
+					base,
+					tt.wantBase,
+				)
 			}
 		})
 	}
@@ -922,7 +941,7 @@ func TestWrapMiddlewares_SingleMiddleware(t *testing.T) {
 		})
 	}
 
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -964,7 +983,7 @@ func TestWrapMiddlewares_MultipleMiddlewares(t *testing.T) {
 		})
 	}
 
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		executionOrder = append(executionOrder, "handler")
 		w.WriteHeader(http.StatusOK)
 	})
@@ -980,7 +999,12 @@ func TestWrapMiddlewares_MultipleMiddlewares(t *testing.T) {
 
 	expected := []string{"mw1", "mw2", "mw3", "handler"}
 	if len(executionOrder) != len(expected) {
-		t.Fatalf("Expected %d calls, got %d: %v", len(expected), len(executionOrder), executionOrder)
+		t.Fatalf(
+			"Expected %d calls, got %d: %v",
+			len(expected),
+			len(executionOrder),
+			executionOrder,
+		)
 	}
 
 	for i, v := range expected {
@@ -992,7 +1016,7 @@ func TestWrapMiddlewares_MultipleMiddlewares(t *testing.T) {
 
 func TestWrapMiddlewares_EmptyMiddlewares(t *testing.T) {
 	called := false
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 	})
@@ -1078,7 +1102,7 @@ func TestHandlerConfig_WithAPIConfig_Success(t *testing.T) {
 
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -1107,7 +1131,7 @@ func TestHandlerConfig_WithAPIConfig_NilConfig(t *testing.T) {
 
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -1121,12 +1145,12 @@ func TestHandlerConfig_WithAPIConfig_NilConfig(t *testing.T) {
 	}
 }
 
-func TestHandlerConfig_WithAPIConfig_OpenAPIDisabled(t *testing.T) {
+func TestHandlerConfig_WithAPIConfig_OpenAPIDisabled(_ *testing.T) {
 	setupMuxTest() // Sets up without OpenAPI
 
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -1144,7 +1168,7 @@ func TestHandlerConfig_WithAPIConfig_OpenAPIDisabled(t *testing.T) {
 func TestHandlerConfig_WithAPIConfig_InvalidPathPattern(t *testing.T) {
 	setupMuxTestWithOpenAPI()
 
-	config := &handlerConfig{
+	config := &HandlerConfig{
 		pathPattern: "invalid-pattern", // Missing method
 	}
 
@@ -1164,7 +1188,7 @@ func TestHandlerConfig_WithAPIConfig_WithRequestBody(t *testing.T) {
 
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusCreated)
 	}
 
@@ -1201,7 +1225,7 @@ func TestHandlerConfig_WithAPIConfig_WithResponses(t *testing.T) {
 
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -1241,7 +1265,7 @@ func TestHandlerConfig_WithAPIConfig_WithResponses(t *testing.T) {
 	}
 }
 
-func TestSetOpenAPIPathInfo_Success(t *testing.T) {
+func TestSetOpenAPIPathInfo_Success(_ *testing.T) {
 	setupMuxTestWithOpenAPI()
 
 	pathInfo := &PathInfo{
@@ -1262,7 +1286,7 @@ func TestSetOpenAPIPathInfo_Success(t *testing.T) {
 	SetOpenAPIPathInfo("/api/users/{id}", pathInfo)
 }
 
-func TestSetOpenAPIPathInfo_OpenAPIDisabled(t *testing.T) {
+func TestSetOpenAPIPathInfo_OpenAPIDisabled(_ *testing.T) {
 	setupMuxTest() // No OpenAPI
 
 	pathInfo := &PathInfo{
@@ -1466,7 +1490,7 @@ func BenchmarkNewServeMux(b *testing.B) {
 	setupMuxTest()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = NewServeMux()
 	}
 }
@@ -1475,12 +1499,12 @@ func BenchmarkServeMux_HandleFunc(b *testing.B) {
 	setupMuxTest()
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		mux.HandleFunc("GET /test", handler)
 	}
 }
@@ -1489,7 +1513,7 @@ func BenchmarkServeMux_ServeHTTP(b *testing.B) {
 	setupMuxTest()
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, r *Request) {
+	handler := func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 
@@ -1498,7 +1522,7 @@ func BenchmarkServeMux_ServeHTTP(b *testing.B) {
 	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 	}
@@ -1517,14 +1541,14 @@ func BenchmarkWrapMiddlewares(b *testing.B) {
 		})
 	}
 
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(_ ResponseWriter, _ *Request) {
 		// Empty handler
 	})
 
 	middlewares := []AppMiddleware{mw1, mw2}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = wrapMiddlewares(handler, middlewares)
 	}
 }
@@ -1533,7 +1557,7 @@ func BenchmarkParseAcceptLanguage(b *testing.B) {
 	acceptLang := "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = parseAcceptLanguage(acceptLang)
 	}
 }

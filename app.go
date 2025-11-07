@@ -1,8 +1,10 @@
+// Package webfram provides a lightweight web framework with built-in support for i18n, templating, and OpenAPI.
 package webfram
 
 import (
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -22,11 +24,15 @@ import (
 )
 
 type (
-	contextKey         string
-	Middleware[H any]  = func(H) H
-	AppMiddleware      = Middleware[Handler]
+	contextKey string
+	// Middleware is a generic middleware function that wraps handlers.
+	Middleware[H any] = func(H) H
+	// AppMiddleware is a middleware for custom Handler types.
+	AppMiddleware = Middleware[Handler]
+	// StandardMiddleware is a middleware for standard http.Handler types.
 	StandardMiddleware = Middleware[http.Handler]
 
+	// SSEPayload represents a Server-Sent Events message payload.
 	SSEPayload struct {
 		Data     any
 		ID       string
@@ -34,23 +40,28 @@ type (
 		Comments []string
 		Retry    time.Duration
 	}
-	SSEPayloadFunc    func() SSEPayload
+	// SSEPayloadFunc is a function that generates SSE payloads.
+	SSEPayloadFunc func() SSEPayload
+	// SSEDisconnectFunc is called when an SSE connection is closed.
 	SSEDisconnectFunc func()
-	SSEErrorFunc      func(error)
+	// SSEErrorFunc is called when an SSE error occurs.
+	SSEErrorFunc func(error)
 
-	// sseWriter interface for testability
+	// sseWriter interface for testability.
 	sseWriter interface {
 		http.ResponseWriter
 		Flush() error
 	}
 
-	// defaultSSEWriter wraps http.ResponseWriter with flush capability
+	// defaultSSEWriter wraps http.ResponseWriter with flush capability.
 	defaultSSEWriter struct {
 		http.ResponseWriter
+
 		rc *http.ResponseController
 	}
 
-	sseHandler struct {
+	// SSEHandler is the handler returned by SSE function for server-sent events.
+	SSEHandler struct {
 		headers        map[string]string
 		payloadFunc    SSEPayloadFunc
 		disconnectFunc SSEDisconnectFunc
@@ -59,17 +70,20 @@ type (
 		interval       time.Duration
 	}
 
+	// ValidationError represents a single field validation error.
 	ValidationError struct {
-		XMLName xml.Name `json:"-" xml:"validationError" form:"-"`
-		Field   string   `json:"field" xml:"field" form:"field"`
-		Error   string   `json:"error" xml:"error" form:"error"`
+		XMLName xml.Name `json:"-"     xml:"validationError" form:"-"`
+		Field   string   `json:"field" xml:"field"           form:"field"`
+		Error   string   `json:"error" xml:"error"           form:"error"`
 	}
 
+	// ValidationErrors represents a collection of validation errors.
 	ValidationErrors struct {
-		XMLName xml.Name          `json:"-" xml:"validationErrors" form:"-"`
-		Errors  []ValidationError `json:"errors" xml:"errors" form:"errors"`
+		XMLName xml.Name          `json:"-"      xml:"validationErrors" form:"-"`
+		Errors  []ValidationError `json:"errors" xml:"errors"           form:"errors"`
 	}
 
+	// Templates configures template settings for the framework.
 	Templates struct {
 		Dir                   string
 		LayoutBaseName        string
@@ -77,22 +91,26 @@ type (
 		TextTemplateExtension string
 	}
 
+	// I18nMessages configures internationalization message settings.
 	I18nMessages struct {
 		Dir string
 	}
 
+	// Assets configures static assets and their locations.
 	Assets struct {
 		FS           fs.FS
 		Templates    *Templates
 		I18nMessages *I18nMessages
 	}
 
+	// OpenAPI configures OpenAPI documentation settings.
 	OpenAPI struct {
 		Config          *openapi.Config
 		URLPath         string
 		EndpointEnabled bool
 	}
 
+	// Config represents the framework configuration.
 	Config struct {
 		I18nMessages           *I18nMessages
 		Assets                 *Assets
@@ -112,6 +130,7 @@ const (
 	defaultI18nFuncName          string     = "T"
 )
 
+//nolint:gochecknoglobals // Package-level state for framework configuration and middleware
 var (
 	appConfigured            = false
 	appMiddlewares           []AppMiddleware
@@ -119,7 +138,8 @@ var (
 	jsonpCallbackParamName   string
 	jsonpCallbackNamePattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
-	ErrMethodNotAllowed = fmt.Errorf("method not allowed")
+	// ErrMethodNotAllowed is returned when an HTTP method is not allowed for a route.
+	ErrMethodNotAllowed = errors.New("method not allowed")
 )
 
 func (w *defaultSSEWriter) Flush() error {
@@ -148,7 +168,7 @@ func adaptHTTPMiddleware(mw StandardMiddleware) AppMiddleware {
 	}
 }
 
-func (m *sseHandler) ServeHTTP(w ResponseWriter, r *Request) {
+func (m *SSEHandler) ServeHTTP(w ResponseWriter, r *Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w.ResponseWriter, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
@@ -269,6 +289,7 @@ func configureTemplate(cfg *Config) {
 	var htmlTemplateExtension string
 	var textTemplateExtension string
 
+	// Set defaults if config is nil
 	if cfg == nil || cfg.Assets == nil {
 		assetsFS = os.DirFS(".")
 		dir = defaultTemplateDir
@@ -276,23 +297,8 @@ func configureTemplate(cfg *Config) {
 		htmlTemplateExtension = defaultHTMLTemplateExtension
 		textTemplateExtension = defaultTextTemplateExtension
 	} else {
-		if cfg.Assets.FS == nil {
-			assetsFS = os.DirFS(".")
-		} else {
-			assetsFS = cfg.Assets.FS
-		}
-
-		if cfg.Assets.Templates == nil {
-			dir = defaultTemplateDir
-			layoutBaseName = defaultLayoutBaseName
-			htmlTemplateExtension = defaultHTMLTemplateExtension
-			textTemplateExtension = defaultTextTemplateExtension
-		} else {
-			dir = getValueOrDefault(cfg.Assets.Templates.Dir, defaultTemplateDir)
-			layoutBaseName = getValueOrDefault(cfg.Assets.Templates.LayoutBaseName, defaultLayoutBaseName)
-			htmlTemplateExtension = getValueOrDefault(cfg.Assets.Templates.HTMLTemplateExtension, defaultHTMLTemplateExtension)
-			textTemplateExtension = getValueOrDefault(cfg.Assets.Templates.TextTemplateExtension, defaultTextTemplateExtension)
-		}
+		assetsFS = getAssetsFS(cfg)
+		dir, layoutBaseName, htmlTemplateExtension, textTemplateExtension = getTemplateConfig(cfg)
 	}
 
 	stat, err := fs.Stat(assetsFS, dir)
@@ -320,21 +326,13 @@ func configureI18n(cfg *Config) {
 	var assetsFS fs.FS
 	var dir string
 
+	// Set defaults if config is nil
 	if cfg == nil || cfg.Assets == nil {
 		assetsFS = os.DirFS(".")
 		dir = defaultI18nMessagesDir
 	} else {
-		if cfg.Assets.FS == nil {
-			assetsFS = os.DirFS(".")
-		} else {
-			assetsFS = cfg.Assets.FS
-		}
-
-		if cfg.Assets.I18nMessages == nil {
-			dir = defaultI18nMessagesDir
-		} else {
-			dir = getValueOrDefault(cfg.Assets.I18nMessages.Dir, defaultI18nMessagesDir)
-		}
+		assetsFS = getAssetsFS(cfg)
+		dir = getI18nMessagesDir(cfg)
 	}
 
 	stat, err := fs.Stat(assetsFS, dir)
@@ -411,8 +409,8 @@ func SSE(
 	errorFunc SSEErrorFunc,
 	interval time.Duration,
 	headers map[string]string,
-) *sseHandler {
-	h := &sseHandler{
+) *SSEHandler {
+	h := &SSEHandler{
 		interval:       interval,
 		payloadFunc:    payloadFunc,
 		headers:        headers,
@@ -421,17 +419,18 @@ func SSE(
 	}
 
 	if h.interval <= 0 {
-		panic(fmt.Errorf("SSE interval must be greater than zero"))
+		panic(errors.New("SSE interval must be greater than zero"))
 	}
 	if h.payloadFunc == nil {
-		panic(fmt.Errorf("SSE payload function must not be nil"))
+		panic(errors.New("SSE payload function must not be nil"))
 	}
 	if h.disconnectFunc == nil {
 		h.disconnectFunc = func() {}
 	}
 	if h.errorFunc == nil {
-		h.errorFunc = func(err error) {
-			fmt.Printf("SSE error: %v\n", err)
+		h.errorFunc = func(_ error) {
+			// Default error handler - errors are silently ignored
+			// Users should provide a custom errorFunc to handle SSE errors
 		}
 	}
 
@@ -504,7 +503,7 @@ func PatchJSON[T any](r *Request, t *T, validate bool) ([]ValidationError, error
 	}
 
 	if r.Header.Get("Content-Type") != "application/json-patch+json" {
-		return nil, fmt.Errorf("invalid Content-Type header, expected application/json-patch+json")
+		return nil, errors.New("invalid Content-Type header, expected application/json-patch+json")
 	}
 
 	body, err := io.ReadAll(r.Body)
@@ -564,9 +563,31 @@ func getValueOrDefault[T comparable](value, defaultValue T) T {
 	var zero T
 
 	if value == zero {
-		fmt.Printf("Using default value: %v\n", defaultValue)
 		return defaultValue
 	}
-	fmt.Printf("Using provided value: %v\n", value)
 	return value
+}
+
+func getAssetsFS(cfg *Config) fs.FS {
+	if cfg.Assets.FS == nil {
+		return os.DirFS(".")
+	}
+	return cfg.Assets.FS
+}
+
+func getTemplateConfig(cfg *Config) (string, string, string, string) {
+	if cfg.Assets.Templates == nil {
+		return defaultTemplateDir, defaultLayoutBaseName, defaultHTMLTemplateExtension, defaultTextTemplateExtension
+	}
+	return getValueOrDefault(cfg.Assets.Templates.Dir, defaultTemplateDir),
+		getValueOrDefault(cfg.Assets.Templates.LayoutBaseName, defaultLayoutBaseName),
+		getValueOrDefault(cfg.Assets.Templates.HTMLTemplateExtension, defaultHTMLTemplateExtension),
+		getValueOrDefault(cfg.Assets.Templates.TextTemplateExtension, defaultTextTemplateExtension)
+}
+
+func getI18nMessagesDir(cfg *Config) string {
+	if cfg.Assets.I18nMessages == nil {
+		return defaultI18nMessagesDir
+	}
+	return getValueOrDefault(cfg.Assets.I18nMessages.Dir, defaultI18nMessagesDir)
 }

@@ -2,6 +2,7 @@ package webfram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -15,18 +16,24 @@ import (
 )
 
 type (
+	// Request wraps http.Request with additional framework functionality.
 	Request struct {
 		*http.Request
 	}
+	// ServeMux is an HTTP request multiplexer with middleware support.
 	ServeMux struct {
-		middlewares []AppMiddleware
 		http.ServeMux
+
+		middlewares []AppMiddleware
 	}
+	// Handler responds to HTTP requests.
 	Handler interface {
 		ServeHTTP(ResponseWriter, *Request)
 	}
+	// HandlerFunc is a function that serves HTTP requests.
 	HandlerFunc func(ResponseWriter, *Request)
-	APIConfig   struct {
+	// APIConfig configures OpenAPI documentation for a route.
+	APIConfig struct {
 		Method      string
 		Summary     string
 		Description string
@@ -37,6 +44,7 @@ type (
 		Responses   map[string]Response
 		Servers     []Server
 	}
+	// PathInfo contains path-level OpenAPI documentation.
 	PathInfo struct {
 		Summary     string
 		Description string
@@ -44,6 +52,7 @@ type (
 		Servers    []Server
 		Parameters []Parameter
 	}
+	// Parameter describes an operation parameter in OpenAPI.
 	Parameter struct {
 		Example          any
 		Default          any
@@ -74,10 +83,12 @@ type (
 		Deprecated       bool
 		Required         bool
 	}
+	// TypeInfo provides type information for OpenAPI content types.
 	TypeInfo struct {
 		TypeHint any
 		Examples map[string]Example
 	}
+	// Example represents an OpenAPI example value.
 	Example struct {
 		DataValue       any
 		DefaultValue    any
@@ -87,17 +98,20 @@ type (
 		Description     string
 		ExternalValue   string
 	}
+	// Server describes an OpenAPI server.
 	Server struct {
 		Variables   map[string]ServerVariable
 		URL         string
 		Name        string
 		Description string
 	}
+	// ServerVariable represents a variable in a server URL template.
 	ServerVariable struct {
 		Default     string
 		Description string
 		Enum        []string
 	}
+	// RequestBody describes an OpenAPI request body.
 	RequestBody struct {
 		Content     map[string]TypeInfo
 		Example     *Example
@@ -105,6 +119,7 @@ type (
 		Description string
 		Required    bool
 	}
+	// Response describes an OpenAPI response.
 	Response struct {
 		Headers     map[string]Header
 		Content     map[string]TypeInfo
@@ -112,6 +127,7 @@ type (
 		Summary     string
 		Description string
 	}
+	// Header describes an OpenAPI response header.
 	Header struct {
 		Example     any
 		TypeHint    any
@@ -123,6 +139,7 @@ type (
 		Required    bool
 		Deprecated  bool
 	}
+	// Link represents an OpenAPI link.
 	Link struct {
 		OperationRef string
 		OperationID  string
@@ -130,7 +147,8 @@ type (
 		RequestBody  any
 		Description  string
 	}
-	handlerConfig struct {
+	// HandlerConfig provides configuration for registered handlers, particularly for OpenAPI documentation.
+	HandlerConfig struct {
 		APIConfig   *APIConfig
 		pathPattern string
 	}
@@ -157,7 +175,7 @@ func SetOpenAPIPathInfo(path string, info *PathInfo) {
 // WithAPIConfig attaches OpenAPI configuration to a handler.
 // This generates OpenAPI documentation for the endpoint with request/response schemas, parameters, etc.
 // Only works if OpenAPI endpoint is enabled in configuration.
-func (c *handlerConfig) WithAPIConfig(apiConfig *APIConfig) {
+func (c *HandlerConfig) WithAPIConfig(apiConfig *APIConfig) {
 	if apiConfig == nil || openAPIConfig == nil || !openAPIConfig.EndpointEnabled {
 		return
 	}
@@ -197,7 +215,7 @@ func (c *handlerConfig) WithAPIConfig(apiConfig *APIConfig) {
 
 	parts := strings.Fields(c.pathPattern)
 
-	if len(parts) != 2 {
+	if len(parts) != 2 { //nolint:mnd // expect METHOD and path
 		panic(fmt.Errorf("invalid path pattern: %q. Must be in format 'METHOD /path'", c.pathPattern))
 	}
 
@@ -313,58 +331,9 @@ func mapHeaders(header map[string]Header) map[string]openapi.HeaderOrRef {
 
 func mapParameters(params []Parameter) []openapi.ParameterOrRef {
 	var parameters []openapi.ParameterOrRef
-	var schemaOrRef *openapi.SchemaOrRef
-	var content map[string]openapi.MediaType
 	for i := range params {
 		param := &params[i]
-		if param.Content != nil {
-			content = make(map[string]openapi.MediaType)
-			for mediaType, model := range param.Content {
-				for _, mt := range strings.Split(mediaType, ",") {
-					schema := bind.GenerateJSONSchema(model, openAPIConfig.Config.Components)
-					content[mt] = openapi.MediaType{
-						Schema: schema,
-					}
-				}
-			}
-		} else {
-			if param.TypeHint == nil {
-				param.TypeHint = ""
-			}
-			schemaOrRef = bind.GenerateJSONSchema(param.TypeHint, openAPIConfig.Config.Components)
-
-			if schemaOrRef.Ref == "" && schemaOrRef.Schema != nil {
-				schema := schemaOrRef.Schema
-				schema.Const = param.Const
-				schema.Default = param.Default
-				schema.Nullable = param.Nullable
-				schema.Example = param.Example
-				schema.Examples = mapExamples(param.Examples)
-
-				if schema.Type == "string" || schema.Type == "integer" || schema.Type == "number" {
-					schema.Enum = param.Enum
-					schema.Format = param.Format
-				}
-				if schema.Type == "string" {
-					schema.MaxLength = nonZeroValuePointer(param.MaxLength)
-					schema.MinLength = nonZeroValuePointer(param.MinLength)
-					schema.Pattern = param.Pattern
-				}
-				if schema.Type == "integer" || schema.Type == "number" {
-					schema.ExclusiveMaximum = nonZeroValuePointer(param.ExclusiveMaximum)
-					schema.ExclusiveMinimum = nonZeroValuePointer(param.ExclusiveMinimum)
-					schema.Maximum = nonZeroValuePointer(param.Maximum)
-					schema.Minimum = nonZeroValuePointer(param.Minimum)
-					schema.MultipleOf = nonZeroValuePointer(param.MultipleOf)
-				}
-				if schema.Type == "array" {
-					schema.MaxItems = nonZeroValuePointer(param.MaxItems)
-					schema.MinItems = nonZeroValuePointer(param.MinItems)
-					schema.UniqueItems = param.UniqueItems
-				}
-			}
-		}
-
+		schemaOrRef, content := processParameterSchema(param)
 		parameters = append(parameters, openapi.ParameterOrRef{
 			Parameter: &openapi.Parameter{
 				Name:          param.Name,
@@ -382,6 +351,80 @@ func mapParameters(params []Parameter) []openapi.ParameterOrRef {
 	}
 
 	return parameters
+}
+
+func processParameterSchema(param *Parameter) (*openapi.SchemaOrRef, map[string]openapi.MediaType) {
+	if param.Content != nil {
+		return nil, buildParameterContent(param.Content)
+	}
+	return buildParameterSchema(param), nil
+}
+
+func buildParameterContent(content map[string]any) map[string]openapi.MediaType {
+	result := make(map[string]openapi.MediaType)
+	for mediaType, model := range content {
+		for _, mt := range strings.Split(mediaType, ",") {
+			schema := bind.GenerateJSONSchema(model, openAPIConfig.Config.Components)
+			result[mt] = openapi.MediaType{
+				Schema: schema,
+			}
+		}
+	}
+	return result
+}
+
+func buildParameterSchema(param *Parameter) *openapi.SchemaOrRef {
+	if param.TypeHint == nil {
+		param.TypeHint = ""
+	}
+	schemaOrRef := bind.GenerateJSONSchema(param.TypeHint, openAPIConfig.Config.Components)
+
+	if schemaOrRef.Ref == "" && schemaOrRef.Schema != nil {
+		applySchemaConstraints(schemaOrRef.Schema, param)
+	}
+	return schemaOrRef
+}
+
+func applySchemaConstraints(schema *openapi.Schema, param *Parameter) {
+	schema.Const = param.Const
+	schema.Default = param.Default
+	schema.Nullable = param.Nullable
+	schema.Example = param.Example
+	schema.Examples = mapExamples(param.Examples)
+
+	switch schema.Type {
+	case "string":
+		applyStringConstraints(schema, param)
+	case "integer", "number":
+		applyNumericConstraints(schema, param)
+	case "array":
+		applyArrayConstraints(schema, param)
+	}
+
+	if schema.Type == "string" || schema.Type == "integer" || schema.Type == "number" {
+		schema.Enum = param.Enum
+		schema.Format = param.Format
+	}
+}
+
+func applyStringConstraints(schema *openapi.Schema, param *Parameter) {
+	schema.MaxLength = nonZeroValuePointer(param.MaxLength)
+	schema.MinLength = nonZeroValuePointer(param.MinLength)
+	schema.Pattern = param.Pattern
+}
+
+func applyNumericConstraints(schema *openapi.Schema, param *Parameter) {
+	schema.ExclusiveMaximum = nonZeroValuePointer(param.ExclusiveMaximum)
+	schema.ExclusiveMinimum = nonZeroValuePointer(param.ExclusiveMinimum)
+	schema.Maximum = nonZeroValuePointer(param.Maximum)
+	schema.Minimum = nonZeroValuePointer(param.Minimum)
+	schema.MultipleOf = nonZeroValuePointer(param.MultipleOf)
+}
+
+func applyArrayConstraints(schema *openapi.Schema, param *Parameter) {
+	schema.MaxItems = nonZeroValuePointer(param.MaxItems)
+	schema.MinItems = nonZeroValuePointer(param.MinItems)
+	schema.UniqueItems = param.UniqueItems
 }
 
 func mapExample(input *Example) *openapi.Example {
@@ -511,14 +554,14 @@ func getHandlerMiddlewares(middlewares []interface{}) []AppMiddleware {
 // I18nMiddleware creates middleware that adds internationalization support to handlers.
 // It parses the Accept-Language header and language cookie to determine the user's preferred language,
 // then injects an i18n printer into the request context for message translation.
-func I18nMiddleware(fsys fs.FS) func(Handler) Handler {
+func I18nMiddleware(_ fs.FS) func(Handler) Handler {
 	return func(next Handler) Handler {
 		return HandlerFunc(func(w ResponseWriter, r *Request) {
 			var langTag language.Tag
 			// Try to get language from cookie first
 			cookie, err := r.Cookie("lang")
 			if err == nil && cookie.Value != "" {
-				if tag, err := language.Parse(cookie.Value); err == nil {
+				if tag, parseErr := language.Parse(cookie.Value); parseErr == nil {
 					langTag = tag
 				}
 			}
@@ -622,7 +665,7 @@ func (m *ServeMux) Use(mw interface{}) {
 		adaptedMw := adaptHTTPMiddleware(v)
 		m.middlewares = append(m.middlewares, adaptedMw)
 	default:
-		panic(fmt.Errorf("unsupported middleware type"))
+		panic(errors.New("unsupported middleware type"))
 	}
 }
 
@@ -630,7 +673,7 @@ func (m *ServeMux) Use(mw interface{}) {
 // The pattern can include HTTP method prefix (e.g., "GET /users").
 // Optional per-handler middlewares can be provided and will be applied only to this handler.
 // Returns a handlerConfig that can be used to attach OpenAPI documentation via WithAPIConfig.
-func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{}) *handlerConfig {
+func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{}) *HandlerConfig {
 	wrappedHandler := wrapMiddlewares(handler, getHandlerMiddlewares(mdwrs))
 	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
 	wrappedHandler = wrapMiddlewares(wrappedHandler, appMiddlewares)
@@ -644,7 +687,7 @@ func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{})
 		wrappedHandler.ServeHTTP(ResponseWriter{w, nil}, &Request{r})
 	}))
 
-	return &handlerConfig{
+	return &HandlerConfig{
 		pathPattern: pattern,
 	}
 }
@@ -652,7 +695,7 @@ func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{})
 // HandleFunc registers a handler function for the given pattern.
 // Convenience method that wraps a HandlerFunc and calls Handle.
 // Returns a handlerConfig that can be used to attach OpenAPI documentation via WithAPIConfig.
-func (m *ServeMux) HandleFunc(pattern string, handler HandlerFunc, mdwrs ...interface{}) *handlerConfig {
+func (m *ServeMux) HandleFunc(pattern string, handler HandlerFunc, mdwrs ...interface{}) *HandlerConfig {
 	wrappedHandler := wrapMiddlewares(handler, getHandlerMiddlewares(mdwrs))
 	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
 	wrappedHandler = wrapMiddlewares(wrappedHandler, appMiddlewares)
@@ -666,7 +709,7 @@ func (m *ServeMux) HandleFunc(pattern string, handler HandlerFunc, mdwrs ...inte
 		wrappedHandler.ServeHTTP(ResponseWriter{w, nil}, &Request{r})
 	})
 
-	return &handlerConfig{
+	return &HandlerConfig{
 		pathPattern: pattern,
 	}
 }
@@ -681,7 +724,7 @@ func (m *ServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (hf HandlerFunc) ServeHTTP(w ResponseWriter, r *Request) {
 	ctx := context.Background()
 
-	if i18nPrinter, ok := i18n.I18nPrinterFromContext(r.Context()); ok {
+	if i18nPrinter, ok := i18n.PrinterFromContext(r.Context()); ok {
 		ctx = i18n.ContextWithI18nPrinter(ctx, i18nPrinter)
 	}
 

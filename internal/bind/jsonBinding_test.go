@@ -2,6 +2,7 @@ package bind
 
 import (
 	"bytes"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 )
@@ -13,7 +14,7 @@ func TestJSONDecodeSuccess_NoValidation(t *testing.T) {
 	}
 
 	body := `{"name":"Alice"}`
-	req := httptest.NewRequest("POST", "/", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
 
 	got, errs, err := JSON[payload](req, false)
 	if err != nil {
@@ -33,7 +34,7 @@ func TestJSONDecodeSuccess_WithValidation(t *testing.T) {
 	}
 
 	body := `{"name":"Bob"}`
-	req := httptest.NewRequest("POST", "/", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
 
 	got, errs, err := JSON[payload](req, true)
 	if err != nil {
@@ -54,7 +55,7 @@ func TestJSONDisallowUnknownFields_ReturnsError(t *testing.T) {
 
 	// includes an unknown field "extra" which should trigger DisallowUnknownFields
 	body := `{"name":"Carol","extra":"value"}`
-	req := httptest.NewRequest("POST", "/", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
 
 	_, errs, err := JSON[payload](req, true)
 	if err == nil {
@@ -71,7 +72,7 @@ func TestJSONInvalidJSON_ReturnsError(t *testing.T) {
 	}
 
 	body := `{"name":"MissingEnd"`
-	req := httptest.NewRequest("POST", "/", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
 
 	_, errs, err := JSON[payload](req, false)
 	if err == nil {

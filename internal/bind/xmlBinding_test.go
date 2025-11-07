@@ -13,7 +13,7 @@ type person struct {
 
 func TestXMLDecode_Success_NoValidate(t *testing.T) {
 	xml := `<person><Name>John</Name><Age>30</Age></person>`
-	req, err := http.NewRequest("POST", "/", strings.NewReader(xml))
+	req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(xml))
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestXMLDecode_Success_NoValidate(t *testing.T) {
 func TestXMLDecode_BadXML_ReturnsError(t *testing.T) {
 	// malformed XML
 	xml := `<person><Name>John</Name>`
-	req, err := http.NewRequest("POST", "/", strings.NewReader(xml))
+	req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(xml))
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestXMLDecode_BadXML_ReturnsError(t *testing.T) {
 
 func TestXMLDecode_ValidateTrue_ErrSliceNonNil(t *testing.T) {
 	xml := `<person><Name>Jane</Name><Age>25</Age></person>`
-	req, err := http.NewRequest("POST", "/", strings.NewReader(xml))
+	req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(xml))
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}

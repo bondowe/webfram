@@ -222,7 +222,7 @@ func languageMiddleware(next app.Handler) app.Handler {
 
 func handler(w app.ResponseWriter, r *app.Request) {
     // Retrieve printer from context
-    if printer, ok := app.I18nPrinterFromContext(r.Context()); ok {
+    if printer, ok := app.PrinterFromContext(r.Context()); ok {
         msg := printer.Sprintf("Welcome to %s!", "WebFram")
         w.WriteString(msg)
     }

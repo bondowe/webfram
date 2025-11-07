@@ -90,7 +90,7 @@ func TestGetI18nPrinter(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			printer := GetI18nPrinter(tt.tag)
 
 			if printer == nil {
@@ -125,7 +125,7 @@ func TestContextWithI18nPrinter(t *testing.T) {
 	}
 
 	// Verify the printer can be retrieved
-	retrievedPrinter, ok := I18nPrinterFromContext(newCtx)
+	retrievedPrinter, ok := PrinterFromContext(newCtx)
 	if !ok {
 		t.Error("Expected to find printer in context")
 	}
@@ -135,7 +135,7 @@ func TestContextWithI18nPrinter(t *testing.T) {
 	}
 }
 
-func TestI18nPrinterFromContext(t *testing.T) {
+func TestPrinterFromContext(t *testing.T) {
 	resetI18nConfig()
 
 	cfg := &Config{
@@ -172,10 +172,10 @@ func TestI18nPrinterFromContext(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			ctx := tt.setupContext()
 
-			printer, found := I18nPrinterFromContext(ctx)
+			printer, found := PrinterFromContext(ctx)
 
 			if found != tt.expectFound {
 				t.Errorf("Expected found=%v, got %v", tt.expectFound, found)
@@ -231,7 +231,7 @@ func TestExtractLangTagFromFilename(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			result := extractLangTagFromFilename(tt.filepath)
 
 			if result != tt.expected {
@@ -320,7 +320,7 @@ func TestLoadJSONMessages(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			err := loadJSONMessages(builder, tt.tag, []byte(tt.jsonData))
 
 			if tt.expectError && err == nil {
@@ -334,14 +334,14 @@ func TestLoadJSONMessages(t *testing.T) {
 	}
 }
 
-func TestLoadI18nCatalogs_NilConfig(t *testing.T) {
+func TestLoadI18nCatalogs_NilConfig(_ *testing.T) {
 	resetI18nConfig()
 
 	// Should not panic with nil config
 	loadI18nCatalogs()
 }
 
-func TestLoadI18nCatalogs_NilFS(t *testing.T) {
+func TestLoadI18nCatalogs_NilFS(_ *testing.T) {
 	resetI18nConfig()
 
 	config = &Config{
@@ -404,8 +404,8 @@ func TestMessageFileStruct(t *testing.T) {
 
 	// Test JSON unmarshaling
 	var unmarshaled MessageFile
-	if err := json.Unmarshal(data, &unmarshaled); err != nil {
-		t.Fatalf("Failed to unmarshal MessageFile: %v", err)
+	if unmarshalErr := json.Unmarshal(data, &unmarshaled); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal MessageFile: %v", unmarshalErr)
 	}
 
 	if unmarshaled.Language != msgFile.Language {
@@ -442,8 +442,8 @@ func TestMessageEntryStruct(t *testing.T) {
 
 	// Test JSON unmarshaling
 	var unmarshaled MessageEntry
-	if err := json.Unmarshal(data, &unmarshaled); err != nil {
-		t.Fatalf("Failed to unmarshal MessageEntry: %v", err)
+	if unmarshalErr := json.Unmarshal(data, &unmarshaled); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal MessageEntry: %v", unmarshalErr)
 	}
 
 	if unmarshaled.ID != entry.ID {
@@ -473,8 +473,8 @@ func TestPlaceholderStruct(t *testing.T) {
 
 	// Test JSON unmarshaling
 	var unmarshaled Placeholder
-	if err := json.Unmarshal(data, &unmarshaled); err != nil {
-		t.Fatalf("Failed to unmarshal Placeholder: %v", err)
+	if unmarshalErr := json.Unmarshal(data, &unmarshaled); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal Placeholder: %v", unmarshalErr)
 	}
 
 	if unmarshaled.ID != placeholder.ID {
@@ -530,7 +530,7 @@ func TestI18nPrinterTranslation(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			printer := GetI18nPrinter(tt.lang)
 
 			var result string
@@ -566,7 +566,7 @@ func BenchmarkGetI18nPrinter(b *testing.B) {
 	Configure(cfg)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		GetI18nPrinter(language.English)
 	}
 }
@@ -584,12 +584,12 @@ func BenchmarkContextWithI18nPrinter(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ContextWithI18nPrinter(ctx, printer)
 	}
 }
 
-func BenchmarkI18nPrinterFromContext(b *testing.B) {
+func BenchmarkPrinterFromContext(b *testing.B) {
 	resetI18nConfig()
 
 	cfg := &Config{
@@ -602,8 +602,8 @@ func BenchmarkI18nPrinterFromContext(b *testing.B) {
 	ctx := ContextWithI18nPrinter(context.Background(), printer)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		I18nPrinterFromContext(ctx)
+	for b.Loop() {
+		PrinterFromContext(ctx)
 	}
 }
 
@@ -619,7 +619,7 @@ func BenchmarkPrinterSprintf(b *testing.B) {
 	printer := GetI18nPrinter(language.English)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		printer.Sprintf("Hello %s", "World")
 	}
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+// ServerConfig configures HTTP server settings.
 type ServerConfig struct {
 	ConnState                    func(net.Conn, http.ConnState)
 	TLSConfig                    *tls.Config
@@ -20,7 +21,7 @@ type ServerConfig struct {
 	HTTP2                        *http.HTTP2Config
 	ConnContext                  func(ctx context.Context, c net.Conn) context.Context
 	BaseContext                  func(net.Listener) context.Context
-	ErrorLog                     *log.Logger
+	ErrorLog                     *slog.Logger
 	TLSNextProto                 map[string]func(*http.Server, *tls.Conn, http.Handler)
 	ReadHeaderTimeout            time.Duration
 	MaxHeaderBytes               int
@@ -48,7 +49,7 @@ func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
 		if err != nil {
 			panic(err)
 		}
-		mux.HandleFunc(openAPIConfig.URLPath, func(w ResponseWriter, r *Request) {
+		mux.HandleFunc(openAPIConfig.URLPath, func(w ResponseWriter, _ *Request) {
 			_ = w.Bytes(doc, "application/openapi+json")
 		})
 	}
@@ -73,7 +74,6 @@ func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
 		server.MaxHeaderBytes = getValueOrDefault(cfg.MaxHeaderBytes, server.MaxHeaderBytes)
 		server.TLSNextProto = cfg.TLSNextProto
 		server.ConnState = cfg.ConnState
-		server.ErrorLog = cfg.ErrorLog
 		server.BaseContext = cfg.BaseContext
 		server.ConnContext = cfg.ConnContext
 		server.HTTP2 = cfg.HTTP2
@@ -83,7 +83,7 @@ func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
 	serverError := make(chan error, 1)
 
 	go func() {
-		log.Printf("Starting server on %s", addr)
+		slog.Info("Starting server", "addr", addr)
 		if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			serverError <- err
 		}
@@ -96,14 +96,16 @@ func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
 	case err := <-serverError:
 		panic(err)
 	case sig := <-stop:
-		log.Printf("Received shutdown signal: %v", sig)
+		//nolint:sloglint // Global logger is appropriate here during server shutdown
+		slog.Info("Received shutdown signal", "signal", sig)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second) //nolint:mnd // graceful shutdown timeout
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
 		panic(err)
 	}
-	log.Println("Server stopped")
+	//nolint:sloglint // Global logger is appropriate here after server shutdown
+	slog.Info("Server stopped")
 }

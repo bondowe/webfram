@@ -960,7 +960,7 @@ func TestFullOpenAPIDocument(t *testing.T) {
 // ============================================================================
 
 func BenchmarkConfig_SetDefaults(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		config := &Config{
 			Info: &Info{},
 		}
@@ -984,7 +984,7 @@ func BenchmarkConfig_MarshalJSON(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		config.MarshalJSON()
 	}
 }
@@ -996,7 +996,7 @@ func BenchmarkPaths_AddOperation(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		var paths Paths
 		paths.AddOperation("/test", "get", operation)
 	}
@@ -1017,7 +1017,7 @@ func BenchmarkSchema_ToJSON(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		schema.ToJSON()
 	}
 }

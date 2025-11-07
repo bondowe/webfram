@@ -1,3 +1,4 @@
+// Package i18n provides internationalization support for the framework.
 package i18n
 
 import (
@@ -5,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -15,17 +17,18 @@ import (
 
 type (
 	contextKey string
-	Config     struct {
+	// Config holds i18n configuration.
+	Config struct {
 		FS fs.FS
 	}
 
-	// MessageFile represents the structure of the JSON message files
+	// MessageFile represents the structure of the JSON message files.
 	MessageFile struct {
 		Language string         `json:"language"`
 		Messages []MessageEntry `json:"messages"`
 	}
 
-	// MessageEntry represents a single message with its translations and placeholders
+	// MessageEntry represents a single message with its translations and placeholders.
 	MessageEntry struct {
 		Placeholders map[string]Placeholder `json:"placeholders,omitempty"`
 		ID           string                 `json:"id"`
@@ -33,7 +36,7 @@ type (
 		Translation  string                 `json:"translation,omitempty"`
 	}
 
-	// Placeholder represents a placeholder in a message
+	// Placeholder represents a placeholder in a message.
 	Placeholder struct {
 		ID             string `json:"id"`
 		String         string `json:"string"`
@@ -48,6 +51,7 @@ const (
 	i18nPrinterKey contextKey = "i18nPrinter"
 )
 
+//nolint:gochecknoglobals // Package-level state for i18n configuration and message catalog
 var (
 	config     *Config
 	msgCatalog catalog.Catalog
@@ -81,22 +85,21 @@ func GetI18nPrinter(langTag language.Tag) *message.Printer {
 
 // ContextWithI18nPrinter adds the message printer to the context
 // ContextWithI18nPrinter stores a message printer in the context.
-// Returns a new context containing the printer, which can be retrieved later with I18nPrinterFromContext.
+// Returns a new context containing the printer, which can be retrieved later with PrinterFromContext.
 func ContextWithI18nPrinter(ctx context.Context, printer *message.Printer) context.Context {
 	return context.WithValue(ctx, i18nPrinterKey, printer)
 }
 
-// I18nPrinterFromContext retrieves the message printer from the context
-// I18nPrinterFromContext retrieves a message printer from the context.
+// PrinterFromContext retrieves a message printer from the context.
 // Returns the printer and true if found, or nil and false if not present.
-func I18nPrinterFromContext(ctx context.Context) (*message.Printer, bool) {
+func PrinterFromContext(ctx context.Context) (*message.Printer, bool) {
 	printer, ok := ctx.Value(i18nPrinterKey).(*message.Printer)
 	return printer, ok
 }
 
 func loadI18nCatalogs() {
 	if config == nil || config.FS == nil {
-		fmt.Println("Warning: i18n config not set, skipping catalog loading")
+		slog.Default().Warn("i18n config not set, skipping catalog loading")
 		return
 	}
 
@@ -120,7 +123,7 @@ func loadI18nCatalogs() {
 		// Extract language tag from filename
 		langTag := extractLangTagFromFilename(path)
 		if langTag == language.Und {
-			fmt.Printf("Warning: could not determine language for file: %s\n", path)
+			slog.Default().Warn("could not determine language for file", "path", path)
 			return nil
 		}
 
@@ -130,16 +133,16 @@ func loadI18nCatalogs() {
 			return fmt.Errorf("error reading file %s: %w", path, err)
 		}
 
-		if err := loadJSONMessages(builder, langTag, data); err != nil {
-			return fmt.Errorf("error loading messages from %s: %w", path, err)
+		if loadErr := loadJSONMessages(builder, langTag, data); loadErr != nil {
+			return fmt.Errorf("error loading messages from %s: %w", path, loadErr)
 		}
 
-		fmt.Printf("Loaded messages for language: %s from %s\n", langTag, path)
+		slog.Default().Info("Loaded messages for language", "language", langTag, "path", path)
 		return nil
 	})
 
 	if err != nil {
-		fmt.Printf("Error loading i18n catalogs: %v\n", err)
+		slog.Default().Error("Error loading i18n catalogs", "error", err)
 	}
 
 	msgCatalog = builder
@@ -149,7 +152,7 @@ func extractLangTagFromFilename(filePath string) language.Tag {
 	base := filepath.Base(filePath)
 	nameWithoutExt := strings.TrimSuffix(base, filepath.Ext(base))
 	parts := strings.Split(nameWithoutExt, ".")
-	if len(parts) < 2 {
+	if len(parts) < 2 { //nolint:mnd // need at least name and language parts
 		return language.Und
 	}
 	lang := parts[len(parts)-1]
@@ -160,7 +163,7 @@ func extractLangTagFromFilename(filePath string) language.Tag {
 	return langTag
 }
 
-// loadJSONMessages loads messages from JSON data into the catalog builder
+// loadJSONMessages loads messages from JSON data into the catalog builder.
 func loadJSONMessages(builder *catalog.Builder, tag language.Tag, data []byte) error {
 	var msgFile MessageFile
 	if err := json.Unmarshal(data, &msgFile); err != nil {

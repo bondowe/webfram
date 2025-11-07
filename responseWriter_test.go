@@ -20,7 +20,7 @@ import (
 	yaml "sigs.k8s.io/yaml/goyaml.v2"
 )
 
-// contextKey is a custom type for context keys to avoid collisions
+// contextKey is a custom type for context keys to avoid collisions.
 type contextKey3 string
 
 const testContextKey3 contextKey3 = "test-key"
@@ -245,8 +245,8 @@ func TestResponseWriter_JSON(t *testing.T) {
 			}
 
 			var result TestData
-			if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
-				t.Fatalf("Failed to unmarshal response: %v", err)
+			if unmarshalErr := json.Unmarshal(w.Body.Bytes(), &result); unmarshalErr != nil {
+				t.Fatalf("Failed to unmarshal response: %v", unmarshalErr)
 			}
 
 			if result.Name != tt.data.Name || result.Value != tt.data.Value {
@@ -314,8 +314,8 @@ func TestResponseWriter_XML(t *testing.T) {
 	}
 
 	var result TestData
-	if err := xml.Unmarshal(w.Body.Bytes(), &result); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
+	if unmarshalErr := xml.Unmarshal(w.Body.Bytes(), &result); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal response: %v", unmarshalErr)
 	}
 
 	if result.Name != data.Name || result.Value != data.Value {
@@ -345,8 +345,8 @@ func TestResponseWriter_YAML(t *testing.T) {
 	}
 
 	var result TestData
-	if err := yaml.Unmarshal(w.Body.Bytes(), &result); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
+	if unmarshalErr := yaml.Unmarshal(w.Body.Bytes(), &result); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal response: %v", unmarshalErr)
 	}
 
 	if result.Name != data.Name || result.Value != data.Value {
@@ -446,7 +446,7 @@ func TestResponseWriter_Redirect(t *testing.T) {
 			w := httptest.NewRecorder()
 			rw := ResponseWriter{ResponseWriter: w}
 
-			req := httptest.NewRequest("GET", "/original", http.NoBody)
+			req := httptest.NewRequest(http.MethodGet, "/original", http.NoBody)
 			r := &Request{Request: req}
 
 			rw.Redirect(r, tt.url, tt.code)
@@ -545,7 +545,7 @@ func TestResponseWriter_ServeFile(t *testing.T) {
 			w := httptest.NewRecorder()
 			rw := ResponseWriter{ResponseWriter: w}
 
-			req := httptest.NewRequest("GET", "/file", http.NoBody)
+			req := httptest.NewRequest(http.MethodGet, "/file", http.NoBody)
 			r := &Request{Request: req}
 
 			rw.ServeFile(r, tt.filename, tt.inline)
@@ -575,6 +575,7 @@ func TestI18nPrinterFunc(t *testing.T) {
 
 type mockFlusher struct {
 	*httptest.ResponseRecorder
+
 	flushed bool
 }
 
@@ -584,6 +585,7 @@ func (m *mockFlusher) Flush() {
 
 type mockHijacker struct {
 	*httptest.ResponseRecorder
+
 	hijacked bool
 }
 
@@ -594,11 +596,12 @@ func (m *mockHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 type mockPusher struct {
 	*httptest.ResponseRecorder
+
 	target string
 	pushed bool
 }
 
-func (m *mockPusher) Push(target string, opts *http.PushOptions) error {
+func (m *mockPusher) Push(target string, _ *http.PushOptions) error {
 	m.pushed = true
 	m.target = target
 	return nil
@@ -606,6 +609,7 @@ func (m *mockPusher) Push(target string, opts *http.PushOptions) error {
 
 type mockReaderFrom struct {
 	*httptest.ResponseRecorder
+
 	readBytes int64
 }
 
@@ -680,7 +684,7 @@ func BenchmarkResponseWriter_JSON(b *testing.B) {
 	data := Data{Name: "benchmark", Value: 123}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		rw := ResponseWriter{
 			ResponseWriter: w,
@@ -700,7 +704,7 @@ func BenchmarkResponseWriter_XML(b *testing.B) {
 	data := Data{Name: "benchmark", Value: 123}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		rw := ResponseWriter{ResponseWriter: w}
 		_ = rw.XML(data)
@@ -711,7 +715,7 @@ func BenchmarkResponseWriter_Bytes(b *testing.B) {
 	data := []byte("benchmark data")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		rw := ResponseWriter{ResponseWriter: w}
 		_ = rw.Bytes(data, "text/plain")

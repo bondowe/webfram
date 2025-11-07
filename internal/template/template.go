@@ -1,3 +1,4 @@
+// Package template provides template rendering functionality.
 package template
 
 import (
@@ -13,6 +14,7 @@ import (
 	textTemplate "text/template"
 )
 
+// Config holds the configuration for template rendering.
 type Config struct {
 	FS                    fs.FS
 	LayoutBaseName        string
@@ -21,13 +23,14 @@ type Config struct {
 	I18nFuncName          string
 }
 
+//nolint:gochecknoglobals // Package-level state for template configuration and caching
 var (
 	config              *Config
 	htmlLayoutFileName  string
 	textLayoutFileName  string
-	templatesCache      sync.Map       // map[string][string, *template.Template]
-	partialsCache       sync.Map       // map[string]*htmlTemplate.Template - key: "folder|partialFilename"
-	layoutsCache        map[string]any = make(map[string]any)
+	templatesCache      sync.Map // map[string][string, *template.Template]
+	partialsCache       sync.Map // map[string]*htmlTemplate.Template - key: "folder|partialFilename"
+	layoutsCache        = make(map[string]any)
 	layoutPatternString string
 	layoutPattern       *regexp.Regexp
 	funcMap             = htmlTemplate.FuncMap{}
@@ -69,26 +72,55 @@ func Configuration() (Config, bool) {
 // Returns the template and true if found, or nil and false if not found.
 func LookupTemplate(path string, absolute bool) (*htmlTemplate.Template, bool) {
 	if absolute {
-		if nv, ok := templatesCache.Load(path); ok {
-			return nv.([2]any)[1].(*htmlTemplate.Template), ok
-		}
+		return lookupAbsoluteTemplate(path)
+	}
+	return lookupRelativeTemplate(path)
+}
+
+func lookupAbsoluteTemplate(path string) (*htmlTemplate.Template, bool) {
+	nv, ok := templatesCache.Load(path)
+	if !ok {
 		return nil, false
 	}
+	arr, arrOk := nv.([2]any)
+	if !arrOk {
+		return nil, false
+	}
+	tmpl, tmplOk := arr[1].(*htmlTemplate.Template)
+	if !tmplOk {
+		return nil, false
+	}
+	return tmpl, true
+}
 
+func lookupRelativeTemplate(path string) (*htmlTemplate.Template, bool) {
 	// For relative paths, search for templates ending with the given path
 	var foundTemplate *htmlTemplate.Template
 	var found bool
 	templatesCache.Range(func(key, value any) bool {
-		keyStr := key.(string)
-		if strings.HasSuffix(keyStr, path) {
-			foundTemplate = value.([2]any)[1].(*htmlTemplate.Template)
-			found = true
-			return false
+		keyStr, ok := key.(string)
+		if !ok {
+			return true
 		}
-		return true
+		if !strings.HasSuffix(keyStr, path) {
+			return true
+		}
+		foundTemplate, found = extractTemplateFromCacheValue(value)
+		return !found // Stop if found
 	})
-
 	return foundTemplate, found
+}
+
+func extractTemplateFromCacheValue(value any) (*htmlTemplate.Template, bool) {
+	arr, arrOk := value.([2]any)
+	if !arrOk {
+		return nil, false
+	}
+	tmpl, tmplOk := arr[1].(*htmlTemplate.Template)
+	if !tmplOk {
+		return nil, false
+	}
+	return tmpl, true
 }
 
 // Must is a helper that panics if err is not nil, otherwise returns v.
@@ -102,68 +134,89 @@ func Must[T any](v T, err error) T {
 }
 
 func cacheTemplates(dir fs.FS, dirPath string, htmlLayouts, textLayouts []string) {
-	var layoutFilePath string
-
-	if layoutFileName, ok := getLayout(dir, htmlLayoutFileName); ok {
-		layoutFilePath = dirPath + "/" + layoutFileName
-		layoutFilePath = strings.TrimPrefix(layoutFilePath, "./")
-
-		if layoutFileName[:1] == "_" {
-			htmlLayouts = []string{layoutFilePath}
-		} else {
-			htmlLayouts = append(htmlLayouts, layoutFilePath)
-		}
-	}
-
-	if layoutFileName, ok := getLayout(dir, textLayoutFileName); ok {
-		layoutFilePath = dirPath + "/" + layoutFileName
-		layoutFilePath = strings.TrimPrefix(layoutFilePath, "./")
-
-		if layoutFileName[:1] == "_" {
-			textLayouts = []string{layoutFilePath}
-		} else {
-			textLayouts = append(textLayouts, layoutFilePath)
-		}
-	}
+	htmlLayouts = updateLayoutsForHTML(dir, dirPath, htmlLayouts)
+	textLayouts = updateLayoutsForText(dir, dirPath, textLayouts)
 
 	templates := Must(fs.ReadDir(dir, "."))
 
 	for _, entry := range templates {
 		if entry.IsDir() {
-			entryFS := Must(fs.Sub(dir, entry.Name()))
-			nestedDirPath := dirPath + "/" + entry.Name()
-
-			cacheTemplates(entryFS, nestedDirPath, htmlLayouts, textLayouts)
+			processSubdirectory(dir, dirPath, entry, htmlLayouts, textLayouts)
 			continue
 		}
-		isLayoutFile := layoutPattern.MatchString(entry.Name())
-		isHTMLTemplateFile := strings.HasSuffix(entry.Name(), config.HTMLTemplateExtension)
-		isTextTemplateFile := strings.HasSuffix(entry.Name(), config.TextTemplateExtension)
+		processTemplateEntry(dirPath, entry, htmlLayouts, textLayouts)
+	}
+}
 
-		if isLayoutFile || !isHTMLTemplateFile && !isTextTemplateFile {
-			continue
+func updateLayoutsForHTML(dir fs.FS, dirPath string, htmlLayouts []string) []string {
+	if layoutFileName, ok := getLayout(dir, htmlLayoutFileName); ok {
+		layoutFilePath := dirPath + "/" + layoutFileName
+		layoutFilePath = strings.TrimPrefix(layoutFilePath, "./")
+
+		if layoutFileName[:1] == "_" {
+			return []string{layoutFilePath}
 		}
+		return append(htmlLayouts, layoutFilePath)
+	}
+	return htmlLayouts
+}
 
-		htmlLayoutsClone := slices.Clone(htmlLayouts)
-		textLayoutsClone := slices.Clone(textLayouts)
+func updateLayoutsForText(dir fs.FS, dirPath string, textLayouts []string) []string {
+	if layoutFileName, ok := getLayout(dir, textLayoutFileName); ok {
+		layoutFilePath := dirPath + "/" + layoutFileName
+		layoutFilePath = strings.TrimPrefix(layoutFilePath, "./")
 
-		if strings.HasPrefix(entry.Name(), "_") {
-			htmlLayoutsClone = nil
-			textLayoutsClone = nil
+		if layoutFileName[:1] == "_" {
+			return []string{layoutFilePath}
 		}
+		return append(textLayouts, layoutFilePath)
+	}
+	return textLayouts
+}
 
-		templatePath := dirPath + "/" + entry.Name()
-		templatePath = strings.TrimPrefix(templatePath, "./")
+func processSubdirectory(
+	dir fs.FS,
+	dirPath string,
+	entry fs.DirEntry,
+	htmlLayouts, textLayouts []string,
+) {
+	entryFS := Must(fs.Sub(dir, entry.Name()))
+	nestedDirPath := dirPath + "/" + entry.Name()
+	cacheTemplates(entryFS, nestedDirPath, htmlLayouts, textLayouts)
+}
 
-		if isHTMLTemplateFile {
-			name, template := parseHTMLTemplate(templatePath, htmlLayoutsClone)
-			templatesCache.Store(templatePath, [2]any{name, template})
-		}
+func processTemplateEntry(
+	dirPath string,
+	entry fs.DirEntry,
+	htmlLayouts, textLayouts []string,
+) {
+	isLayoutFile := layoutPattern.MatchString(entry.Name())
+	isHTMLTemplateFile := strings.HasSuffix(entry.Name(), config.HTMLTemplateExtension)
+	isTextTemplateFile := strings.HasSuffix(entry.Name(), config.TextTemplateExtension)
 
-		if isTextTemplateFile {
-			name, template := parseTextTemplate(templatePath, textLayoutsClone)
-			templatesCache.Store(templatePath, [2]any{name, template})
-		}
+	if isLayoutFile || !isHTMLTemplateFile && !isTextTemplateFile {
+		return
+	}
+
+	htmlLayoutsClone := slices.Clone(htmlLayouts)
+	textLayoutsClone := slices.Clone(textLayouts)
+
+	if strings.HasPrefix(entry.Name(), "_") {
+		htmlLayoutsClone = nil
+		textLayoutsClone = nil
+	}
+
+	templatePath := dirPath + "/" + entry.Name()
+	templatePath = strings.TrimPrefix(templatePath, "./")
+
+	if isHTMLTemplateFile {
+		name, template := parseHTMLTemplate(templatePath, htmlLayoutsClone)
+		templatesCache.Store(templatePath, [2]any{name, template})
+	}
+
+	if isTextTemplateFile {
+		name, template := parseTextTemplate(templatePath, textLayoutsClone)
+		templatesCache.Store(templatePath, [2]any{name, template})
 	}
 }
 
@@ -172,7 +225,7 @@ func getLayout(dir fs.FS, layoutName string) (string, bool) {
 	noInheritLayoutExists := layoutExists(dir, "_"+layoutName)
 
 	if standardLayoutExists && noInheritLayoutExists {
-		panic(fmt.Errorf("both layout and _layout exist, ambiguous"))
+		panic(errors.New("both layout and _layout exist, ambiguous"))
 	}
 
 	if standardLayoutExists {
@@ -210,7 +263,9 @@ func lookUpPartial(folder, partialFilename string) *htmlTemplate.Template {
 		if cached == nil {
 			return nil
 		}
-		return cached.(*htmlTemplate.Template)
+		if tmpl, tmplOk := cached.(*htmlTemplate.Template); tmplOk {
+			return tmpl
+		}
 	}
 
 	// Search up the directory tree
@@ -272,11 +327,7 @@ func parseHTMLTemplate(templatePath string, layouts []string) (string, *htmlTemp
 	data := Must(fs.ReadFile(config.FS, templatePath))
 
 	if len(layouts) > 0 {
-		if v, ok := layoutsCache[templatePath]; ok {
-			tmpl = v.(*htmlTemplate.Template)
-		} else {
-			tmpl = getOrCreateHTMLLayoutChain(layouts)
-		}
+		tmpl = getHTMLTemplateWithLayout(templatePath, layouts)
 		tmpl = htmlTemplate.Must(htmlTemplate.Must(tmpl.Clone()).Funcs(funcMap).Parse(string(data)))
 		tmplName = tmpl.Name()
 	} else {
@@ -287,12 +338,23 @@ func parseHTMLTemplate(templatePath string, layouts []string) (string, *htmlTemp
 	return tmplName, tmpl
 }
 
+func getHTMLTemplateWithLayout(templatePath string, layouts []string) *htmlTemplate.Template {
+	if v, ok := layoutsCache[templatePath]; ok {
+		if htmlTmpl, htmlOk := v.(*htmlTemplate.Template); htmlOk {
+			return htmlTmpl
+		}
+	}
+	return getOrCreateHTMLLayoutChain(layouts)
+}
+
 func getOrCreateHTMLLayoutChain(layouts []string) *htmlTemplate.Template {
 	var tmpl *htmlTemplate.Template
 
-	for i := 0; i < len(layouts); i++ {
+	for i := range layouts {
 		if v, ok := layoutsCache[layouts[i]]; ok {
-			tmpl = v.(*htmlTemplate.Template)
+			if htmlTmpl, htmlOk := v.(*htmlTemplate.Template); htmlOk {
+				tmpl = htmlTmpl
+			}
 		} else {
 			funcMap["partial"] = getPartialFunc("")
 			if tmpl == nil {
@@ -316,11 +378,7 @@ func parseTextTemplate(templatePath string, layouts []string) (string, *textTemp
 	data := Must(fs.ReadFile(config.FS, templatePath))
 
 	if len(layouts) > 0 {
-		if v, ok := layoutsCache[templatePath]; ok {
-			tmpl = v.(*textTemplate.Template)
-		} else {
-			tmpl = getOrCreateTextLayoutChain(layouts)
-		}
+		tmpl = getTextTemplateWithLayout(templatePath, layouts)
 		tmpl = textTemplate.Must(textTemplate.Must(tmpl.Clone()).Parse(string(data)))
 		tmplName = tmpl.Name()
 	} else {
@@ -331,12 +389,23 @@ func parseTextTemplate(templatePath string, layouts []string) (string, *textTemp
 	return tmplName, tmpl
 }
 
+func getTextTemplateWithLayout(templatePath string, layouts []string) *textTemplate.Template {
+	if v, ok := layoutsCache[templatePath]; ok {
+		if textTmpl, textOk := v.(*textTemplate.Template); textOk {
+			return textTmpl
+		}
+	}
+	return getOrCreateTextLayoutChain(layouts)
+}
+
 func getOrCreateTextLayoutChain(layouts []string) *textTemplate.Template {
 	var tmpl *textTemplate.Template
 
-	for i := 0; i < len(layouts); i++ {
+	for i := range layouts {
 		if v, ok := layoutsCache[layouts[i]]; ok {
-			tmpl = v.(*textTemplate.Template)
+			if textTmpl, textOk := v.(*textTemplate.Template); textOk {
+				tmpl = textTmpl
+			}
 		} else {
 			if tmpl == nil {
 				tmplName := filepath.Base(layouts[i])

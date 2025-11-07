@@ -3,7 +3,7 @@ package bind
 import (
 	"encoding/xml"
 	"fmt"
-	"log"
+	"log/slog"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -13,14 +13,15 @@ import (
 	"github.com/google/uuid"
 )
 
+// ValidationError represents a field validation error.
 type ValidationError struct {
-	XMLName xml.Name `json:"-" xml:"validationError" form:"-"`
-	Field   string   `json:"field" xml:"field" form:"field"`
-	Error   string   `json:"error" xml:"error" form:"error"`
+	XMLName xml.Name `json:"-"     xml:"validationError" form:"-"`
+	Field   string   `json:"field" xml:"field"           form:"field"`
+	Error   string   `json:"error" xml:"error"           form:"error"`
 }
 
 const (
-	// Validation rule names
+	// Validation rule names.
 	ruleRequired          = "required"
 	ruleMin               = "min"
 	ruleMax               = "max"
@@ -35,7 +36,7 @@ const (
 	ruleEnum              = "enum"
 	ruleEmptyItemsAllowed = "emptyItemsAllowed"
 
-	// Format types
+	// Format types.
 	formatEmail = "email"
 )
 
@@ -44,93 +45,145 @@ var (
 		`^[a-zA-Z0-9.!#$%&'*+/=?^_` + "`" + `{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?` +
 			`(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$|` +
 			`^[\p{L}\p{N}.!#$%&'*+/=?^_` + "`" + `{|}~-]+@[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?` +
-			`(?:\.[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?)*$`)
+			`(?:\.[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?)*$`,
+	)
 )
 
-// isValidationRuleValidForType checks if a validation rule is applicable to the given field type
+// isValidationRuleValidForType checks if a validation rule is applicable to the given field type.
 func isValidationRuleValidForType(rule string, kind reflect.Kind, fieldType reflect.Type) error {
-	isTimeType := fieldType == reflect.TypeOf(time.Time{})
-	isSliceOfString := kind == reflect.Slice && fieldType.Elem().Kind() == reflect.String
-	isSliceOfTime := kind == reflect.Slice && fieldType.Elem() == reflect.TypeOf(time.Time{})
-	isSliceOfInt := kind == reflect.Slice && (fieldType.Elem().Kind() == reflect.Int ||
-		fieldType.Elem().Kind() == reflect.Int8 || fieldType.Elem().Kind() == reflect.Int16 ||
-		fieldType.Elem().Kind() == reflect.Int32 || fieldType.Elem().Kind() == reflect.Int64)
-	isSliceOfFloat := kind == reflect.Slice &&
-		(fieldType.Elem().Kind() == reflect.Float32 || fieldType.Elem().Kind() == reflect.Float64)
-
-	ruleName := rule
-	if idx := strings.Index(rule, "="); idx != -1 {
-		ruleName = rule[:idx]
-	}
+	typeInfo := analyzeFieldType(kind, fieldType)
+	ruleName := extractRuleName(rule)
 
 	switch ruleName {
 	case ruleRequired:
-		// valid for all types
 		return nil
 
 	case ruleEmptyItemsAllowed:
-		// only valid for slices
-		if kind != reflect.Slice {
-			return fmt.Errorf("validation rule '%s' can only be applied to slice types, but field is %s", ruleEmptyItemsAllowed, kind)
-		}
-		return nil
+		return validateSliceOnlyRule(ruleName, kind)
 
 	case ruleMin, ruleMax, ruleMultipleOf:
-		// only valid for integers and floats
-		if !IsIntType(kind) && !IsFloatType(kind) && !isSliceOfInt && !isSliceOfFloat {
-			return fmt.Errorf("validation rule '%s' can only be applied to integer or float types, but field is %s", ruleName, kind)
-		}
-		return nil
+		return validateNumericRule(ruleName, kind, typeInfo)
 
 	case ruleMinLength, ruleMaxLength:
-		// only valid for strings
-		if kind != reflect.String && !isSliceOfString {
-			return fmt.Errorf("validation rule '%s' can only be applied to string types, but field is %s", ruleName, kind)
-		}
-		return nil
+		return validateStringRule(ruleName, kind, typeInfo)
 
 	case ruleMinItems, ruleMaxItems:
-		// only valid for slices and maps
-		if kind != reflect.Slice && kind != reflect.Map {
-			return fmt.Errorf("validation rule '%s' can only be applied to slice or map types, but field is %s", ruleName, kind)
-		}
-		return nil
+		return validateCollectionRule(ruleName, kind)
 
 	case ruleUniqueItems:
-		// only valid for slices
-		if kind != reflect.Slice {
-			return fmt.Errorf("validation rule '%s' can only be applied to slice types, but field is %s", ruleUniqueItems, kind)
-		}
-		return nil
+		return validateSliceOnlyRule(ruleName, kind)
 
 	case rulePattern:
-		// only valid for strings
-		if kind != reflect.String && !isSliceOfString {
-			return fmt.Errorf("validation rule '%s' can only be applied to string types, but field is %s", rulePattern, kind)
-		}
-		return nil
+		return validateStringRule(ruleName, kind, typeInfo)
 
 	case ruleFormat:
-		// valid for strings and time.Time
-		if kind != reflect.String && !isSliceOfString && !isTimeType && !isSliceOfTime {
-			return fmt.Errorf("validation rule '%s' can only be applied to string or time.Time types, but field is %s", ruleFormat, fieldType)
-		}
-		return nil
+		return validateFormatRule(kind, typeInfo, fieldType)
 
 	case ruleEnum:
-		// valid for strings, integers, and floats
-		if kind != reflect.String && !IsIntType(kind) && !IsFloatType(kind) && !isSliceOfString && !isSliceOfInt && !isSliceOfFloat {
-			return fmt.Errorf("validation rule 'enum' can only be applied to string, integer, or float types, but field is %s", kind)
-		}
-		return nil
+		return validateEnumRule(kind, typeInfo)
 
 	default:
-		// Unknown rule - you might want to handle this differently
 		return fmt.Errorf("unknown validation rule '%s'", ruleName)
 	}
 }
 
-// validateFieldTypeRules validates that all validation rules are applicable to the field type
+type fieldTypeInfo struct {
+	isTimeType      bool
+	isSliceOfString bool
+	isSliceOfTime   bool
+	isSliceOfInt    bool
+	isSliceOfFloat  bool
+}
+
+func analyzeFieldType(kind reflect.Kind, fieldType reflect.Type) fieldTypeInfo {
+	info := fieldTypeInfo{
+		isTimeType: fieldType == reflect.TypeOf(time.Time{}),
+	}
+
+	if kind == reflect.Slice {
+		elemKind := fieldType.Elem().Kind()
+		info.isSliceOfString = elemKind == reflect.String
+		info.isSliceOfTime = fieldType.Elem() == reflect.TypeOf(time.Time{})
+		info.isSliceOfInt = IsIntType(elemKind)
+		info.isSliceOfFloat = IsFloatType(elemKind)
+	}
+
+	return info
+}
+
+func extractRuleName(rule string) string {
+	if idx := strings.Index(rule, "="); idx != -1 {
+		return rule[:idx]
+	}
+	return rule
+}
+
+func validateSliceOnlyRule(ruleName string, kind reflect.Kind) error {
+	if kind != reflect.Slice {
+		return fmt.Errorf(
+			"validation rule '%s' can only be applied to slice types, but field is %s",
+			ruleName,
+			kind,
+		)
+	}
+	return nil
+}
+
+func validateNumericRule(ruleName string, kind reflect.Kind, info fieldTypeInfo) error {
+	if !IsIntType(kind) && !IsFloatType(kind) && !info.isSliceOfInt && !info.isSliceOfFloat {
+		return fmt.Errorf(
+			"validation rule '%s' can only be applied to integer or float types, but field is %s",
+			ruleName,
+			kind,
+		)
+	}
+	return nil
+}
+
+func validateStringRule(ruleName string, kind reflect.Kind, info fieldTypeInfo) error {
+	if kind != reflect.String && !info.isSliceOfString {
+		return fmt.Errorf(
+			"validation rule '%s' can only be applied to string types, but field is %s",
+			ruleName,
+			kind,
+		)
+	}
+	return nil
+}
+
+func validateCollectionRule(ruleName string, kind reflect.Kind) error {
+	if kind != reflect.Slice && kind != reflect.Map {
+		return fmt.Errorf(
+			"validation rule '%s' can only be applied to slice or map types, but field is %s",
+			ruleName,
+			kind,
+		)
+	}
+	return nil
+}
+
+func validateFormatRule(kind reflect.Kind, info fieldTypeInfo, fieldType reflect.Type) error {
+	if kind != reflect.String && !info.isSliceOfString && !info.isTimeType && !info.isSliceOfTime {
+		return fmt.Errorf(
+			"validation rule '%s' can only be applied to string or time.Time types, but field is %s",
+			ruleFormat,
+			fieldType,
+		)
+	}
+	return nil
+}
+
+func validateEnumRule(kind reflect.Kind, info fieldTypeInfo) error {
+	if kind != reflect.String && !IsIntType(kind) && !IsFloatType(kind) &&
+		!info.isSliceOfString && !info.isSliceOfInt && !info.isSliceOfFloat {
+		return fmt.Errorf(
+			"validation rule 'enum' can only be applied to string, integer, or float types, but field is %s",
+			kind,
+		)
+	}
+	return nil
+}
+
 func validateFieldTypeRules(field *reflect.StructField, kind reflect.Kind, fieldType reflect.Type) {
 	validateTag := field.Tag.Get("validate")
 	if validateTag == "" {
@@ -145,7 +198,8 @@ func validateFieldTypeRules(field *reflect.StructField, kind reflect.Kind, field
 		}
 
 		if err := isValidationRuleValidForType(rule, kind, fieldType); err != nil {
-			log.Printf("Validation rule error on field '%s': %v", field.Name, err)
+			//nolint:sloglint // Global logger is appropriate here as we don't have a context during tag parsing
+			slog.Warn("Validation rule error", "field", field.Name, "error", err)
 		}
 	}
 }
@@ -153,7 +207,7 @@ func validateFieldTypeRules(field *reflect.StructField, kind reflect.Kind, field
 func bindValidateRecursive(val reflect.Value, prefix string, errors *[]ValidationError) {
 	typ := val.Type()
 
-	for i := 0; i < val.NumField(); i++ {
+	for i := range val.NumField() {
 		field := val.Field(i)
 		fieldType := typ.Field(i)
 		kind := field.Kind()
@@ -222,42 +276,67 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 			case strings.HasPrefix(rule, ruleMultipleOf+"=") && IsIntType(kind):
 				multVal, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMultipleOf+"="))
 				if field.Int()%int64(multVal) != 0 {
-					msg := getErrorMessage(&fieldType, ruleMultipleOf, fmt.Sprintf("must be a multiple of %d", multVal))
+					msg := getErrorMessage(
+						&fieldType,
+						ruleMultipleOf,
+						fmt.Sprintf("must be a multiple of %d", multVal),
+					)
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
 			case strings.HasPrefix(rule, ruleMultipleOf+"=") && IsFloatType(kind):
 				multVal, _ := strconv.ParseFloat(strings.TrimPrefix(rule, ruleMultipleOf+"="), 64)
+				//nolint:mnd // precision factor for float comparison
 				if int(field.Float()*1000000)%int(multVal*1000000) != 0 {
-					msg := getErrorMessage(&fieldType, ruleMultipleOf, fmt.Sprintf("must be a multiple of %f", multVal))
+					msg := getErrorMessage(
+						&fieldType,
+						ruleMultipleOf,
+						fmt.Sprintf("must be a multiple of %f", multVal),
+					)
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
 			case strings.HasPrefix(rule, ruleMinLength+"=") && kind == reflect.String:
 				minLen, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMinLength+"="))
 				if field.Len() < minLen {
-					msg := getErrorMessage(&fieldType, ruleMinLength, fmt.Sprintf("must have at least %d characters", minLen))
+					msg := getErrorMessage(
+						&fieldType,
+						ruleMinLength,
+						fmt.Sprintf("must have at least %d characters", minLen),
+					)
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
 			case strings.HasPrefix(rule, ruleMaxLength+"=") && kind == reflect.String:
 				maxLen, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMaxLength+"="))
 				if field.Len() > maxLen {
-					msg := getErrorMessage(&fieldType, ruleMaxLength, fmt.Sprintf("must have at most %d characters", maxLen))
+					msg := getErrorMessage(
+						&fieldType,
+						ruleMaxLength,
+						fmt.Sprintf("must have at most %d characters", maxLen),
+					)
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
 			case strings.HasPrefix(rule, ruleMinItems+"=") && kind == reflect.Slice:
 				minLen, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMinItems+"="))
 				if field.Len() < minLen {
-					msg := getErrorMessage(&fieldType, ruleMinItems, fmt.Sprintf("must have at least %d items", minLen))
+					msg := getErrorMessage(
+						&fieldType,
+						ruleMinItems,
+						fmt.Sprintf("must have at least %d items", minLen),
+					)
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
 			case strings.HasPrefix(rule, ruleMaxItems+"=") && kind == reflect.Slice:
 				maxLen, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMaxItems+"="))
 				if field.Len() > maxLen {
-					msg := getErrorMessage(&fieldType, ruleMaxItems, fmt.Sprintf("must have at most %d items", maxLen))
+					msg := getErrorMessage(
+						&fieldType,
+						ruleMaxItems,
+						fmt.Sprintf("must have at most %d items", maxLen),
+					)
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
@@ -280,7 +359,11 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 				if format == formatEmail {
 					matched := idnEmailRegex.MatchString(field.String())
 					if !matched {
-						msg := getErrorMessage(&fieldType, ruleFormat, "is not a valid email address")
+						msg := getErrorMessage(
+							&fieldType,
+							ruleFormat,
+							"is not a valid email address",
+						)
 						*errors = append(*errors, ValidationError{Field: key, Error: msg})
 					}
 				}
@@ -295,7 +378,11 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 					}
 				}
 				if !found {
-					msg := getErrorMessage(&fieldType, ruleEnum, fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")))
+					msg := getErrorMessage(
+						&fieldType,
+						ruleEnum,
+						fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")),
+					)
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
@@ -310,7 +397,11 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 					}
 				}
 				if !found {
-					msg := getErrorMessage(&fieldType, ruleEnum, fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")))
+					msg := getErrorMessage(
+						&fieldType,
+						ruleEnum,
+						fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")),
+					)
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
@@ -325,7 +416,11 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 					}
 				}
 				if !found {
-					msg := getErrorMessage(&fieldType, ruleEnum, fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")))
+					msg := getErrorMessage(
+						&fieldType,
+						ruleEnum,
+						fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")),
+					)
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 			}
@@ -365,7 +460,7 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 
 func hasUniqueItems(field reflect.Value) bool {
 	itemMap := make(map[interface{}]bool)
-	for i := 0; i < field.Len(); i++ {
+	for i := range field.Len() {
 		item := field.Index(i).Interface()
 		if itemMap[item] {
 			return false
@@ -378,7 +473,11 @@ func hasUniqueItems(field reflect.Value) bool {
 func validateTimeField(field *reflect.StructField, value time.Time) *ValidationError {
 	if field.Type.Kind() == reflect.Slice {
 		if value.IsZero() && !strings.Contains(field.Tag.Get("validate"), ruleEmptyItemsAllowed) {
-			msg := getErrorMessage(field, ruleEmptyItemsAllowed+" (not set)", "empty items not allowed")
+			msg := getErrorMessage(
+				field,
+				ruleEmptyItemsAllowed+" (not set)",
+				"empty items not allowed",
+			)
 			return &ValidationError{Field: field.Name, Error: msg}
 		}
 	}
@@ -401,8 +500,13 @@ func validateTimeSliceField(field *reflect.StructField, values []time.Time) []Va
 
 func validateUUIDField(field *reflect.StructField, value uuid.UUID) *ValidationError {
 	if field.Type.Kind() == reflect.Slice {
-		if value == uuid.Nil && !strings.Contains(field.Tag.Get("validate"), ruleEmptyItemsAllowed) {
-			msg := getErrorMessage(field, ruleEmptyItemsAllowed+" (not set)", "empty item not allowed")
+		if value == uuid.Nil &&
+			!strings.Contains(field.Tag.Get("validate"), ruleEmptyItemsAllowed) {
+			msg := getErrorMessage(
+				field,
+				ruleEmptyItemsAllowed+" (not set)",
+				"empty item not allowed",
+			)
 			return &ValidationError{Field: field.Name, Error: msg}
 		}
 	}
@@ -425,11 +529,15 @@ func validateUUIDSliceField(field *reflect.StructField, values []uuid.UUID) []Va
 
 func isEmpty(v reflect.Value) bool {
 	if v.Type() == reflect.TypeOf(uuid.UUID{}) {
-		return v.Interface().(uuid.UUID) == uuid.Nil
+		if val, ok := v.Interface().(uuid.UUID); ok {
+			return val == uuid.Nil
+		}
 	}
 
 	if v.Type() == reflect.TypeOf(time.Time{}) {
-		return v.Interface().(time.Time).IsZero()
+		if val, ok := v.Interface().(time.Time); ok {
+			return val.IsZero()
+		}
 	}
 
 	switch v.Kind() {
@@ -454,7 +562,7 @@ func getErrorMessage(field *reflect.StructField, rule, fallback string) string {
 
 	rules := strings.Split(tag, ";")
 	for _, r := range rules {
-		parts := strings.SplitN(r, "=", 2)
+		parts := strings.SplitN(r, "=", 2) //nolint:mnd // split into key=value pairs
 		if len(parts) == 2 && parts[0] == rule {
 			return parts[1]
 		}
@@ -466,7 +574,9 @@ func getErrorMessage(field *reflect.StructField, rule, fallback string) string {
 // IsIntType returns true if the given reflect.Kind represents an integer type.
 // Includes signed and unsigned integers of all sizes (int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64).
 func IsIntType(kind reflect.Kind) bool {
-	return kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 || kind == reflect.Int32 || kind == reflect.Int64
+	return kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 ||
+		kind == reflect.Int32 ||
+		kind == reflect.Int64
 }
 
 // IsFloatType returns true if the given reflect.Kind represents a floating-point type.

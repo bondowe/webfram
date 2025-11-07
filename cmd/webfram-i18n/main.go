@@ -1,3 +1,4 @@
+// Package main provides a command-line tool for extracting translation strings.
 package main
 
 import (
@@ -8,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -16,7 +18,7 @@ import (
 	"strings"
 )
 
-// Placeholder represents a placeholder in a translation message
+// Placeholder represents a placeholder in a translation message.
 type Placeholder struct {
 	ID             string `json:"id"`
 	String         string `json:"string"`
@@ -26,7 +28,7 @@ type Placeholder struct {
 	ArgNum         int    `json:"argNum"`
 }
 
-// Message represents a translation message in gotext format with plural support
+// Message represents a translation message in gotext format with plural support.
 type Message struct {
 	ID           string                 `json:"id"`
 	Key          string                 `json:"key,omitempty"`
@@ -42,13 +44,13 @@ type Message struct {
 	Other string `json:"other,omitempty"`
 }
 
-// Catalog represents a gotext catalog file
+// Catalog represents a gotext catalog file.
 type Catalog struct {
 	Language string    `json:"language"`
 	Messages []Message `json:"messages"`
 }
 
-// TranslationInfo holds information about a translation string
+// TranslationInfo holds information about a translation string.
 type TranslationInfo struct {
 	MessageID    string
 	Placeholders []PlaceholderInfo
@@ -64,12 +66,50 @@ const (
 )
 
 func main() {
+	config := parseFlags()
+	allTranslations := extractTranslations(config)
+
+	if len(allTranslations) == 0 {
+		log.Println("No translations found")
+		return
+	}
+
+	updateCatalogs(config, allTranslations)
+	printTranslationSummary(allTranslations)
+	log.Println("\n✓ Extraction and merge completed successfully")
+}
+
+type config struct {
+	mode         string
+	codeDir      string
+	templatesDir string
+	localesDir   string
+	languages    []string
+}
+
+func parseFlags() config {
 	// Define command-line flags
 	mode := flag.String("mode", "both", "Extraction mode: templates, code, or both")
-	codeDir := flag.String("code", ".", "Directory containing Go source files (default: current directory)")
-	templatesDir := flag.String("templates", "", "Directory containing template files (required for 'templates' and 'both' modes)")
-	localesDir := flag.String("locales", "./locales", "Directory for message files (input and output)")
-	languagesFlag := flag.String("languages", "", "Comma-separated list of language codes (e.g., en,fr,es,de) - REQUIRED")
+	codeDir := flag.String(
+		"code",
+		".",
+		"Directory containing Go source files (default: current directory)",
+	)
+	templatesDir := flag.String(
+		"templates",
+		"",
+		"Directory containing template files (required for 'templates' and 'both' modes)",
+	)
+	localesDir := flag.String(
+		"locales",
+		"./locales",
+		"Directory for message files (input and output)",
+	)
+	languagesFlag := flag.String(
+		"languages",
+		"",
+		"Comma-separated list of language codes (e.g., en,fr,es,de) - REQUIRED",
+	)
 	flag.Parse()
 
 	// Validate languages - required parameter
@@ -95,81 +135,97 @@ func main() {
 		os.Exit(1)
 	}
 
-	var allTranslations map[string]TranslationInfo
+	return config{
+		mode:         *mode,
+		codeDir:      *codeDir,
+		templatesDir: *templatesDir,
+		localesDir:   *localesDir,
+		languages:    languages,
+	}
+}
 
-	switch *mode {
+func extractTranslations(cfg config) map[string]TranslationInfo {
+	switch cfg.mode {
 	case "templates":
-		fmt.Println("=== Extracting Template Translations ===")
-		translations, err := extractTranslationsFromTemplates(*templatesDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-		allTranslations = translations
-
+		return extractTemplateTranslations(cfg.templatesDir)
 	case "code":
-		fmt.Println("=== Extracting Code Translations ===")
-		translations, err := extractTranslationsFromGoFiles(*codeDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-		allTranslations = translations
-
+		return extractCodeTranslations(cfg.codeDir)
 	case "both":
-		fmt.Println("=== Extracting Translations from Templates and Code ===")
-
-		// Extract from templates
-		templateTranslations, err := extractTranslationsFromTemplates(*templatesDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error extracting template translations: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Found %d translations in templates\n", len(templateTranslations))
-
-		// Extract from Go code
-		codeTranslations, err := extractTranslationsFromGoFiles(*codeDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error extracting code translations: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Found %d translations in Go code (i18n printer calls, log calls, and validation errmsg tags)\n", len(codeTranslations))
-
-		// Merge both
-		allTranslations = mergeTranslations(templateTranslations, codeTranslations)
-		fmt.Printf("Total unique translations: %d\n", len(allTranslations))
-
+		return extractBothTranslations(cfg.codeDir, cfg.templatesDir)
 	default:
-		fmt.Fprintf(os.Stderr, "Invalid mode: %s. Use 'templates', 'code', or 'both'\n", *mode)
+		fmt.Fprintf(os.Stderr, "Invalid mode: %s. Use 'templates', 'code', or 'both'\n", cfg.mode)
 		flag.Usage()
 		os.Exit(1)
+		return nil
 	}
+}
 
-	if len(allTranslations) == 0 {
-		fmt.Println("No translations found")
-		return
+func extractTemplateTranslations(templatesDir string) map[string]TranslationInfo {
+	log.Println("=== Extracting Template Translations ===")
+	translations, err := extractTranslationsFromTemplates(templatesDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
+	return translations
+}
 
+func extractCodeTranslations(codeDir string) map[string]TranslationInfo {
+	log.Println("=== Extracting Code Translations ===")
+	translations, err := extractTranslationsFromGoFiles(codeDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	return translations
+}
+
+func extractBothTranslations(codeDir, templatesDir string) map[string]TranslationInfo {
+	log.Println("=== Extracting Translations from Templates and Code ===")
+
+	// Extract from templates
+	templateTranslations, err := extractTranslationsFromTemplates(templatesDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error extracting template translations: %v\n", err)
+		os.Exit(1)
+	}
+	log.Printf("Found %d translations in templates\n", len(templateTranslations))
+
+	// Extract from Go code
+	codeTranslations, err := extractTranslationsFromGoFiles(codeDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error extracting code translations: %v\n", err)
+		os.Exit(1)
+	}
+	log.Printf(
+		"Found %d translations in Go code (i18n printer calls, log calls, and validation errmsg tags)\n",
+		len(codeTranslations),
+	)
+
+	// Merge both
+	allTranslations := mergeTranslations(templateTranslations, codeTranslations)
+	log.Printf("Total unique translations: %d\n", len(allTranslations))
+	return allTranslations
+}
+
+func updateCatalogs(cfg config, allTranslations map[string]TranslationInfo) {
 	// Create locales directory if it doesn't exist
-	if err := os.MkdirAll(*localesDir, 0750); err != nil {
+	if err := os.MkdirAll(cfg.localesDir, 0750); err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating locales directory: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Merge and update catalogs for each language
-	fmt.Println("\n=== Updating Message Catalogs ===")
-	for _, lang := range languages {
-		if err := mergeAndUpdateCatalog(*localesDir, lang, allTranslations); err != nil {
+	log.Println("\n=== Updating Message Catalogs ===")
+	for _, lang := range cfg.languages {
+		if err := mergeAndUpdateCatalog(cfg.localesDir, lang, allTranslations); err != nil {
 			fmt.Fprintf(os.Stderr, "Error updating catalog for %s: %v\n", lang, err)
 			os.Exit(1)
 		}
 	}
-
-	printTranslationSummary(allTranslations)
-	fmt.Println("\n✓ Extraction and merge completed successfully")
 }
 
-// parseLanguages splits a comma-separated string into a slice of language codes
+// parseLanguages splits a comma-separated string into a slice of language codes.
 func parseLanguages(input string) []string {
 	if input == "" {
 		return nil
@@ -186,7 +242,7 @@ func parseLanguages(input string) []string {
 	return languages
 }
 
-// mergeTranslations merges translations from multiple sources
+// mergeTranslations merges translations from multiple sources.
 func mergeTranslations(sources ...map[string]TranslationInfo) map[string]TranslationInfo {
 	merged := make(map[string]TranslationInfo)
 
@@ -199,7 +255,7 @@ func mergeTranslations(sources ...map[string]TranslationInfo) map[string]Transla
 	return merged
 }
 
-// catalogsAreEqual checks if two catalogs are semantically equal (ignoring message order)
+// catalogsAreEqual checks if two catalogs are semantically equal (ignoring message order).
 func catalogsAreEqual(catalog1, catalog2 *Catalog) bool {
 	if catalog1.Language != catalog2.Language {
 		return false
@@ -235,7 +291,7 @@ func catalogsAreEqual(catalog1, catalog2 *Catalog) bool {
 	return true
 }
 
-// messagesAreEqual checks if two messages are equal
+// messagesAreEqual checks if two messages are equal.
 func messagesAreEqual(msg1, msg2 *Message) bool {
 	if msg1.ID != msg2.ID ||
 		msg1.Key != msg2.Key ||
@@ -273,98 +329,97 @@ func messagesAreEqual(msg1, msg2 *Message) bool {
 	return true
 }
 
-// mergeAndUpdateCatalog merges new translations with existing catalog
-func mergeAndUpdateCatalog(localesDir, lang string, newTranslations map[string]TranslationInfo) error {
+// mergeAndUpdateCatalog merges new translations with existing catalog.
+func mergeAndUpdateCatalog(
+	localesDir, lang string,
+	newTranslations map[string]TranslationInfo,
+) error {
 	filename := filepath.Join(localesDir, fmt.Sprintf("messages.%s.json", lang))
 
 	// Try to load existing catalog
 	existingCatalog, err := loadExistingCatalog(filename)
 	if err != nil {
-		// If file doesn't exist, create a new catalog
 		if os.IsNotExist(err) {
-			fmt.Printf("Creating new catalog: %s\n", filename)
+			log.Printf("Creating new catalog: %s\n", filename)
 			return createNewCatalog(filename, lang, newTranslations)
 		}
 		return fmt.Errorf("error loading existing catalog: %w", err)
 	}
 
-	// Create a map of existing messages for quick lookup
-	existingMessages := make(map[string]Message)
-	for i := range existingCatalog.Messages {
-		existingMessages[existingCatalog.Messages[i].ID] = existingCatalog.Messages[i]
+	mergedCatalog, addedCount, removedCount := buildMergedCatalog(existingCatalog, lang, newTranslations)
+
+	if catalogsAreEqual(existingCatalog, &mergedCatalog) {
+		log.Printf("Skipped %s: no changes detected\n", filename)
+		return nil
 	}
 
-	// Build the merged catalog
-	mergedCatalog := Catalog{
-		Language: lang,
-		Messages: []Message{},
+	if writeErr := writeCatalog(filename, mergedCatalog); writeErr != nil {
+		return writeErr
 	}
 
+	reportCatalogChanges(filename, addedCount, removedCount)
+	return nil
+}
+
+func buildMergedCatalog(
+	existingCatalog *Catalog,
+	lang string,
+	newTranslations map[string]TranslationInfo,
+) (Catalog, int, int) {
+	existingMessages := buildMessageMap(existingCatalog)
+	mergedCatalog := Catalog{Language: lang, Messages: []Message{}}
 	addedCount := 0
-	removedCount := 0
 
-	// Sort message IDs alphabetically for consistent ordering
-	sortedIDs := make([]string, 0, len(newTranslations))
-	for msgID := range newTranslations {
-		sortedIDs = append(sortedIDs, msgID)
-	}
-	sort.Strings(sortedIDs)
-
-	// Process all new translations in sorted order
+	sortedIDs := getSortedMessageIDs(newTranslations)
 	for _, msgID := range sortedIDs {
 		info := newTranslations[msgID]
-		if existingMsg, exists := existingMessages[msgID]; exists {
-			// Message exists - preserve translation and metadata
+		existingMsg, exists := existingMessages[msgID]
+		if exists {
 			updatedMsg := createMessage(msgID, info)
 			updatedMsg.Translation = existingMsg.Translation
-
-			// Preserve plural forms if they exist
-			if existingMsg.Zero != "" {
-				updatedMsg.Zero = existingMsg.Zero
-			}
-			if existingMsg.One != "" {
-				updatedMsg.One = existingMsg.One
-			}
-			if existingMsg.Two != "" {
-				updatedMsg.Two = existingMsg.Two
-			}
-			if existingMsg.Few != "" {
-				updatedMsg.Few = existingMsg.Few
-			}
-			if existingMsg.Many != "" {
-				updatedMsg.Many = existingMsg.Many
-			}
-			if existingMsg.Other != "" {
-				updatedMsg.Other = existingMsg.Other
-			}
-
+			preservePluralForms(&updatedMsg, existingMsg)
 			mergedCatalog.Messages = append(mergedCatalog.Messages, updatedMsg)
 		} else {
-			// New message
 			addedCount++
 			mergedCatalog.Messages = append(mergedCatalog.Messages, createMessage(msgID, info))
 		}
 	}
 
-	// Count removed messages (exist in old but not in new)
+	removedCount := countRemovedMessages(existingMessages, newTranslations)
+	return mergedCatalog, addedCount, removedCount
+}
+
+func buildMessageMap(catalog *Catalog) map[string]Message {
+	existingMessages := make(map[string]Message)
+	for i := range catalog.Messages {
+		existingMessages[catalog.Messages[i].ID] = catalog.Messages[i]
+	}
+	return existingMessages
+}
+
+func getSortedMessageIDs(translations map[string]TranslationInfo) []string {
+	sortedIDs := make([]string, 0, len(translations))
+	for msgID := range translations {
+		sortedIDs = append(sortedIDs, msgID)
+	}
+	sort.Strings(sortedIDs)
+	return sortedIDs
+}
+
+func countRemovedMessages(
+	existingMessages map[string]Message,
+	newTranslations map[string]TranslationInfo,
+) int {
+	removedCount := 0
 	for msgID := range existingMessages {
 		if _, exists := newTranslations[msgID]; !exists {
 			removedCount++
 		}
 	}
+	return removedCount
+}
 
-	// Check if the catalogs are semantically equal (ignoring order)
-	if catalogsAreEqual(existingCatalog, &mergedCatalog) {
-		fmt.Printf("Skipped %s: no changes detected\n", filename)
-		return nil
-	}
-
-	// Write the merged catalog
-	if err := writeCatalog(filename, mergedCatalog); err != nil {
-		return err
-	}
-
-	// Only report if there are actual changes
+func reportCatalogChanges(filename string, addedCount, removedCount int) {
 	if addedCount > 0 || removedCount > 0 {
 		status := "Updated"
 		details := []string{}
@@ -374,15 +429,13 @@ func mergeAndUpdateCatalog(localesDir, lang string, newTranslations map[string]T
 		if removedCount > 0 {
 			details = append(details, fmt.Sprintf("-%d removed", removedCount))
 		}
-		fmt.Printf("%s %s: %s\n", status, filename, strings.Join(details, ", "))
+		log.Printf("%s %s: %s\n", status, filename, strings.Join(details, ", "))
 	} else {
-		fmt.Printf("Updated %s: reordered entries\n", filename)
+		log.Printf("Updated %s: reordered entries\n", filename)
 	}
-
-	return nil
 }
 
-// loadExistingCatalog loads an existing catalog file
+// loadExistingCatalog loads an existing catalog file.
 func loadExistingCatalog(filename string) (*Catalog, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
@@ -390,14 +443,14 @@ func loadExistingCatalog(filename string) (*Catalog, error) {
 	}
 
 	var catalog Catalog
-	if err := json.Unmarshal(data, &catalog); err != nil {
-		return nil, fmt.Errorf("error parsing catalog: %w", err)
+	if unmarshalErr := json.Unmarshal(data, &catalog); unmarshalErr != nil {
+		return nil, fmt.Errorf("error parsing catalog: %w", unmarshalErr)
 	}
 
 	return &catalog, nil
 }
 
-// createNewCatalog creates a new catalog file
+// createNewCatalog creates a new catalog file.
 func createNewCatalog(filename, lang string, translations map[string]TranslationInfo) error {
 	catalog := Catalog{
 		Language: lang,
@@ -419,7 +472,7 @@ func createNewCatalog(filename, lang string, translations map[string]Translation
 	return writeCatalog(filename, catalog)
 }
 
-// createMessage creates a Message from TranslationInfo
+// createMessage creates a Message from TranslationInfo.
 func createMessage(msgID string, info TranslationInfo) Message {
 	msg := Message{
 		ID:           msgID,
@@ -454,13 +507,16 @@ func createMessage(msgID string, info TranslationInfo) Message {
 	return msg
 }
 
-// extractTranslationsFromTemplates extracts translations from template files
+// extractTranslationsFromTemplates extracts translations from template files.
 func extractTranslationsFromTemplates(dir string) (map[string]TranslationInfo, error) {
 	translations := make(map[string]TranslationInfo)
 
 	// Check if directory exists
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		fmt.Printf("Warning: templates directory %s does not exist, skipping template extraction\n", dir)
+		log.Printf(
+			"Warning: templates directory %s does not exist, skipping template extraction\n",
+			dir,
+		)
 		return translations, nil
 	}
 
@@ -507,8 +563,8 @@ func extractTranslationsFromTemplates(dir string) (map[string]TranslationInfo, e
 	return translations, err
 }
 
-// extractTranslationsFromGoFiles extracts translations from Go source files
-// Includes: i18n printer calls, log calls (fmt, log packages), and validation errmsg tags
+// extractTranslationsFromGoFiles extracts translations from Go source files.
+// Includes: i18n printer calls, log calls (fmt, log packages), and validation errmsg tags.
 func extractTranslationsFromGoFiles(dir string) (map[string]TranslationInfo, error) {
 	translations := make(map[string]TranslationInfo)
 
@@ -556,7 +612,7 @@ func extractTranslationsFromGoFiles(dir string) (map[string]TranslationInfo, err
 	return translations, err
 }
 
-// handleCallExpr processes function calls to extract translatable strings
+// handleCallExpr processes function calls to extract translatable strings.
 func handleCallExpr(callExpr *ast.CallExpr, translations map[string]TranslationInfo) {
 	var isTranslatable bool
 	var funcName string
@@ -620,7 +676,7 @@ func handleCallExpr(callExpr *ast.CallExpr, translations map[string]TranslationI
 	}
 }
 
-// handleStructType processes struct types to extract errmsg tags
+// handleStructType processes struct types to extract errmsg tags.
 func handleStructType(structType *ast.StructType, translations map[string]TranslationInfo) {
 	if structType.Fields == nil {
 		return
@@ -644,8 +700,8 @@ func handleStructType(structType *ast.StructType, translations map[string]Transl
 		// Parse errmsg tag: "rule1=message1;rule2=message2"
 		rules := strings.Split(errmsgTag, ";")
 		for _, rule := range rules {
-			parts := strings.SplitN(rule, "=", 2)
-			if len(parts) != 2 {
+			parts := strings.SplitN(rule, "=", 2) //nolint:mnd // split into key=value pairs
+			if len(parts) != 2 {                  //nolint:mnd // expect exactly 2 parts
 				continue
 			}
 
@@ -665,7 +721,7 @@ func handleStructType(structType *ast.StructType, translations map[string]Transl
 	}
 }
 
-// isI18nMethod checks if a method name is an i18n method
+// isI18nMethod checks if a method name is an i18n method.
 func isI18nMethod(name string) bool {
 	i18nMethods := []string{
 		"Sprintf", "Printf", "Fprintf",
@@ -680,7 +736,7 @@ func isI18nMethod(name string) bool {
 	return false
 }
 
-// isLogPackage checks if a package name is a logging package
+// isLogPackage checks if a package name is a logging package.
 func isLogPackage(pkgName string) bool {
 	logPackages := []string{
 		"fmt",
@@ -694,7 +750,7 @@ func isLogPackage(pkgName string) bool {
 	return false
 }
 
-// isLogMethod checks if a method name is a logging method
+// isLogMethod checks if a method name is a logging method.
 func isLogMethod(name string) bool {
 	logMethods := []string{
 		"Printf", "Print", "Println",
@@ -712,16 +768,16 @@ func isLogMethod(name string) bool {
 	return false
 }
 
-// printTranslationSummary prints a summary of extracted translations
+// printTranslationSummary prints a summary of extracted translations.
 func printTranslationSummary(translations map[string]TranslationInfo) {
-	fmt.Printf("\n=== Translation Summary ===\n")
-	fmt.Printf("Total unique translation strings: %d\n", len(translations))
+	log.Printf("\n=== Translation Summary ===\n")
+	log.Printf("Total unique translation strings: %d\n", len(translations))
 
 	if len(translations) == 0 {
 		return
 	}
 
-	fmt.Println("\nTranslation strings found:")
+	log.Println("\nTranslation strings found:")
 
 	// Sort message IDs for consistent output
 	sortedIDs := make([]string, 0, len(translations))
@@ -732,18 +788,18 @@ func printTranslationSummary(translations map[string]TranslationInfo) {
 
 	for _, msgID := range sortedIDs {
 		info := translations[msgID]
-		fmt.Printf("  - %s", msgID)
+		log.Printf("  - %s", msgID)
 		if len(info.Placeholders) > 0 {
-			fmt.Printf(" (placeholders: ")
+			log.Printf(" (placeholders: ")
 			for i, ph := range info.Placeholders {
 				if i > 0 {
-					fmt.Print(", ")
+					log.Print(", ")
 				}
-				fmt.Printf("%%%s", getFormatSpecifier(ph.Type))
+				log.Printf("%%%s", getFormatSpecifier(ph.Type))
 			}
-			fmt.Print(")")
+			log.Print(")")
 		}
-		fmt.Println()
+		log.Println()
 	}
 }
 
@@ -751,11 +807,13 @@ func extractPlaceholders(message string) []PlaceholderInfo {
 	var placeholders []PlaceholderInfo
 
 	// Pattern to match printf-style format specifiers
-	formatPattern := regexp.MustCompile(`%([+\-#0 ]*)(\*|\d+)?(\.\*|\.\d+)?([vTtbcdoOqxXUeEfFgGsp%])`)
+	formatPattern := regexp.MustCompile(
+		`%([+\-#0 ]*)(\*|\d+)?(\.\*|\.\d+)?([vTtbcdoOqxXUeEfFgGsp%])`,
+	)
 
 	matches := formatPattern.FindAllStringSubmatch(message, -1)
 	for i, match := range matches {
-		if len(match) > 4 {
+		if len(match) > 4 { //nolint:mnd // match has at least 5 elements for verb extraction
 			verb := match[4]
 			if verb == "%" { // Skip escaped %
 				continue
@@ -816,14 +874,35 @@ func containsIntegerPlaceholder(placeholders []PlaceholderInfo) bool {
 	return false
 }
 
+func preservePluralForms(updatedMsg *Message, existingMsg Message) {
+	if existingMsg.Zero != "" {
+		updatedMsg.Zero = existingMsg.Zero
+	}
+	if existingMsg.One != "" {
+		updatedMsg.One = existingMsg.One
+	}
+	if existingMsg.Two != "" {
+		updatedMsg.Two = existingMsg.Two
+	}
+	if existingMsg.Few != "" {
+		updatedMsg.Few = existingMsg.Few
+	}
+	if existingMsg.Many != "" {
+		updatedMsg.Many = existingMsg.Many
+	}
+	if existingMsg.Other != "" {
+		updatedMsg.Other = existingMsg.Other
+	}
+}
+
 func writeCatalog(filename string, catalog Catalog) error {
 	data, err := json.MarshalIndent(catalog, "", "  ")
 	if err != nil {
 		return fmt.Errorf("error marshaling catalog: %w", err)
 	}
 
-	if err := os.WriteFile(filename, data, 0600); err != nil {
-		return fmt.Errorf("error writing file: %w", err)
+	if writeErr := os.WriteFile(filename, data, 0600); writeErr != nil {
+		return fmt.Errorf("error writing file: %w", writeErr)
 	}
 
 	return nil

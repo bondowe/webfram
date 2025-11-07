@@ -662,7 +662,7 @@ func BenchmarkLookupTemplate(b *testing.B) {
 	templatesCache.Store("testdata/test.go.html", [2]any{"test", tmpl})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		LookupTemplate("test.go.html", false)
 	}
 }
@@ -684,7 +684,7 @@ func BenchmarkParseHTMLTemplate(b *testing.B) {
 	layouts := []string{}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		parseHTMLTemplate(templatePath, layouts)
 	}
 }

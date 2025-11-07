@@ -25,14 +25,14 @@ var testI18nFS2 embed.FS
 //go:embed testdata/templates/*.go.html
 var testTemplatesFS2 embed.FS
 
-// Test helper structs
+// Test helper structs.
 type testUser struct {
-	Name  string `json:"name" xml:"name" form:"name" validate:"required,minlength=2"`
+	Name  string `json:"name"  xml:"name"  form:"name"  validate:"required,minlength=2"`
 	Email string `json:"email" xml:"email" form:"email" validate:"required,email"`
-	Age   int    `json:"age" xml:"age" form:"age" validate:"min=0,max=150"`
+	Age   int    `json:"age"   xml:"age"   form:"age"   validate:"min=0,max=150"`
 }
 
-// resetAppConfig resets all global app configuration to initial state
+// resetAppConfig resets all global app configuration to initial state.
 func resetAppConfig() {
 	appConfigured = false
 	appMiddlewares = nil
@@ -40,7 +40,7 @@ func resetAppConfig() {
 	jsonpCallbackParamName = ""
 }
 
-// setupTestConfig is a helper that sets up test configuration
+// setupTestConfig is a helper that sets up test configuration.
 func setupTestConfig(t *testing.T) {
 	t.Helper()
 	resetAppConfig()
@@ -52,7 +52,7 @@ func setupTestConfig(t *testing.T) {
 	})
 }
 
-// testBindingSuccess is a generic helper for testing successful binding
+// testBindingSuccess is a generic helper for testing successful binding.
 func testBindingSuccess[T any](
 	t *testing.T,
 	body, contentType, method string,
@@ -319,18 +319,18 @@ func TestConfigureOpenAPI_URLWithExistingGETPrefix(t *testing.T) {
 // configureTemplate Tests
 // =============================================================================
 
-func TestConfigureTemplate_NilConfig(t *testing.T) {
+func TestConfigureTemplate_NilConfig(_ *testing.T) {
 	configureTemplate(nil)
 	// Should not panic
 }
 
-func TestConfigureTemplate_NilTemplateConfig(t *testing.T) {
+func TestConfigureTemplate_NilTemplateConfig(_ *testing.T) {
 	cfg := &Config{}
 	configureTemplate(cfg)
 	// Should not panic
 }
 
-func TestConfigureTemplate_NilFS(t *testing.T) {
+func TestConfigureTemplate_NilFS(_ *testing.T) {
 	cfg := &Config{
 		Assets: &Assets{
 			Templates: &Templates{},
@@ -340,7 +340,7 @@ func TestConfigureTemplate_NilFS(t *testing.T) {
 	// Should not panic
 }
 
-func TestConfigureTemplate_WithDefaults(t *testing.T) {
+func TestConfigureTemplate_WithDefaults(_ *testing.T) {
 	cfg := &Config{
 		Assets: &Assets{
 			FS: testTemplatesFS2,
@@ -353,7 +353,7 @@ func TestConfigureTemplate_WithDefaults(t *testing.T) {
 	// Should use default values without panicking
 }
 
-func TestConfigureTemplate_WithCustomValues(t *testing.T) {
+func TestConfigureTemplate_WithCustomValues(_ *testing.T) {
 	cfg := &Config{
 		Assets: &Assets{
 			FS: testTemplatesFS2,
@@ -369,7 +369,7 @@ func TestConfigureTemplate_WithCustomValues(t *testing.T) {
 	// Should accept custom values without panicking
 }
 
-func TestConfigureTemplate_NonExistentDirectory(t *testing.T) {
+func TestConfigureTemplate_NonExistentDirectory(_ *testing.T) {
 	cfg := &Config{
 		Assets: &Assets{
 			FS: testTemplatesFS2,
@@ -382,7 +382,7 @@ func TestConfigureTemplate_NonExistentDirectory(t *testing.T) {
 	configureTemplate(cfg)
 }
 
-func TestConfigureTemplate_DirectoryIsFile(t *testing.T) {
+func TestConfigureTemplate_DirectoryIsFile(_ *testing.T) {
 	cfg := &Config{
 		Assets: &Assets{
 			FS: testTemplatesFS2,
@@ -399,18 +399,18 @@ func TestConfigureTemplate_DirectoryIsFile(t *testing.T) {
 // configureI18n Tests
 // =============================================================================
 
-func TestConfigureI18n_NilConfig(t *testing.T) {
+func TestConfigureI18n_NilConfig(_ *testing.T) {
 	configureI18n(nil)
 	// Should not panic
 }
 
-func TestConfigureI18n_NilI18nConfig(t *testing.T) {
+func TestConfigureI18n_NilI18nConfig(_ *testing.T) {
 	cfg := &Config{}
 	configureI18n(cfg)
 	// Should not panic
 }
 
-func TestConfigureI18n_NilFS(t *testing.T) {
+func TestConfigureI18n_NilFS(_ *testing.T) {
 	cfg := &Config{
 		Assets: &Assets{
 			I18nMessages: &I18nMessages{},
@@ -420,7 +420,7 @@ func TestConfigureI18n_NilFS(t *testing.T) {
 	// Should not panic
 }
 
-func TestConfigureI18n_WithFS(t *testing.T) {
+func TestConfigureI18n_WithFS(_ *testing.T) {
 	cfg := &Config{
 		Assets: &Assets{
 			FS: testI18nFS2,
@@ -433,7 +433,7 @@ func TestConfigureI18n_WithFS(t *testing.T) {
 	// Should configure without panicking
 }
 
-func TestConfigureI18n_NonExistentDirectory(t *testing.T) {
+func TestConfigureI18n_NonExistentDirectory(_ *testing.T) {
 	cfg := &Config{
 		Assets: &Assets{
 			FS: testI18nFS2,
@@ -446,7 +446,7 @@ func TestConfigureI18n_NonExistentDirectory(t *testing.T) {
 	configureI18n(cfg)
 }
 
-func TestConfigureI18n_WithCustomDirectory(t *testing.T) {
+func TestConfigureI18n_WithCustomDirectory(_ *testing.T) {
 	cfg := &Config{
 		Assets: &Assets{
 			FS: testI18nFS2,
@@ -481,7 +481,7 @@ func TestUse_WithAppMiddleware(t *testing.T) {
 	}
 
 	// Test that middleware is functional
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	wrapped := appMiddlewares[0](handler)
@@ -519,7 +519,7 @@ func TestUse_WithStandardMiddleware(t *testing.T) {
 	}
 
 	// Test that adapted middleware works
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		if w.Header().Get("X-Custom") == "test-value" {
 			headerSet = true
 		}
@@ -579,7 +579,7 @@ func TestUse_MultipleMiddlewares(t *testing.T) {
 		t.Errorf("Expected 2 middlewares, got %d", len(appMiddlewares))
 	}
 
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(_ ResponseWriter, _ *Request) {
 		callOrder = append(callOrder, 3)
 	})
 
@@ -626,7 +626,7 @@ func TestSSE_Success(t *testing.T) {
 	}
 
 	errorCalled := false
-	errorFunc := func(err error) {
+	errorFunc := func(_ error) {
 		errorCalled = true
 	}
 
@@ -791,7 +791,10 @@ func TestSSE_ServeHTTP_SetsCorrectHeaders(t *testing.T) {
 	cancel()
 
 	if rec.Header().Get("Content-Type") != "text/event-stream" {
-		t.Errorf("Expected Content-Type 'text/event-stream', got %q", rec.Header().Get("Content-Type"))
+		t.Errorf(
+			"Expected Content-Type 'text/event-stream', got %q",
+			rec.Header().Get("Content-Type"),
+		)
 	}
 
 	if rec.Header().Get("Cache-Control") != "no-cache" {
@@ -836,9 +839,10 @@ func TestSSE_ServeHTTP_CallsDisconnectOnContext(t *testing.T) {
 	}
 }
 
-// Mock SSE writer for testing error scenarios
+// Mock SSE writer for testing error scenarios.
 type mockSSEWriter struct {
 	http.ResponseWriter
+
 	writeError error
 	flushError error
 	writeCalls []string
@@ -867,7 +871,7 @@ func (m *mockSSEWriter) getCalls() []string {
 	return calls
 }
 
-// sseTestHelper sets up and runs an SSE test, returning the mock writer's calls
+// sseTestHelper sets up and runs an SSE test, returning the mock writer's calls.
 func sseTestHelper(
 	t *testing.T,
 	payloadFunc SSEPayloadFunc,
@@ -888,7 +892,7 @@ func sseTestHelper(
 		flushError:     flushErr,
 	}
 
-	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+	handler.writerFactory = func(_ http.ResponseWriter) sseWriter {
 		return mockWriter
 	}
 
@@ -970,7 +974,7 @@ func TestSSE_ServeHTTP_PayloadCommentsExist(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mockWriter := &mockSSEWriter{ResponseWriter: rec}
 
-	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+	handler.writerFactory = func(_ http.ResponseWriter) sseWriter {
 		return mockWriter
 	}
 
@@ -998,7 +1002,7 @@ func TestSSE_ServeHTTP_PayloadCommentsExist(t *testing.T) {
 	}
 }
 
-// sseErrorTestHelper tests SSE error callback functionality
+// sseErrorTestHelper tests SSE error callback functionality.
 func sseErrorTestHelper(t *testing.T, expectedErr, writeErr, flushErr error) {
 	t.Helper()
 	payloadFunc := func() SSEPayload {
@@ -1022,8 +1026,10 @@ func sseErrorTestHelper(t *testing.T, expectedErr, writeErr, flushErr error) {
 	if !errorCalled.Load() {
 		t.Error("Expected errorFunc to be called")
 	}
-	if err := capturedError.Load(); err != expectedErr {
-		t.Errorf("Expected error %v, got %v", expectedErr, err)
+	if errVal := capturedError.Load(); errVal != nil {
+		if err, ok := errVal.(error); ok && !errors.Is(err, expectedErr) {
+			t.Errorf("Expected error %v, got %v", expectedErr, err)
+		}
 	}
 }
 
@@ -1049,7 +1055,7 @@ func TestSSE_ServeHTTP_PayloadRetrySuccess(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mockWriter := &mockSSEWriter{ResponseWriter: rec}
 
-	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+	handler.writerFactory = func(_ http.ResponseWriter) sseWriter {
 		return mockWriter
 	}
 
@@ -1104,7 +1110,7 @@ func TestSSE_ServeHTTP_PayloadRetryWriteError(t *testing.T) {
 		writeError:     writeErr,
 	}
 
-	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+	handler.writerFactory = func(_ http.ResponseWriter) sseWriter {
 		return mockWriter
 	}
 
@@ -1117,8 +1123,10 @@ func TestSSE_ServeHTTP_PayloadRetryWriteError(t *testing.T) {
 	if !errorCalled.Load() {
 		t.Error("Expected errorFunc to be called when retry write fails")
 	}
-	if err := capturedError.Load(); err != writeErr {
-		t.Errorf("Expected error %v, got %v", writeErr, err)
+	if errVal := capturedError.Load(); errVal != nil {
+		if err, ok := errVal.(error); ok && !errors.Is(err, writeErr) {
+			t.Errorf("Expected error %v, got %v", writeErr, err)
+		}
 	}
 }
 
@@ -1148,7 +1156,7 @@ func TestSSE_ServeHTTP_AllPayloadFieldsSet(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mockWriter := &mockSSEWriter{ResponseWriter: rec}
 
-	handler.writerFactory = func(w http.ResponseWriter) sseWriter {
+	handler.writerFactory = func(_ http.ResponseWriter) sseWriter {
 		return mockWriter
 	}
 
@@ -1221,7 +1229,7 @@ func TestValidationErrors_Any_MultipleErrors(t *testing.T) {
 	}
 }
 
-// testMarshalUnmarshal is a helper that tests marshaling and unmarshaling of ValidationError
+// testMarshalUnmarshal is a helper that tests marshaling and unmarshaling of ValidationError.
 func testMarshalUnmarshal(
 	t *testing.T,
 	ve ValidationError,
@@ -1237,8 +1245,8 @@ func testMarshalUnmarshal(
 	}
 
 	var unmarshaled ValidationError
-	if err := unmarshal(data, &unmarshaled); err != nil {
-		t.Fatalf("Failed to unmarshal ValidationError from %s: %v", formatName, err)
+	if unmarshalErr := unmarshal(data, &unmarshaled); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal ValidationError from %s: %v", formatName, unmarshalErr)
 	}
 
 	if unmarshaled.Field != ve.Field {
@@ -1280,8 +1288,8 @@ func TestValidationErrors_JSONMarshaling(t *testing.T) {
 	}
 
 	var unmarshaled ValidationErrors
-	if err := json.Unmarshal(data, &unmarshaled); err != nil {
-		t.Fatalf("Failed to unmarshal ValidationErrors: %v", err)
+	if unmarshalErr := json.Unmarshal(data, &unmarshaled); unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal ValidationErrors: %v", unmarshalErr)
 	}
 
 	if len(unmarshaled.Errors) != len(ves.Errors) {
@@ -1332,11 +1340,19 @@ func TestBindJSON_Success(t *testing.T) {
 
 func TestBindJSON_WithValidation_Valid(t *testing.T) {
 	body := `{"name":"John","email":"john@example.com","age":25}`
-	testBindingSuccess(t, body, "application/json", http.MethodPost, BindJSON[testUser], true, func(result testUser) {
-		if result.Name != "John" {
-			t.Errorf("Expected Name 'John', got %q", result.Name)
-		}
-	})
+	testBindingSuccess(
+		t,
+		body,
+		"application/json",
+		http.MethodPost,
+		BindJSON[testUser],
+		true,
+		func(result testUser) {
+			if result.Name != "John" {
+				t.Errorf("Expected Name 'John', got %q", result.Name)
+			}
+		},
+	)
 }
 
 func TestBindJSON_WithValidation_Invalid(t *testing.T) {
@@ -1415,20 +1431,36 @@ func TestBindJSON_EmptyBody(t *testing.T) {
 
 func TestBindXML_Success(t *testing.T) {
 	body := `<testUser><name>John Doe</name><email>john@example.com</email><age>30</age></testUser>`
-	testBindingSuccess(t, body, "application/xml", http.MethodPost, BindXML[testUser], false, func(result testUser) {
-		if result.Name != "John Doe" {
-			t.Errorf("Expected Name 'John Doe', got %q", result.Name)
-		}
-	})
+	testBindingSuccess(
+		t,
+		body,
+		"application/xml",
+		http.MethodPost,
+		BindXML[testUser],
+		false,
+		func(result testUser) {
+			if result.Name != "John Doe" {
+				t.Errorf("Expected Name 'John Doe', got %q", result.Name)
+			}
+		},
+	)
 }
 
 func TestBindXML_WithValidation_Valid(t *testing.T) {
 	body := `<testUser><name>John</name><email>john@example.com</email><age>25</age></testUser>`
-	testBindingSuccess(t, body, "application/xml", http.MethodPost, BindXML[testUser], true, func(result testUser) {
-		if result.Name != "John" {
-			t.Errorf("Expected Name 'John', got %q", result.Name)
-		}
-	})
+	testBindingSuccess(
+		t,
+		body,
+		"application/xml",
+		http.MethodPost,
+		BindXML[testUser],
+		true,
+		func(result testUser) {
+			if result.Name != "John" {
+				t.Errorf("Expected Name 'John', got %q", result.Name)
+			}
+		},
+	)
 }
 
 func TestBindXML_WithValidation_Invalid(t *testing.T) {
@@ -1510,7 +1542,7 @@ func TestBindForm_Success(t *testing.T) {
 	}
 }
 
-// bindFormValidationHelper tests BindForm validation errors
+// bindFormValidationHelper tests BindForm validation errors.
 func bindFormValidationHelper(t *testing.T, body, expectedField, expectedErrSubstr string) {
 	t.Helper()
 	resetAppConfig()
@@ -1540,13 +1572,22 @@ func bindFormValidationHelper(t *testing.T, body, expectedField, expectedErrSubs
 		if e.Field == expectedField {
 			foundError = true
 			if !strings.Contains(e.Error, expectedErrSubstr) {
-				t.Errorf("Expected error containing %q for %s field, got: %s", expectedErrSubstr, expectedField, e.Error)
+				t.Errorf(
+					"Expected error containing %q for %s field, got: %s",
+					expectedErrSubstr,
+					expectedField,
+					e.Error,
+				)
 			}
 		}
 	}
 
 	if !foundError {
-		t.Errorf("Expected validation error for %s field, got errors: %+v", expectedField, valErrs.Errors)
+		t.Errorf(
+			"Expected validation error for %s field, got errors: %+v",
+			expectedField,
+			valErrs.Errors,
+		)
 	}
 }
 
@@ -1675,7 +1716,11 @@ func TestBindForm_ValidationError_MultipleFields(t *testing.T) {
 
 	// Should have at least 3 validation errors
 	if len(valErrs.Errors) < 3 {
-		t.Errorf("Expected at least 3 validation errors, got %d: %+v", len(valErrs.Errors), valErrs.Errors)
+		t.Errorf(
+			"Expected at least 3 validation errors, got %d: %+v",
+			len(valErrs.Errors),
+			valErrs.Errors,
+		)
 	}
 
 	// Check for specific field errors
@@ -1735,12 +1780,17 @@ func TestBindForm_ValidationError_EmptyForm(t *testing.T) {
 
 	// Should have errors for all required fields
 	if len(valErrs.Errors) < 2 {
-		t.Errorf("Expected at least 2 validation errors for required fields, got %d: %+v", len(valErrs.Errors), valErrs.Errors)
+		t.Errorf(
+			"Expected at least 2 validation errors for required fields, got %d: %+v",
+			len(valErrs.Errors),
+			valErrs.Errors,
+		)
 	}
 
 	// Result should have zero values
 	var zeroUser testUser
-	if result.Name != zeroUser.Name || result.Email != zeroUser.Email || result.Age != zeroUser.Age {
+	if result.Name != zeroUser.Name || result.Email != zeroUser.Email ||
+		result.Age != zeroUser.Age {
 		t.Errorf("Expected zero values for result, got: %+v", result)
 	}
 }
@@ -1786,8 +1836,14 @@ func TestBindForm_ValidationErrors_ReturnsValidationErrorsStruct(t *testing.T) {
 // PatchJSON Tests
 // =============================================================================
 
-// testPatchJSONSuccess is a helper for testing successful PatchJSON operations
-func testPatchJSONSuccess(t *testing.T, target *testUser, patch string, validate bool, checkResult func(*testUser)) {
+// testPatchJSONSuccess is a helper for testing successful PatchJSON operations.
+func testPatchJSONSuccess(
+	t *testing.T,
+	target *testUser,
+	patch string,
+	validate bool,
+	checkResult func(*testUser),
+) {
 	t.Helper()
 	setupTestConfig(t)
 
@@ -2053,7 +2109,7 @@ func TestAdaptToHTTPHandler(t *testing.T) {
 	handlerCalled := false
 	var receivedStatus int
 
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		handlerCalled = true
 		w.WriteHeader(http.StatusCreated)
 	})
@@ -2078,7 +2134,7 @@ func TestAdaptToHTTPHandler(t *testing.T) {
 func TestAdaptHTTPHandler(t *testing.T) {
 	httpHandlerCalled := false
 
-	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		httpHandlerCalled = true
 		w.Header().Set("X-Test", "value")
 		w.WriteHeader(http.StatusOK)
@@ -2119,7 +2175,7 @@ func TestAdaptHTTPMiddleware2(t *testing.T) {
 
 	appMw := adaptHTTPMiddleware(httpMw)
 
-	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -2214,7 +2270,7 @@ func TestGetValueOrDefault_IntType(t *testing.T) {
 // =============================================================================
 
 func BenchmarkConfigure(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		resetAppConfig()
 		Configure(&Config{
 			Assets: &Assets{
@@ -2225,7 +2281,7 @@ func BenchmarkConfigure(b *testing.B) {
 	}
 }
 
-// benchmarkBindJSON is a helper for benchmarking BindJSON operations
+// benchmarkBindJSON is a helper for benchmarking BindJSON operations.
 func benchmarkBindJSON(b *testing.B, validate bool) {
 	b.Helper()
 	resetAppConfig()
@@ -2239,7 +2295,7 @@ func benchmarkBindJSON(b *testing.B, validate bool) {
 	body := `{"name":"John Doe","email":"john@example.com","age":30}`
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader([]byte(body)))
 		req.Header.Set("Content-Type", "application/json")
 		r := &Request{Request: req}
@@ -2268,7 +2324,7 @@ func BenchmarkPatchJSON(b *testing.B) {
 	patch := `[{"op":"replace","path":"/name","value":"New Name"}]`
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		target := testUser{Name: "Old Name", Email: "old@example.com", Age: 25}
 		req := httptest.NewRequest(http.MethodPatch, "/test", bytes.NewReader([]byte(patch)))
 		req.Header.Set("Content-Type", "application/json-patch+json")
@@ -2286,7 +2342,7 @@ func BenchmarkAdaptHTTPMiddleware(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		adaptHTTPMiddleware(httpMw)
 	}
 }
@@ -2307,7 +2363,7 @@ func BenchmarkSSE_PayloadGeneration(b *testing.B) {
 	)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = handler.payloadFunc()
 	}
 }

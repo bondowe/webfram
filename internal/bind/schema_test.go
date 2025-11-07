@@ -10,23 +10,23 @@ import (
 )
 
 type Address struct {
-	Street string `json:"street" validate:"required"`
+	Street string `json:"street"           validate:"required"`
 	Number int    `json:"number,omitempty"`
 }
 
 type Person struct {
-	CreatedAt  time.Time `json:"created_at" format:"2006-01-02"`
+	CreatedAt  time.Time `json:"created_at"           format:"2006-01-02"`
 	NestedPtr  *Address  `json:"nested_ptr,omitempty"`
-	PtrField   *string   `json:"ptr_field,omitempty" validate:"minlength=1"`
-	Name       string    `json:"name" validate:"required,minlength=2,maxlength=50,regexp=^[A-Za-z]+$,enum=John|Jane"`
+	PtrField   *string   `json:"ptr_field,omitempty"                      validate:"minlength=1"`
+	Name       string    `json:"name"                                     validate:"required,minlength=2,maxlength=50,regexp=^[A-Za-z]+$,enum=John|Jane"`
 	Ignored    string    `json:"-"`
 	Addr       Address   `json:"address"`
-	Tags       []string  `json:"tags" validate:"minItems=1,maxItems=5,uniqueItems"`
+	Tags       []string  `json:"tags"                                     validate:"minItems=1,maxItems=5,uniqueItems"`
 	IntSlice   []int     `json:"ints"`
 	FloatSlice []float64 `json:"floats"`
 	BoolSlice  []bool    `json:"bools"`
-	Score      float64   `json:"score" validate:"min=0.0,max=100.0"`
-	Age        int       `json:"age" validate:"min=0,max=120"`
+	Score      float64   `json:"score"                                    validate:"min=0.0,max=100.0"`
+	Age        int       `json:"age"                                      validate:"min=0,max=120"`
 	ID         uuid.UUID `json:"id"`
 	Active     bool      `json:"active"`
 }
@@ -53,19 +53,19 @@ func TestGenerateJSONSchema_Struct(t *testing.T) {
 
 	// Check presence/absence of properties
 	props := personSchema.Properties
-	if _, ok := props["name"]; !ok {
+	if _, nameOk := props["name"]; !nameOk {
 		t.Fatalf("expected property 'name' in Person schema")
 	}
-	if _, ok := props["age"]; !ok {
+	if _, ageOk := props["age"]; !ageOk {
 		t.Fatalf("expected property 'age' in Person schema")
 	}
-	if _, ok := props["address"]; !ok {
+	if _, addressOk := props["address"]; !addressOk {
 		t.Fatalf("expected property 'address' in Person schema")
 	}
-	if _, ok := props["ptr_field"]; !ok {
+	if _, ptrFieldOk := props["ptr_field"]; !ptrFieldOk {
 		t.Fatalf("expected property 'ptr_field' in Person schema")
 	}
-	if _, ok := props["ignored"]; ok {
+	if _, ignoredOk := props["ignored"]; ignoredOk {
 		t.Fatalf("property with json:\"-\" should be skipped")
 	}
 
@@ -131,7 +131,7 @@ func TestGenerateJSONSchema_Struct(t *testing.T) {
 		t.Fatalf("expected address to be a component reference, got %v", addressSchemaOrRef)
 	}
 	// Ensure address component exists
-	if _, ok := components.Schemas[reflect.TypeOf(Address{}).String()]; !ok {
+	if _, addressCompOk := components.Schemas[reflect.TypeOf(Address{}).String()]; !addressCompOk {
 		t.Fatalf("expected component schema for Address to exist")
 	}
 

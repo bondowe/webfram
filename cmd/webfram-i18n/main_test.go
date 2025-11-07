@@ -816,7 +816,7 @@ func BenchmarkExtractPlaceholders(b *testing.B) {
 	message := "Hello %s, you have %d new messages and %.2f credits"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		extractPlaceholders(message)
 	}
 }
@@ -830,7 +830,7 @@ func BenchmarkCreateMessage(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		createMessage("Hello %s", info)
 	}
 }

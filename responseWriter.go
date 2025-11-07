@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	htmlTemplate "html/template"
 	"io"
@@ -19,8 +20,10 @@ import (
 	yaml "sigs.k8s.io/yaml/goyaml.v2"
 )
 
+// ResponseWriter wraps http.ResponseWriter with additional functionality.
 type ResponseWriter struct {
 	http.ResponseWriter
+
 	context context.Context
 }
 
@@ -88,7 +91,7 @@ func (w *ResponseWriter) Push(target string, opts *http.PushOptions) error {
 
 // ReadFrom reads data from src until EOF or error and writes it to the response.
 // Implements the io.ReaderFrom interface for efficient data transfer.
-func (w *ResponseWriter) ReadFrom(src io.Reader) (n int64, err error) {
+func (w *ResponseWriter) ReadFrom(src io.Reader) (int64, error) {
 	if rf, ok := w.ResponseWriter.(io.ReaderFrom); ok {
 		return rf.ReadFrom(src)
 	}
@@ -109,18 +112,18 @@ func (w *ResponseWriter) JSON(v any) error {
 	jsonpCallback, ok := w.context.Value(jsonpCallbackMethodNameKey).(string)
 	if ok && jsonpCallback != "" {
 		w.Header().Set("Content-Type", "application/javascript")
-		if _, err := w.Write([]byte(jsonpCallback + "(")); err != nil {
-			return err
+		if _, writeErr := w.Write([]byte(jsonpCallback + "(")); writeErr != nil {
+			return writeErr
 		}
 		bs, err := json.Marshal(v)
 		if err != nil {
 			return err
 		}
-		if _, err := w.Write(bs); err != nil {
-			return err
+		if _, writeErr := w.Write(bs); writeErr != nil {
+			return writeErr
 		}
-		if _, err := w.Write([]byte(");")); err != nil {
-			return err
+		if _, writeErr := w.Write([]byte(");")); writeErr != nil {
+			return writeErr
 		}
 		return nil
 	}
@@ -180,7 +183,7 @@ func (w *ResponseWriter) Text(path string, data any) error {
 func (w *ResponseWriter) renderTemplate(path string, data any, contentType string, isHTML bool) error {
 	tmplConfig, ok := template.Configuration()
 	if !ok {
-		return fmt.Errorf("templates not configured")
+		return errors.New("templates not configured")
 	}
 
 	w.Header().Set("Content-Type", contentType)
@@ -192,19 +195,18 @@ func (w *ResponseWriter) renderTemplate(path string, data any, contentType strin
 		extension = tmplConfig.TextTemplateExtension
 	}
 
-	if tmpl, ok := template.LookupTemplate(path+extension, false); ok {
-		if msgPrinter, ok := i18n.I18nPrinterFromContext(w.context); ok {
+	if tmpl, tmplFound := template.LookupTemplate(path+extension, false); tmplFound {
+		if msgPrinter, printerOk := i18n.PrinterFromContext(w.context); printerOk {
 			if isHTML {
 				funcs := htmlTemplate.FuncMap{
 					tmplConfig.I18nFuncName: i18nPrinterFunc(msgPrinter),
 				}
 				return template.Must(tmpl.Clone()).Funcs(funcs).Execute(w.ResponseWriter, data)
-			} else {
-				funcs := textTemplate.FuncMap{
-					tmplConfig.I18nFuncName: i18nPrinterFunc(msgPrinter),
-				}
-				return template.Must(tmpl.Clone()).Funcs(funcs).Execute(w.ResponseWriter, data)
 			}
+			funcs := textTemplate.FuncMap{
+				tmplConfig.I18nFuncName: i18nPrinterFunc(msgPrinter),
+			}
+			return template.Must(tmpl.Clone()).Funcs(funcs).Execute(w.ResponseWriter, data)
 		}
 		return tmpl.Execute(w.ResponseWriter, data)
 	}
