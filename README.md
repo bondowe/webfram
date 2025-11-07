@@ -6,7 +6,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/bondowe/webfram.svg)](https://pkg.go.dev/github.com/bondowe/webfram)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**WebFram** is a production-ready, lightweight, feature-rich Go web framework built on top of the standard library's `net/http` package. It provides enterprise-grade features like automatic template caching with layouts, comprehensive data binding with validation, internationalization (i18n), Server-Sent Events (SSE), JSON Patch support, JSONP, OpenAPI 3.1 documentation generation, and flexible middleware support—all while maintaining minimal dependencies and maximum performance.
+**WebFram** is a production-ready, lightweight, feature-rich Go web framework built on top of the standard library's `net/http` package. It provides enterprise-grade features like automatic template caching with layouts, comprehensive data binding with validation, internationalization (i18n), Server-Sent Events (SSE), JSON Patch support, JSONP, OpenAPI 3.2.0 documentation generation, and flexible middleware support—all while maintaining minimal dependencies and maximum performance.
 
 ## Table of Contents
 
@@ -69,7 +69,7 @@
 - 🔄 **JSON Patch**: Full RFC 6902 JSON Patch support for RESTful partial updates
 - 🌐 **JSONP**: Secure cross-origin JSON requests with built-in callback validation
 - 📡 **Server-Sent Events**: Production-ready SSE support for real-time server-to-client streaming
-- 📚 **OpenAPI 3.1**: Automatic API documentation generation with schema inference from struct tags
+- 📚 **OpenAPI 3.2.0**: Automatic API documentation generation with schema inference from struct tags
 - 🌍 **i18n Support**: First-class internationalization using `golang.org/x/text` with template integration
 - 🔧 **Flexible Middleware**: Support for both custom and standard HTTP middleware with composability
 - 📦 **Multiple Response Formats**: JSON, JSONP, XML, YAML, HTML, and plain text responses
@@ -139,7 +139,7 @@ webfram/
 │   ├── bind/              # Data binding and validation
 │   ├── i18n/              # Internationalization support
 │   └── template/          # Template rendering engine
-└── openapi/               # OpenAPI 3.1 schema generation
+└── openapi/               # OpenAPI 3.2.0 schema generation
 ```
 
 ## Performance
@@ -1614,7 +1614,7 @@ invalid JSONP callback method name: "my-callback()". Only alphanumeric character
 
 ## OpenAPI Documentation
 
-WebFram automatically generates OpenAPI 3.1 documentation from your route definitions, validation tags, and API configurations.
+WebFram automatically generates OpenAPI 3.2.0 documentation from your route definitions, validation tags, and API configurations.
 
 ### Enabling OpenAPI
 
