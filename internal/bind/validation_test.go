@@ -173,3 +173,171 @@ func TestMultipleRulesCombination(t *testing.T) {
 		t.Errorf("score error missing")
 	}
 }
+
+// TestValidateTimeSliceField tests time slice validation.
+func TestValidateTimeSliceField(t *testing.T) {
+	type TimeSliceStruct struct {
+		Dates []time.Time `json:"dates" validate:"required,format=2006-01-02"`
+	}
+
+	// Valid case - all dates are valid
+	validTime := time.Date(2023, 1, 15, 0, 0, 0, 0, time.UTC)
+	s := TimeSliceStruct{
+		Dates: []time.Time{validTime, validTime},
+	}
+	errs := runValidate(s)
+	if len(errs) > 0 {
+		t.Errorf("expected no errors for valid time slice, got: %+v", errs)
+	}
+
+	// Test with required validation on empty slice
+	emptyS := TimeSliceStruct{
+		Dates: []time.Time{},
+	}
+	errs = runValidate(emptyS)
+	if len(errs) == 0 {
+		t.Error("expected error for empty required time slice")
+	}
+}
+
+// TestValidateUUIDSliceField tests UUID slice validation.
+func TestValidateUUIDSliceField(t *testing.T) {
+	type UUIDSliceStruct struct {
+		IDs []uuid.UUID `json:"ids" validate:"required"`
+	}
+
+	// Valid case
+	validUUID := uuid.New()
+	s := UUIDSliceStruct{
+		IDs: []uuid.UUID{validUUID, validUUID},
+	}
+	errs := runValidate(s)
+	if len(errs) > 0 {
+		t.Errorf("expected no errors for valid UUID slice, got: %+v", errs)
+	}
+
+	// Empty slice should trigger required error
+	emptyS := UUIDSliceStruct{
+		IDs: []uuid.UUID{},
+	}
+	errs = runValidate(emptyS)
+	if len(errs) == 0 {
+		t.Error("expected error for empty required UUID slice")
+	}
+}
+
+// TestValidateWithEmptyItems tests validation with emptyItemsAllowed.
+func TestValidateWithEmptyItems(t *testing.T) {
+	type SliceStruct struct {
+		UUIDs []uuid.UUID `json:"uuids" validate:"emptyItemsAllowed"`
+	}
+
+	// Should allow nil UUID in slice with emptyItemsAllowed
+	s := SliceStruct{
+		UUIDs: []uuid.UUID{uuid.Nil, uuid.New()},
+	}
+	errs := runValidate(s)
+	if len(errs) > 0 {
+		t.Errorf("expected no errors with emptyItemsAllowed, got: %+v", errs)
+	}
+}
+
+// TestValidationRuleValidForType tests error cases in rule validation.
+func TestValidationRuleValidForType(t *testing.T) {
+	tests := []struct {
+		name        string
+		rule        string
+		kind        reflect.Kind
+		fieldType   reflect.Type
+		expectError bool
+	}{
+		{"emptyItemsAllowed on non-slice", "emptyItemsAllowed", reflect.String, reflect.TypeOf(""), true},
+		{"min on string", "min=5", reflect.String, reflect.TypeOf(""), true},
+		{"minlength on int", "minlength=5", reflect.Int, reflect.TypeOf(0), true},
+		{"minItems on string", "minItems=1", reflect.String, reflect.TypeOf(""), true},
+		{"uniqueItems on non-slice", "uniqueItems", reflect.String, reflect.TypeOf(""), true},
+		{"pattern on int", "pattern=\\d+", reflect.Int, reflect.TypeOf(0), true},
+		{"format on int", "format=email", reflect.Int, reflect.TypeOf(0), true},
+		{"enum on bool", "enum=true|false", reflect.Bool, reflect.TypeOf(false), true},
+		{"valid min on int", "min=5", reflect.Int, reflect.TypeOf(0), false},
+		{"unknown rule", "unknownRule=value", reflect.String, reflect.TypeOf(""), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := isValidationRuleValidForType(tt.rule, tt.kind, tt.fieldType)
+			if tt.expectError && err == nil {
+				t.Errorf("expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestIsEmpty tests the isEmpty helper function.
+func TestIsEmpty(t *testing.T) {
+	tests := []struct {
+		name     string
+		val      reflect.Value
+		expected bool
+	}{
+		{"empty string", reflect.ValueOf(""), true},
+		{"non-empty string", reflect.ValueOf("hello"), false},
+		{"zero int", reflect.ValueOf(0), true},
+		{"non-zero int", reflect.ValueOf(42), false},
+		{"non-zero float64", reflect.ValueOf(float64(3.14)), false},
+		{"false bool", reflect.ValueOf(false), true},
+		{"true bool", reflect.ValueOf(true), false},
+		{"nil slice", reflect.ValueOf([]int(nil)), true},
+		{"empty slice", reflect.ValueOf([]int{}), true},
+		{"non-empty slice", reflect.ValueOf([]int{1, 2}), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isEmpty(tt.val)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+// TestGetErrorMessage tests custom error message retrieval.
+func TestGetErrorMessage(t *testing.T) {
+	// Test with custom error message
+	fieldWithMsg := reflect.StructField{
+		Name: "Email",
+		Type: reflect.TypeOf(""),
+		Tag:  reflect.StructTag(`errmsg:"required=Email is required;format=Invalid email"`),
+	}
+
+	msg := getErrorMessage(&fieldWithMsg, "required", "default message")
+	if msg != "Email is required" {
+		t.Errorf("expected 'Email is required', got '%s'", msg)
+	}
+
+	msg = getErrorMessage(&fieldWithMsg, "format", "default message")
+	if msg != "Invalid email" {
+		t.Errorf("expected 'Invalid email', got '%s'", msg)
+	}
+
+	// Test with missing rule - should return default
+	msg = getErrorMessage(&fieldWithMsg, "min", "default message")
+	if msg != "default message" {
+		t.Errorf("expected 'default message', got '%s'", msg)
+	}
+
+	// Test without errmsg tag - should return default
+	fieldWithoutMsg := reflect.StructField{
+		Name: "Name",
+		Type: reflect.TypeOf(""),
+		Tag:  reflect.StructTag(``),
+	}
+	msg = getErrorMessage(&fieldWithoutMsg, "required", "default message")
+	if msg != "default message" {
+		t.Errorf("expected 'default message', got '%s'", msg)
+	}
+}

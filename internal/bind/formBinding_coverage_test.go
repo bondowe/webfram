@@ -455,3 +455,293 @@ func TestForm_MapFields(t *testing.T) {
 		t.Errorf("Expected Metadata[key2]='value2', got '%s'", result.Metadata["key2"])
 	}
 }
+
+// Test convertToUint with various unsigned integer types.
+func TestConvertToUint(t *testing.T) {
+	tests := []struct {
+		name        string
+		value       string
+		targetType  reflect.Type
+		expectError bool
+	}{
+		{"valid uint", "42", reflect.TypeOf(uint(0)), false},
+		{"valid uint8", "255", reflect.TypeOf(uint8(0)), false},
+		{"valid uint16", "65535", reflect.TypeOf(uint16(0)), false},
+		{"valid uint32", "4294967295", reflect.TypeOf(uint32(0)), false},
+		{"valid uint64", "100", reflect.TypeOf(uint64(0)), false},
+		{"invalid negative", "-1", reflect.TypeOf(uint(0)), true},
+		{"invalid text", "abc", reflect.TypeOf(uint(0)), true},
+		{"empty string", "", reflect.TypeOf(uint(0)), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := convertToUint(tt.value, tt.targetType)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if !result.IsValid() {
+					t.Errorf("expected valid result")
+				}
+			}
+		})
+	}
+}
+
+// Test convertToFloat with various floating point types.
+func TestConvertToFloat(t *testing.T) {
+	tests := []struct {
+		name        string
+		value       string
+		targetType  reflect.Type
+		expectError bool
+	}{
+		{"valid float32", "3.14", reflect.TypeOf(float32(0)), false},
+		{"valid float64", "2.718281828", reflect.TypeOf(float64(0)), false},
+		{"integer as float", "42", reflect.TypeOf(float64(0)), false},
+		{"negative float", "-1.5", reflect.TypeOf(float64(0)), false},
+		{"scientific notation", "1.23e-4", reflect.TypeOf(float64(0)), false},
+		{"zero", "0.0", reflect.TypeOf(float64(0)), false},
+		{"invalid text", "not-a-number", reflect.TypeOf(float64(0)), true},
+		{"empty string", "", reflect.TypeOf(float64(0)), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := convertToFloat(tt.value, tt.targetType)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if !result.IsValid() {
+					t.Errorf("expected valid result")
+				}
+			}
+		})
+	}
+}
+
+// Test convertToBool with various boolean representations.
+func TestConvertToBool(t *testing.T) {
+	tests := []struct {
+		name        string
+		value       string
+		expected    bool
+		expectError bool
+	}{
+		{"true lowercase", "true", true, false},
+		{"false lowercase", "false", false, false},
+		{"1 as true", "1", true, false},
+		{"0 as false", "0", false, false},
+		{"True capitalized", "True", true, false},
+		{"FALSE uppercase", "FALSE", false, false},
+		{"t as true", "t", true, false},
+		{"f as false", "f", false, false},
+		{"invalid text", "yes", false, true},
+		{"invalid number", "2", false, true},
+		{"empty string", "", false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := convertToBool(tt.value)
+			if tt.expectError && err == nil {
+				t.Errorf("expected error but got none")
+				return
+			}
+			if !tt.expectError {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if !result.IsValid() {
+					t.Errorf("expected valid result")
+				}
+				if result.Bool() != tt.expected {
+					t.Errorf("expected %v, got %v", tt.expected, result.Bool())
+				}
+			}
+		})
+	}
+}
+
+// Test convertBasicType for slice type with conversion errors.
+func TestConvertBasicType_SliceWithErrors(t *testing.T) {
+	// Test integer slice with invalid value
+	intSliceType := reflect.TypeOf([]int{})
+	_, err := convertBasicType("1,abc,3", intSliceType)
+	if err == nil {
+		t.Error("expected error for invalid int in slice")
+	}
+
+	// Test bool slice
+	boolSliceType := reflect.TypeOf([]bool{})
+	result, err := convertBasicType("true,false,true", boolSliceType)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result.Len() != 3 {
+		t.Errorf("expected 3 elements, got %d", result.Len())
+	}
+
+	// Test unsupported type
+	chanType := reflect.TypeOf(make(chan int))
+	_, err = convertBasicType("test", chanType)
+	if err == nil {
+		t.Error("expected error for unsupported channel type")
+	}
+}
+
+// Test validateField with multipleOf validation for integers and floats.
+func TestValidateField_MultipleOf(t *testing.T) {
+	// Test integer multipleOf
+	intField := reflect.StructField{
+		Name: "Count",
+		Type: reflect.TypeOf(int(0)),
+		Tag:  reflect.StructTag(`validate:"multipleOf=5"`),
+	}
+
+	// Valid case: 15 is multiple of 5
+	err := validateField(&intField, "15", reflect.Int)
+	if err != nil {
+		t.Errorf("expected no error for valid multipleOf, got: %v", err.Error)
+	}
+
+	// Invalid case: 17 is not multiple of 5
+	err = validateField(&intField, "17", reflect.Int)
+	if err == nil {
+		t.Error("expected error for invalid multipleOf")
+	}
+
+	// Test float multipleOf
+	floatField := reflect.StructField{
+		Name: "Amount",
+		Type: reflect.TypeOf(float64(0)),
+		Tag:  reflect.StructTag(`validate:"multipleOf=0.5"`),
+	}
+
+	// Valid case: 2.5 is multiple of 0.5
+	err = validateField(&floatField, "2.5", reflect.Float64)
+	if err != nil {
+		t.Errorf("expected no error for valid float multipleOf, got: %v", err.Error)
+	}
+
+	// Invalid case: 2.3 is not multiple of 0.5
+	err = validateField(&floatField, "2.3", reflect.Float64)
+	if err == nil {
+		t.Error("expected error for invalid float multipleOf")
+	}
+}
+
+// Test validateField with pattern validation.
+func TestValidateField_Pattern(t *testing.T) {
+	field := reflect.StructField{
+		Name: "Code",
+		Type: reflect.TypeOf(""),
+		Tag:  reflect.StructTag(`validate:"pattern=^[A-Z]{3}[0-9]{3}$"`),
+	}
+
+	// Valid pattern
+	err := validateField(&field, "ABC123", reflect.String)
+	if err != nil {
+		t.Errorf("expected no error for valid pattern, got: %v", err.Error)
+	}
+
+	// Invalid pattern
+	err = validateField(&field, "abc123", reflect.String)
+	if err == nil {
+		t.Error("expected error for invalid pattern")
+	}
+
+	// Invalid regex
+	badField := reflect.StructField{
+		Name: "Code",
+		Type: reflect.TypeOf(""),
+		Tag:  reflect.StructTag(`validate:"pattern=[invalid"`),
+	}
+	err = validateField(&badField, "test", reflect.String)
+	if err == nil {
+		t.Error("expected error for invalid regex pattern")
+	}
+}
+
+// Test validateField with enum validation.
+func TestValidateField_Enum(t *testing.T) {
+	field := reflect.StructField{
+		Name: "Role",
+		Type: reflect.TypeOf(""),
+		Tag:  reflect.StructTag(`validate:"enum=admin|user|guest"`),
+	}
+
+	// Valid enum value
+	err := validateField(&field, "admin", reflect.String)
+	if err != nil {
+		t.Errorf("expected no error for valid enum, got: %v", err.Error)
+	}
+
+	// Invalid enum value
+	err = validateField(&field, "superuser", reflect.String)
+	if err == nil {
+		t.Error("expected error for invalid enum value")
+	}
+}
+
+// Test validateField with minLength and maxLength.
+func TestValidateField_StringLength(t *testing.T) {
+	field := reflect.StructField{
+		Name: "Title",
+		Type: reflect.TypeOf(""),
+		Tag:  reflect.StructTag(`validate:"minlength=3,maxlength=10"`),
+	}
+
+	// Valid length
+	err := validateField(&field, "valid", reflect.String)
+	if err != nil {
+		t.Errorf("expected no error for valid length, got: %v", err.Error)
+	}
+
+	// Too short
+	err = validateField(&field, "ab", reflect.String)
+	if err == nil {
+		t.Error("expected error for string too short")
+	}
+
+	// Too long
+	err = validateField(&field, "this is way too long", reflect.String)
+	if err == nil {
+		t.Error("expected error for string too long")
+	}
+}
+
+// Test validateField error handling for parsing errors.
+func TestValidateField_ParseErrors(t *testing.T) {
+	// Test invalid int for min validation
+	intField := reflect.StructField{
+		Name: "Age",
+		Type: reflect.TypeOf(int(0)),
+		Tag:  reflect.StructTag(`validate:"min=18"`),
+	}
+	err := validateField(&intField, "not-a-number", reflect.Int)
+	if err == nil {
+		t.Error("expected error for invalid int value")
+	}
+
+	// Test invalid float for max validation
+	floatField := reflect.StructField{
+		Name: "Price",
+		Type: reflect.TypeOf(float64(0)),
+		Tag:  reflect.StructTag(`validate:"max=100"`),
+	}
+	err = validateField(&floatField, "not-a-float", reflect.Float64)
+	if err == nil {
+		t.Error("expected error for invalid float value")
+	}
+}
