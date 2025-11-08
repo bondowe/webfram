@@ -1,5 +1,5 @@
 {
-  "language": "fr",
+  "language": "es",
   "messages": [
     {
       "id": "%s %s - %v",
@@ -34,12 +34,12 @@
     {
       "id": "Client disconnected from events stream",
       "message": "Client disconnected from events stream",
-      "translation": "Client déconnecté du flux d'événements"
+      "translation": "Cliente desconectado del flujo de eventos"
     },
     {
       "id": "Current server time: %s",
       "message": "Current server time: %s",
-      "translation": "Heure actuelle du serveur : %s",
+      "translation": "Hora actual del servidor: %s",
       "placeholders": {
         "arg_1": {
           "id": "arg_1",
@@ -54,32 +54,32 @@
     {
       "id": "Email is required",
       "message": "Email is required",
-      "translation": "L'e-mail est requis"
+      "translation": "El correo electrónico es obligatorio"
     },
     {
       "id": "Invalid email",
       "message": "Invalid email",
-      "translation": "E-mail invalide"
+      "translation": "Correo electrónico inválido"
     },
     {
       "id": "Must be admin, user, or guest",
       "message": "Must be admin, user, or guest",
-      "translation": "Doit être admin, user ou guest"
+      "translation": "Debe ser admin, user o guest"
     },
     {
       "id": "Name is required",
       "message": "Name is required",
-      "translation": "Le nom est requis"
+      "translation": "El nombre es obligatorio"
     },
     {
       "id": "Name must be at least 3 characters",
       "message": "Name must be at least 3 characters",
-      "translation": "Le nom doit contenir au moins 3 caractères"
+      "translation": "El nombre debe tener al menos 3 caracteres"
     },
     {
       "id": "OpenAPI docs: http://localhost:8080/openapi.json",
       "message": "OpenAPI docs: http://localhost:8080/openapi.json",
-      "translation": "Documentation OpenAPI : http://localhost:8080/openapi.json"
+      "translation": "Documentación OpenAPI: http://localhost:8080/openapi.json"
     },
     {
       "id": "SSE error: %v\\n",
@@ -98,12 +98,12 @@
     {
       "id": "Server starting on :8080",
       "message": "Server starting on :8080",
-      "translation": "Démarrage du serveur sur le port :8080"
+      "translation": "Iniciando servidor en el puerto :8080"
     },
     {
       "id": "We'll send you a message at: %s",
       "message": "We'll send you a message at: %s",
-      "translation": "Nous vous enverrons un message à : %s",
+      "translation": "Te enviaremos un mensaje a: %s",
       "placeholders": {
         "arg_1": {
           "id": "arg_1",
@@ -118,7 +118,7 @@
     {
       "id": "Welcome back, %s!",
       "message": "Welcome back, %s!",
-      "translation": "Bon retour, %s !",
+      "translation": "¡Bienvenido de nuevo, %s!",
       "placeholders": {
         "arg_1": {
           "id": "arg_1",
@@ -133,7 +133,7 @@
     {
       "id": "Welcome to %s! Clap %d times.",
       "message": "Welcome to %s! Clap %d times.",
-      "translation": "Bienvenue sur %s ! Applaudissez %d fois.",
+      "translation": "¡Bienvenido a %s! Aplaude %d veces.",
       "placeholders": {
         "arg_1": {
           "id": "arg_1",

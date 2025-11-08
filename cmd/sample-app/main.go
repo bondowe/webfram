@@ -13,6 +13,9 @@ import (
 	"golang.org/x/text/language"
 )
 
+//go:generate go get -tool github.com/bondowe/webfram/cmd/webfram-i18n
+//go:generate go tool webfram-i18n -languages "en,fr,es" -templates assets/templates -locales assets/locales
+
 //go:embed assets
 var assetsFS embed.FS
 

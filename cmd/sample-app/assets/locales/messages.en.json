@@ -33,11 +33,13 @@
     },
     {
       "id": "Client disconnected from events stream",
-      "message": "Client disconnected from events stream"
+      "message": "Client disconnected from events stream",
+      "translation": "Client disconnected from events stream"
     },
     {
       "id": "Current server time: %s",
       "message": "Current server time: %s",
+      "translation": "Current server time: %s",
       "placeholders": {
         "arg_1": {
           "id": "arg_1",
@@ -51,42 +53,33 @@
     },
     {
       "id": "Email is required",
-      "message": "Email is required"
-    },
-    {
-      "id": "Happy to see you, %s!",
-      "message": "Happy to see you, %s!",
-      "translation": "Happy to see you, %s!",
-      "placeholders": {
-        "arg_1": {
-          "id": "arg_1",
-          "string": "%s",
-          "type": "string",
-          "underlyingType": "string",
-          "expr": "arg1",
-          "argNum": 1
-        }
-      }
+      "message": "Email is required",
+      "translation": "Email is required"
     },
     {
       "id": "Invalid email",
-      "message": "Invalid email"
+      "message": "Invalid email",
+      "translation": "Invalid email"
     },
     {
       "id": "Must be admin, user, or guest",
-      "message": "Must be admin, user, or guest"
+      "message": "Must be admin, user, or guest",
+      "translation": "Must be admin, user, or guest"
     },
     {
       "id": "Name is required",
-      "message": "Name is required"
+      "message": "Name is required",
+      "translation": "Name is required"
     },
     {
       "id": "Name must be at least 3 characters",
-      "message": "Name must be at least 3 characters"
+      "message": "Name must be at least 3 characters",
+      "translation": "Name must be at least 3 characters"
     },
     {
       "id": "OpenAPI docs: http://localhost:8080/openapi.json",
-      "message": "OpenAPI docs: http://localhost:8080/openapi.json"
+      "message": "OpenAPI docs: http://localhost:8080/openapi.json",
+      "translation": "OpenAPI docs: http://localhost:8080/openapi.json"
     },
     {
       "id": "SSE error: %v\\n",
@@ -104,11 +97,43 @@
     },
     {
       "id": "Server starting on :8080",
-      "message": "Server starting on :8080"
+      "message": "Server starting on :8080",
+      "translation": "Server starting on :8080"
+    },
+    {
+      "id": "We'll send you a message at: %s",
+      "message": "We'll send you a message at: %s",
+      "translation": "We'll send you a message at: %s",
+      "placeholders": {
+        "arg_1": {
+          "id": "arg_1",
+          "string": "%s",
+          "type": "string",
+          "underlyingType": "string",
+          "expr": "arg1",
+          "argNum": 1
+        }
+      }
+    },
+    {
+      "id": "Welcome back, %s!",
+      "message": "Welcome back, %s!",
+      "translation": "Welcome back, %s!",
+      "placeholders": {
+        "arg_1": {
+          "id": "arg_1",
+          "string": "%s",
+          "type": "string",
+          "underlyingType": "string",
+          "expr": "arg1",
+          "argNum": 1
+        }
+      }
     },
     {
       "id": "Welcome to %s! Clap %d times.",
       "message": "Welcome to %s! Clap %d times.",
+      "translation": "Welcome to %s! Clap %d times.",
       "placeholders": {
         "arg_1": {
           "id": "arg_1",

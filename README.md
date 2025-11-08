@@ -2151,6 +2151,43 @@ The tool will:
 - Automatically detect placeholder types (`%s`, `%d`, etc.)
 - Sort messages alphabetically for easy management
 
+**Using with `go generate`:**
+
+You can automate message extraction using `go generate` directives in your Go files:
+
+```go
+//go:generate go run github.com/bondowe/webfram/cmd/webfram-i18n@latest -languages "en,fr,es" -templates assets/templates -locales assets/locales
+```
+
+Or use `go tool` for a more integrated approach. First, install the tool manually:
+
+```bash
+go get -tool github.com/bondowe/webfram/cmd/webfram-i18n@latest
+```
+
+Then add the generate directive without the installation step:
+
+```go
+//go:generate go tool webfram-i18n -languages "en,fr,es" -templates assets/templates -locales assets/locales
+```
+
+**Note:** If you want to include the tool installation in `go generate`, you should specify a version tag to ensure reproducible builds:
+
+```go
+//go:generate go get -tool github.com/bondowe/webfram/cmd/webfram-i18n@v1.0.0
+//go:generate go tool webfram-i18n -languages "en,fr,es" -templates assets/templates -locales assets/locales
+```
+
+Replace `v1.0.0` with the specific version you want to use. Alternatively, run the `go get -tool` command manually once, and only include the second directive in your code.
+
+Then run:
+
+```bash
+go generate ./...
+```
+
+This will automatically extract and update your translation files whenever you run `go generate`.
+
 ### Message Files
 
 Create message files in JSON format in your locales directory:
