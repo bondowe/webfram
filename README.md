@@ -239,7 +239,7 @@ func main() {
 WebFram can be configured with templates, i18n, JSONP, and OpenAPI settings:
 
 ```go
-//go:embed assets
+//go:embed all:assets
 var assetsFS embed.FS
 
 func main() {
@@ -298,11 +298,12 @@ func main() {
 // Project structure:
 // assets/
 //   ├── templates/
+//   │   ├── _partial.go.html   // Partial template
 //   │   └── index.go.html
 //   └── locales/
 //       └── messages.en.json
 
-//go:embed assets
+//go:embed all:assets
 var assetsFS embed.FS
 
 app.Configure(&app.Config{
@@ -315,10 +316,12 @@ app.Configure(&app.Config{
 })
 ```
 
+   **Important:** If you use partial templates (files starting with `_`), you **must** use the `all:` prefix in your embed directive (e.g., `//go:embed all:assets`). By default, Go's embed excludes files starting with `_` or `.`. The `all:` prefix includes these files.
+
 2. **Environment-Specific Configuration**: Use environment variables for deployment-specific settings:
 
 ```go
-//go:embed assets
+//go:embed all:assets
 var assetsFS embed.FS
 
 func getConfig() *app.Config {
@@ -1975,7 +1978,7 @@ Templates must be provided via an embedded file system. The template directory p
 //       ├── layout.go.html
 //       └── index.go.html
 
-//go:embed assets
+//go:embed all:assets
 var assetsFS embed.FS
 
 app.Configure(&app.Config{
@@ -2228,7 +2231,7 @@ Create message files in JSON format in your locales directory:
 ### Configure i18n
 
 ```go
-//go:embed assets
+//go:embed all:assets
 var assetsFS embed.FS
 
 app.Configure(&app.Config{
@@ -2289,7 +2292,7 @@ import (
 //       ├── messages.en.json
 //       └── messages.fr.json
 
-//go:embed assets
+//go:embed all:assets
 var assetsFS embed.FS
 
 type User struct {

@@ -1,5 +1,4 @@
 {{define "content"}}
     <h2>Home Page</h2>
-    <p>{{T "Welcome back, %s!" .Name}}</p>
-    <p>{{T "We'll send you a message at: %s" .Email}}</p>
+    {{partial "user" .}}
 {{end}}
