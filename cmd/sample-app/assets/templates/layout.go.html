@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>WebFram Example</title>
+    <title>{{block "title" .}}WebFram Example{{end}}</title>
 </head>
 <body>
     <h1>Welcome to WebFram!</h1>
-    <p>{{T "Happy to see you, %s!" .Name}}</p>
+    <div>
+        {{block "content" .}}{{end}}
+    </div>
 </body>
 </html>

@@ -60,11 +60,8 @@ func main() {
 
 	// Routes
 	mux.HandleFunc("GET /", func(w app.ResponseWriter, r *app.Request) {
-		err := w.HTML("index", &struct {
-			Name string
-		}{
-			Name: "De ba Mbonze",
-		})
+		user := User{Name: "John Doe", Email: "john@example.com"}
+		err := w.HTML("home/index", &user)
 		if err != nil {
 			w.Error(http.StatusInternalServerError, err.Error())
 		}
