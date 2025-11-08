@@ -2071,7 +2071,7 @@ Partials are reusable template components with names starting with `_`:
 ```html
 {{define "content"}}
     <!-- Include a partial -->
-    {{template "_partOne.go.html" .}}
+    {{partial "partOne" .}}
     
     <div>Your main content here</div>
 {{end}}
