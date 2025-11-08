@@ -2211,7 +2211,7 @@ func TestConstants(t *testing.T) {
 		{name: "layout", constant: defaultLayoutBaseName, expected: "layout"},
 		{name: ".go.html", constant: defaultHTMLTemplateExtension, expected: ".go.html"},
 		{name: ".go.txt", constant: defaultTextTemplateExtension, expected: ".go.txt"},
-		{name: "i18n", constant: defaultI18nMessagesDir, expected: "i18n"},
+		{name: "i18n", constant: defaultI18nMessagesDir, expected: "assets/locales"},
 		{name: "T", constant: defaultI18nFuncName, expected: "T"},
 	}
 
