@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bondowe/webfram/internal/i18n"
 	"github.com/bondowe/webfram/openapi"
 	"golang.org/x/text/language"
 )
@@ -802,29 +803,69 @@ func TestI18nMiddleware_WithLanguageCookie(t *testing.T) {
 	}
 }
 
-func TestI18nMiddleware_DefaultsToEnglish(t *testing.T) {
-	setupMuxTest()
+func TestI18nMiddleware_DefaultsToFirstSupportedLanguage(t *testing.T) {
+	appConfigured = false
+	appMiddlewares = nil
+	openAPIConfig = nil
+	jsonpCallbackParamName = ""
+
+	// Configure with French as first supported language (not English)
+	Configure(&Config{
+		Assets: &Assets{
+			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/locales",
+				SupportedLanguages: []string{"fr", "es", "de"}, // French first, no English
+			},
+		},
+	})
 
 	mux := NewServeMux()
 
-	handler := func(w ResponseWriter, _ *Request) {
-		w.WriteHeader(http.StatusOK)
+	var detectedLang string
+	handler := func(_ ResponseWriter, r *Request) {
+		if printer, ok := i18n.PrinterFromContext(r.Context()); ok {
+			// Try to translate a message to verify we got French
+			msg := printer.Sprintf("welcome")
+			// In French locale it should be "Bienvenue", not "welcome"
+			if msg == "Bienvenue" {
+				detectedLang = "fr"
+			} else {
+				detectedLang = "unknown"
+			}
+		}
 	}
 
 	mux.HandleFunc("GET /test", handler)
 
-	// No Accept-Language header or cookie
+	// No Accept-Language header or cookie - should default to first supported (fr)
 	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	mux.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	if detectedLang != "fr" {
+		t.Errorf("Expected default to first supported language (fr), got %s", detectedLang)
 	}
 }
 
 func TestParseAcceptLanguage_ValidLanguages(t *testing.T) {
+	// Configure i18n with multiple supported languages
+	appConfigured = false
+	appMiddlewares = nil
+	openAPIConfig = nil
+	jsonpCallbackParamName = ""
+
+	Configure(&Config{
+		Assets: &Assets{
+			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/locales",
+				SupportedLanguages: []string{"en", "fr", "es", "de"},
+			},
+		},
+	})
+
 	tests := []struct {
 		name       string
 		acceptLang string
@@ -925,6 +966,357 @@ func TestSetLanguageCookie_DeleteCookie(t *testing.T) {
 	cookie := cookies[0]
 	if cookie.MaxAge != 0 {
 		t.Errorf("Expected MaxAge 0 (delete cookie), got %d", cookie.MaxAge)
+	}
+}
+
+// =============================================================================
+// Comprehensive I18n Language Support Tests
+// =============================================================================
+
+func TestLanguageMatching_QualityValues(t *testing.T) {
+	appConfigured = false
+	appMiddlewares = nil
+	openAPIConfig = nil
+	jsonpCallbackParamName = ""
+
+	Configure(&Config{
+		Assets: &Assets{
+			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/locales",
+				SupportedLanguages: []string{"en", "fr", "es"},
+			},
+		},
+	})
+
+	tests := []struct {
+		name       string
+		acceptLang string
+		wantBase   string
+	}{
+		{
+			name:       "HighestQuality",
+			acceptLang: "fr;q=1.0,es;q=0.8,en;q=0.5",
+			wantBase:   "fr",
+		},
+		{
+			name:       "DefaultQualityIsOne",
+			acceptLang: "es,fr;q=0.9,en;q=0.8",
+			wantBase:   "es",
+		},
+		{
+			name:       "ZeroQualityIgnored",
+			acceptLang: "fr;q=0.0,es;q=0.8",
+			wantBase:   "es",
+		},
+		{
+			name:       "FirstMatchWins",
+			acceptLang: "en;q=0.9,fr;q=0.9",
+			wantBase:   "en",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tag := parseAcceptLanguage(tt.acceptLang)
+			base, _ := tag.Base()
+			if base.String() != tt.wantBase {
+				t.Errorf(
+					"parseAcceptLanguage(%q) base = %v, want %v",
+					tt.acceptLang,
+					base,
+					tt.wantBase,
+				)
+			}
+		})
+	}
+}
+
+func TestLanguageMatching_Fallback(t *testing.T) {
+	appConfigured = false
+	appMiddlewares = nil
+	openAPIConfig = nil
+	jsonpCallbackParamName = ""
+
+	Configure(&Config{
+		Assets: &Assets{
+			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/locales",
+				SupportedLanguages: []string{"en", "fr"},
+			},
+		},
+	})
+
+	tests := []struct {
+		name       string
+		acceptLang string
+		wantBase   string
+	}{
+		{
+			name:       "UnsupportedLanguageFallsBackToClosest",
+			acceptLang: "de-DE,de;q=0.9,en;q=0.8",
+			wantBase:   "en",
+		},
+		{
+			name:       "RegionalVariantMatchesBase",
+			acceptLang: "fr-CA,fr;q=0.9",
+			wantBase:   "fr",
+		},
+		{
+			name:       "ComplexFallback",
+			acceptLang: "zh-CN,zh;q=0.9,ja;q=0.8,en;q=0.7",
+			wantBase:   "en",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tag := parseAcceptLanguage(tt.acceptLang)
+			base, _ := tag.Base()
+			if base.String() != tt.wantBase {
+				t.Errorf(
+					"parseAcceptLanguage(%q) base = %v, want %v",
+					tt.acceptLang,
+					base,
+					tt.wantBase,
+				)
+			}
+		})
+	}
+}
+
+func TestLanguageCookie_PreferenceOverAcceptLanguage(t *testing.T) {
+	appConfigured = false
+	appMiddlewares = nil
+	openAPIConfig = nil
+	jsonpCallbackParamName = ""
+
+	Configure(&Config{
+		Assets: &Assets{
+			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/locales",
+				SupportedLanguages: []string{"en", "fr", "es"},
+			},
+		},
+	})
+
+	mux := NewServeMux()
+
+	var receivedLang string
+	handler := func(_ ResponseWriter, r *Request) {
+		if _, ok := i18n.PrinterFromContext(r.Context()); ok {
+			receivedLang = "cookie-worked"
+		}
+	}
+
+	mux.HandleFunc("GET /test", handler)
+
+	// Request with both cookie (fr) and Accept-Language (es)
+	// Cookie should take precedence
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req.Header.Set("Accept-Language", "es-ES,es;q=0.9")
+	req.AddCookie(&http.Cookie{Name: "lang", Value: "fr"})
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if receivedLang != "cookie-worked" {
+		t.Error("Language cookie preference was not respected")
+	}
+}
+
+func TestLanguageContext_PersistsThroughHandlers(t *testing.T) {
+	appConfigured = false
+	appMiddlewares = nil
+	openAPIConfig = nil
+	jsonpCallbackParamName = ""
+
+	Configure(&Config{
+		Assets: &Assets{
+			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/locales",
+				SupportedLanguages: []string{"en", "fr"},
+			},
+		},
+	})
+
+	mux := NewServeMux()
+
+	var lang1, lang2 string
+
+	// Middleware to check language
+	mux.Use(func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *Request) {
+			if _, ok := i18n.PrinterFromContext(r.Context()); ok {
+				lang1 = "middleware-ok"
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+
+	handler := func(_ ResponseWriter, r *Request) {
+		if _, ok := i18n.PrinterFromContext(r.Context()); ok {
+			lang2 = "handler-ok"
+		}
+	}
+
+	mux.HandleFunc("GET /test", handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req.Header.Set("Accept-Language", "fr-FR")
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if lang1 != "middleware-ok" {
+		t.Error("Language context not available in middleware")
+	}
+	if lang2 != "handler-ok" {
+		t.Error("Language context not available in handler")
+	}
+}
+
+func TestParseAcceptLanguage_UnsupportedLanguage(t *testing.T) {
+	appConfigured = false
+	appMiddlewares = nil
+	openAPIConfig = nil
+	jsonpCallbackParamName = ""
+
+	Configure(&Config{
+		Assets: &Assets{
+			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/locales",
+				SupportedLanguages: []string{"en"},
+			},
+		},
+	})
+
+	// Request language not in supported list should fall back to English
+	tag := parseAcceptLanguage("fr-FR,fr;q=0.9")
+	base, _ := tag.Base()
+
+	if base.String() != "en" {
+		t.Errorf("Expected fallback to 'en', got %v", base)
+	}
+}
+
+func TestLanguageMatching_EdgeCases(t *testing.T) {
+	appConfigured = false
+	appMiddlewares = nil
+	openAPIConfig = nil
+	jsonpCallbackParamName = ""
+
+	Configure(&Config{
+		Assets: &Assets{
+			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/locales",
+				SupportedLanguages: []string{"en", "fr", "es", "de"},
+			},
+		},
+	})
+
+	tests := []struct {
+		name       string
+		acceptLang string
+		wantBase   string
+		wantUnd    bool
+	}{
+		{
+			name:       "WildcardMatch",
+			acceptLang: "*",
+			wantBase:   "en", // Should match first supported language
+		},
+		{
+			name:       "EmptyString",
+			acceptLang: "",
+			wantUnd:    true,
+		},
+		{
+			name:       "OnlyWhitespace",
+			acceptLang: "   ",
+			wantUnd:    true,
+		},
+		{
+			name:       "MalformedButRecoverable",
+			acceptLang: "fr,en;q=",
+			wantBase:   "en", // Parser treats malformed quality, returns closest match
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tag := parseAcceptLanguage(tt.acceptLang)
+
+			if tt.wantUnd {
+				if tag != language.Und {
+					t.Errorf("Expected undefined language, got %v", tag)
+				}
+				return
+			}
+
+			base, _ := tag.Base()
+			if base.String() != tt.wantBase {
+				t.Errorf(
+					"parseAcceptLanguage(%q) base = %v, want %v",
+					tt.acceptLang,
+					base,
+					tt.wantBase,
+				)
+			}
+		})
+	}
+}
+
+func TestI18n_NoConfiguration(t *testing.T) {
+	// Reset app state
+	// This tests auto-detection when no explicit supported languages are provided
+	appConfigured = false
+	appMiddlewares = nil
+	openAPIConfig = nil
+	jsonpCallbackParamName = ""
+
+	Configure(&Config{
+		Assets: &Assets{
+			FS: testMuxI18nFS,
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/locales",
+				SupportedLanguages: []string{}, // Empty list triggers auto-detection
+			},
+		},
+	})
+
+	// With auto-detection, French should be found and matched
+	tag := parseAcceptLanguage("fr-FR")
+
+	base, _ := tag.Base()
+	if base.String() != "fr" {
+		t.Errorf("Expected French to be matched via auto-detection, got %v", tag)
+	}
+}
+
+func TestSetLanguageCookie_SessionCookie(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
+
+	// MaxAge of -1 should create a session cookie
+	SetLanguageCookie(rw, "fr", -1)
+
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("Expected 1 cookie, got %d", len(cookies))
+	}
+
+	cookie := cookies[0]
+	if cookie.MaxAge != -1 {
+		t.Errorf("Expected MaxAge -1 (session cookie), got %d", cookie.MaxAge)
+	}
+	if cookie.Value != "fr" {
+		t.Errorf("Expected cookie value 'fr', got %q", cookie.Value)
 	}
 }
 

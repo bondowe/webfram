@@ -1,0 +1,20 @@
+{
+  "language": "fr",
+  "messages": [
+    {
+      "id": "Test message",
+      "message": "Test message",
+      "translation": "Message de test"
+    },
+    {
+      "id": "welcome",
+      "message": "Welcome",
+      "translation": "Bienvenue"
+    },
+    {
+      "id": "goodbye",
+      "message": "Goodbye",
+      "translation": "Au revoir"
+    }
+  ]
+}

@@ -45,7 +45,8 @@ func main() {
 				Dir: "assets/templates",
 			},
 			I18nMessages: &app.I18nMessages{
-				Dir: "assets/locales",
+				Dir:                "assets/locales",
+				SupportedLanguages: []string{"en-GB", "fr-FR", "es-ES"},
 			},
 		},
 		JSONPCallbackParamName: "callback", // Enable JSONP support

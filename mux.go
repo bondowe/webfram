@@ -574,9 +574,13 @@ func I18nMiddleware(_ fs.FS) func(Handler) Handler {
 				}
 			}
 
-			// Default to English if no language could be determined
+			// Default to first supported language if no language could be determined
 			if langTag == language.Und {
-				langTag = language.English
+				if i18nConfig, ok := i18n.Configuration(); ok && len(i18nConfig.SupportedLanguages) > 0 {
+					langTag = i18nConfig.SupportedLanguages[0]
+				} else {
+					langTag = language.English
+				}
 			}
 
 			msgPrinter := i18n.GetI18nPrinter(langTag)
@@ -596,20 +600,16 @@ func parseAcceptLanguage(acceptLang string) language.Tag {
 		return language.Und
 	}
 
-	// Define supported languages (you can customize this list)
-	supportedLanguages := []language.Tag{
-		language.English,
-		language.French,
-		language.CanadianFrench,
-		language.Swahili,
-		language.Russian,
-		language.German,
-		language.Spanish,
-		language.Italian,
-		language.Portuguese,
-		language.Japanese,
-		language.Chinese,
-		language.Korean,
+	i18nConfig, ok := i18n.Configuration()
+
+	if !ok {
+		return language.Und
+	}
+
+	supportedLanguages := i18nConfig.SupportedLanguages
+
+	if len(supportedLanguages) == 0 {
+		return language.Und
 	}
 
 	// Create a matcher for supported languages

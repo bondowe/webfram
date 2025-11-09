@@ -460,6 +460,128 @@ func TestConfigureI18n_WithCustomDirectory(_ *testing.T) {
 }
 
 // =============================================================================
+// GetSupportedLanguages Tests
+// =============================================================================
+
+func TestGetSupportedLanguages_FromConfig(t *testing.T) {
+	cfg := &Config{
+		Assets: &Assets{
+			FS: testI18nFS2,
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/locales",
+				SupportedLanguages: []string{"fr", "es", "de"},
+			},
+		},
+	}
+
+	langs := getSupportedLanguages(cfg, testI18nFS2, "testdata/locales")
+
+	if len(langs) != 3 {
+		t.Fatalf("Expected 3 languages, got %d", len(langs))
+	}
+
+	expected := []string{"fr", "es", "de"}
+	for i, lang := range langs {
+		base, _ := lang.Base()
+		if base.String() != expected[i] {
+			t.Errorf("Expected language %s at index %d, got %s", expected[i], i, base.String())
+		}
+	}
+}
+
+func TestGetSupportedLanguages_AutoDetectFromFiles(t *testing.T) {
+	// Pass nil config to trigger auto-detection
+	langs := getSupportedLanguages(nil, testI18nFS2, "testdata/locales")
+
+	// Should detect en, es, fr, de from testdata/locales directory
+	if len(langs) < 1 {
+		t.Fatalf("Expected at least 1 language from auto-detection, got %d", len(langs))
+	}
+
+	// Verify we got valid language tags
+	foundEn := false
+	for _, lang := range langs {
+		base, _ := lang.Base()
+		if base.String() == "en" {
+			foundEn = true
+			break
+		}
+	}
+
+	if !foundEn {
+		t.Error("Expected to find 'en' language in auto-detected languages")
+	}
+}
+
+func TestGetSupportedLanguages_EmptyConfig(t *testing.T) {
+	cfg := &Config{
+		Assets: &Assets{
+			FS: testI18nFS2,
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/locales",
+				SupportedLanguages: []string{}, // Empty list
+			},
+		},
+	}
+
+	// Should auto-detect when list is empty
+	langs := getSupportedLanguages(cfg, testI18nFS2, "testdata/locales")
+
+	if len(langs) < 1 {
+		t.Fatal("Expected auto-detection when SupportedLanguages is empty")
+	}
+}
+
+func TestGetSupportedLanguages_InvalidDirectory(t *testing.T) {
+	cfg := &Config{
+		Assets: &Assets{
+			FS: testI18nFS2,
+			I18nMessages: &I18nMessages{
+				Dir:                "nonexistent",
+				SupportedLanguages: []string{},
+			},
+		},
+	}
+
+	langs := getSupportedLanguages(cfg, testI18nFS2, "nonexistent")
+
+	// Should return default language (English)
+	if len(langs) != 1 {
+		t.Fatalf("Expected 1 default language, got %d", len(langs))
+	}
+
+	base, _ := langs[0].Base()
+	if base.String() != "en" {
+		t.Errorf("Expected default language 'en', got %s", base.String())
+	}
+}
+
+func TestGetSupportedLanguages_NoValidFiles(t *testing.T) {
+	// Create a test filesystem with no valid message files
+	cfg := &Config{
+		Assets: &Assets{
+			FS: testTemplatesFS2, // Wrong FS with no message files
+			I18nMessages: &I18nMessages{
+				Dir:                "testdata/templates",
+				SupportedLanguages: []string{},
+			},
+		},
+	}
+
+	langs := getSupportedLanguages(cfg, testTemplatesFS2, "testdata/templates")
+
+	// Should return default language when no valid files found
+	if len(langs) != 1 {
+		t.Fatalf("Expected 1 default language, got %d", len(langs))
+	}
+
+	base, _ := langs[0].Base()
+	if base.String() != "en" {
+		t.Errorf("Expected default language 'en', got %s", base.String())
+	}
+}
+
+// =============================================================================
 // Use Middleware Tests
 // =============================================================================
 

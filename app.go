@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/bondowe/webfram/internal/bind"
@@ -93,7 +94,8 @@ type (
 
 	// I18nMessages configures internationalization message settings.
 	I18nMessages struct {
-		Dir string
+		Dir                string
+		SupportedLanguages []string
 	}
 
 	// Assets configures static assets and their locations.
@@ -137,6 +139,7 @@ var (
 	openAPIConfig            *OpenAPI
 	jsonpCallbackParamName   string
 	jsonpCallbackNamePattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+	defaultLanguage          = language.English
 
 	// ErrMethodNotAllowed is returned when an HTTP method is not allowed for a route.
 	ErrMethodNotAllowed = errors.New("method not allowed")
@@ -325,6 +328,7 @@ func configureTemplate(cfg *Config) {
 func configureI18n(cfg *Config) {
 	var assetsFS fs.FS
 	var dir string
+	var supportedLanguages []language.Tag
 
 	// Set defaults if config is nil
 	if cfg == nil || cfg.Assets == nil {
@@ -334,6 +338,8 @@ func configureI18n(cfg *Config) {
 		assetsFS = getAssetsFS(cfg)
 		dir = getI18nMessagesDir(cfg)
 	}
+
+	supportedLanguages = getSupportedLanguages(cfg, assetsFS, dir)
 
 	stat, err := fs.Stat(assetsFS, dir)
 	if err != nil || !stat.IsDir() {
@@ -346,7 +352,8 @@ func configureI18n(cfg *Config) {
 	}
 
 	i18nConfig := &i18n.Config{
-		FS: i18nMessagesFS,
+		FS:                 i18nMessagesFS,
+		SupportedLanguages: supportedLanguages,
 	}
 
 	i18n.Configure(i18nConfig)
@@ -665,4 +672,51 @@ func getI18nMessagesDir(cfg *Config) string {
 		return defaultI18nMessagesDir
 	}
 	return getValueOrDefault(cfg.Assets.I18nMessages.Dir, defaultI18nMessagesDir)
+}
+
+func getSupportedLanguages(cfg *Config, assetsFS fs.FS, localesDir string) []language.Tag {
+	var langs []string
+	// TODO: Consider refactoring to reduce complexity (currently ignored for clarity)
+	//nolint:nestif // Nested if-else structure is intentional for auto-detection logic
+	if cfg == nil ||
+		cfg.Assets == nil ||
+		cfg.Assets.I18nMessages == nil ||
+		len(cfg.Assets.I18nMessages.SupportedLanguages) == 0 {
+		entries, err := fs.ReadDir(assetsFS, localesDir)
+		if err != nil {
+			return []language.Tag{defaultLanguage}
+		}
+
+		for _, entry := range entries {
+			name := entry.Name()
+			// Skip directories, non-JSON files, hidden files, and empty names
+			if entry.IsDir() ||
+				!strings.HasSuffix(name, ".json") ||
+				len(name) == 0 ||
+				name[0] == '.' {
+				continue
+			}
+			baseName := strings.TrimSuffix(name, ".json")
+			parts := strings.Split(baseName, ".")
+			if len(parts) != 2 || parts[0] != "messages" || parts[1] == "" {
+				continue
+			}
+			// Validate that it's a valid language code before adding
+			if _, err = language.Parse(parts[1]); err == nil {
+				langs = append(langs, parts[1])
+			}
+		}
+	} else {
+		langs = cfg.Assets.I18nMessages.SupportedLanguages
+	}
+
+	if len(langs) == 0 {
+		return []language.Tag{defaultLanguage}
+	}
+
+	var supportedLanguages []language.Tag
+	for _, lang := range langs {
+		supportedLanguages = append(supportedLanguages, language.MustParse(lang))
+	}
+	return supportedLanguages
 }

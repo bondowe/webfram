@@ -19,7 +19,8 @@ type (
 	contextKey string
 	// Config holds i18n configuration.
 	Config struct {
-		FS fs.FS
+		FS                 fs.FS
+		SupportedLanguages []language.Tag
 	}
 
 	// MessageFile represents the structure of the JSON message files.

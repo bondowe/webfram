@@ -2523,10 +2523,128 @@ app.Configure(&app.Config{
         FS: assetsFS,
         I18nMessages: &app.I18nMessages{
             Dir: "assets/locales",
+            SupportedLanguages: []string{"en", "fr", "es", "de"}, // Optional: defaults to available message files
         },
     },
 })
 ```
+
+### Language Detection and Matching
+
+WebFram automatically detects the user's preferred language using a priority-based approach:
+
+1. **Language Cookie** (`lang` cookie) - Highest priority
+1. **Accept-Language Header** - Parsed with quality values
+1. **Default Language** - Falls back to the first language in your `SupportedLanguages` list (or English if no i18n configured)
+
+The framework uses intelligent language matching that:
+
+- Respects quality values in Accept-Language headers (e.g., `fr;q=0.9,en;q=0.8`)
+- Matches regional variants to base languages (e.g., `fr-CA` matches `fr`)
+- Falls back to the closest supported language when exact match isn't available
+- Only matches against your configured supported languages
+
+**Example Accept-Language matching:**
+
+```text
+Accept-Language: fr-FR,fr;q=0.9,en;q=0.8,de;q=0.7
+Supported: ["en", "fr", "es"]
+Result: French (fr) - highest quality supported language
+```
+
+**Example default language fallback:**
+
+```go
+// If user has no cookie and no Accept-Language header
+SupportedLanguages: []string{"fr", "es", "de"}
+Result: French (fr) - first in the supported languages list
+```
+
+### Setting Language Preferences
+
+You can set a user's language preference using a cookie:
+
+```go
+mux.HandleFunc("POST /set-language", func(w app.ResponseWriter, r *app.Request) {
+    lang := r.FormValue("language")
+    
+    // Set language cookie for 30 days
+    app.SetLanguageCookie(w, lang, 30*24*3600)
+    
+    w.JSON(map[string]string{"message": "Language preference saved"})
+})
+```
+
+**Cookie parameters:**
+
+- `language`: Language code (e.g., "fr", "es", "de")
+- `maxAge`: Cookie lifetime in seconds
+  - Positive value: Cookie expires after specified seconds
+  - `-1`: Session cookie (deleted when browser closes)
+  - `0`: Delete the cookie immediately
+
+### Supported Languages Configuration
+
+#### Automatic Language Detection (Recommended)
+
+WebFram automatically detects supported languages from your message files. Simply place your translation files in the locales directory with the naming pattern `messages.<lang>.json`:
+
+```text
+assets/locales/
+  ├── messages.en.json    # English
+  ├── messages.fr.json    # French
+  ├── messages.es.json    # Spanish
+  └── messages.de.json    # German
+```
+
+WebFram will automatically discover all languages at startup:
+
+```go
+app.Configure(&app.Config{
+    Assets: &app.Assets{
+        FS: assetsFS,
+        I18nMessages: &app.I18nMessages{
+            Dir: "assets/locales",
+            // SupportedLanguages is optional - auto-detected from files
+        },
+    },
+})
+```
+
+**How Auto-Detection Works:**
+
+- Scans the locales directory for files matching `messages.<lang>.json`
+- Extracts language codes from filenames (e.g., `en`, `fr`, `es`)
+- Validates language codes using the IANA Language Subtag Registry
+- Skips invalid files, hidden files (starting with `.`), and non-JSON files
+- Returns English as default if no valid message files are found
+
+#### Explicit Language Configuration
+
+You can explicitly specify supported languages when you need more control:
+
+```go
+app.Configure(&app.Config{
+    Assets: &app.Assets{
+        FS: assetsFS,
+        I18nMessages: &app.I18nMessages{
+            Dir: "assets/locales",
+            SupportedLanguages: []string{"en", "fr"}, // Only English and French
+        },
+    },
+})
+```
+
+**When to Use Explicit Configuration:**
+
+- You want to limit available languages (e.g., only offer `en` and `fr` even if you have `de` messages)
+- You need consistent language matching behavior across deployments
+- You're building a multi-tenant application with different language sets per tenant
+- You want to control the default language explicitly
+
+**Important:** The order matters! The first language in the list is used as the default when no cookie or Accept-Language header is present.
+
+**Best Practice:** Use auto-detection during development for flexibility, and switch to explicit configuration in production for predictable behavior and security.
 
 ### Using i18n in Handlers
 
