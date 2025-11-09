@@ -27,6 +27,10 @@ type ResponseWriter struct {
 	context context.Context
 }
 
+var (
+	httpResponseStatusCodeKey contextKey = "httpResponseStatusCode"
+)
+
 func i18nPrinterFunc(messagePrinter *message.Printer) func(str string, args ...any) string {
 	return func(str string, args ...any) string {
 		return messagePrinter.Sprintf(str, args...)
@@ -58,6 +62,9 @@ func (w *ResponseWriter) Write(b []byte) (int, error) {
 // WriteHeader sends an HTTP response header with the provided status code.
 func (w *ResponseWriter) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
+	if w.context != nil {
+		w.context = context.WithValue(w.context, httpResponseStatusCodeKey, statusCode)
+	}
 }
 
 // Flush sends any buffered data to the client.
@@ -102,6 +109,13 @@ func (w *ResponseWriter) ReadFrom(src io.Reader) (int64, error) {
 // Unwrap returns the underlying http.ResponseWriter.
 func (w *ResponseWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
+}
+
+// StatusCode retrieves the HTTP response status code that was written.
+// Returns the status code and true if it was set, or 0 and false if not set.
+func (w *ResponseWriter) StatusCode() (int, bool) {
+	statusCode, ok := w.context.Value(httpResponseStatusCodeKey).(int)
+	return statusCode, ok
 }
 
 // JSON marshals the provided data as JSON and writes it to the response.

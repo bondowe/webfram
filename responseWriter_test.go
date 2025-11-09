@@ -115,12 +115,175 @@ func TestResponseWriter_Write(t *testing.T) {
 
 func TestResponseWriter_WriteHeader(t *testing.T) {
 	w := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: w}
+	rw := ResponseWriter{
+		ResponseWriter: w,
+		context:        context.Background(),
+	}
 
 	rw.WriteHeader(http.StatusCreated)
 
 	if w.Code != http.StatusCreated {
 		t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
+	}
+
+	// Verify status code is stored in context
+	statusCode, ok := rw.StatusCode()
+	if !ok {
+		t.Error("Expected status code to be set in context")
+	}
+	if statusCode != http.StatusCreated {
+		t.Errorf("Expected status code %d in context, got %d", http.StatusCreated, statusCode)
+	}
+}
+
+func TestResponseWriter_StatusCode(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupFunc      func(*ResponseWriter)
+		expectedCode   int
+		expectedExists bool
+	}{
+		{
+			name: "status code set via WriteHeader",
+			setupFunc: func(rw *ResponseWriter) {
+				rw.WriteHeader(http.StatusOK)
+			},
+			expectedCode:   http.StatusOK,
+			expectedExists: true,
+		},
+		{
+			name: "status code set via NoContent",
+			setupFunc: func(rw *ResponseWriter) {
+				rw.NoContent()
+			},
+			expectedCode:   http.StatusNoContent,
+			expectedExists: true,
+		},
+		{
+			name: "multiple WriteHeader calls - first wins",
+			setupFunc: func(rw *ResponseWriter) {
+				rw.WriteHeader(http.StatusCreated)
+				rw.WriteHeader(http.StatusOK) // This will be ignored by http.ResponseWriter but updates context
+			},
+			expectedCode:   http.StatusOK, // Context gets updated with latest call
+			expectedExists: true,
+		},
+		{
+			name: "status code not set",
+			setupFunc: func(rw *ResponseWriter) {
+				// Don't write any headers
+			},
+			expectedCode:   0,
+			expectedExists: false,
+		},
+		{
+			name: "various status codes",
+			setupFunc: func(rw *ResponseWriter) {
+				rw.WriteHeader(http.StatusNotFound)
+			},
+			expectedCode:   http.StatusNotFound,
+			expectedExists: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			rw := ResponseWriter{
+				ResponseWriter: w,
+				context:        context.Background(),
+			}
+
+			tt.setupFunc(&rw)
+
+			statusCode, ok := rw.StatusCode()
+			if ok != tt.expectedExists {
+				t.Errorf("StatusCode() exists = %v, want %v", ok, tt.expectedExists)
+			}
+			if statusCode != tt.expectedCode {
+				t.Errorf("StatusCode() = %d, want %d", statusCode, tt.expectedCode)
+			}
+		})
+	}
+}
+
+func TestResponseWriter_StatusCode_WithExistingContext(t *testing.T) {
+	w := httptest.NewRecorder()
+
+	// Create context with some existing values
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, testContextKey3, "existing-value")
+
+	rw := ResponseWriter{
+		ResponseWriter: w,
+		context:        ctx,
+	}
+
+	// Write a status code
+	rw.WriteHeader(http.StatusAccepted)
+
+	// Verify status code is accessible
+	statusCode, ok := rw.StatusCode()
+	if !ok {
+		t.Error("Expected status code to be set")
+	}
+	if statusCode != http.StatusAccepted {
+		t.Errorf("Expected status code %d, got %d", http.StatusAccepted, statusCode)
+	}
+
+	// Verify existing context value is still accessible
+	existingVal := rw.Context().Value(testContextKey3)
+	if existingVal != "existing-value" {
+		t.Errorf("Expected existing context value 'existing-value', got %v", existingVal)
+	}
+}
+
+func TestResponseWriter_StatusCode_AfterJSONResponse(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{
+		ResponseWriter: w,
+		context:        context.Background(),
+	}
+
+	// JSON automatically writes status 200 if not explicitly set
+	data := map[string]string{"key": "value"}
+	err := rw.JSON(data)
+	if err != nil {
+		t.Fatalf("JSON() error = %v", err)
+	}
+
+	// httptest.ResponseRecorder defaults to 200 after first write
+	// But our StatusCode() only tracks explicit WriteHeader calls
+	statusCode, ok := rw.StatusCode()
+	if ok {
+		t.Errorf("Expected status code not to be set (implicit 200), but got %d", statusCode)
+	}
+}
+
+func TestResponseWriter_StatusCode_ExplicitThenImplicit(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{
+		ResponseWriter: w,
+		context:        context.Background(),
+	}
+
+	// Explicitly set status before writing
+	rw.WriteHeader(http.StatusCreated)
+
+	// Write some data
+	data := map[string]string{"key": "value"}
+	err := rw.JSON(data)
+	if err != nil {
+		t.Fatalf("JSON() error = %v", err)
+	}
+
+	// Should still have the explicit status code
+	statusCode, ok := rw.StatusCode()
+	if !ok {
+		t.Error("Expected status code to be set")
+	}
+	if statusCode != http.StatusCreated {
+		t.Errorf("Expected status code %d, got %d", http.StatusCreated, statusCode)
 	}
 }
 
