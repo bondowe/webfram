@@ -310,11 +310,17 @@ func getPartialFunc(templatePath string) func(name string, data any) (htmlTempla
 // GetPartialFuncWithI18n creates a partial template function with i18n support.
 // If i18nFunc is nil, uses the default funcMap i18n function.
 // This allows partials to use per-request i18n printers for proper translation.
-func GetPartialFuncWithI18n(templatePath string, i18nFunc func(string, ...any) string) func(name string, data any) (htmlTemplate.HTML, error) {
+func GetPartialFuncWithI18n(
+	templatePath string,
+	i18nFunc func(string, ...any) string,
+) func(name string, data any) (htmlTemplate.HTML, error) {
 	return getPartialFuncWithI18n(templatePath, i18nFunc)
 }
 
-func getPartialFuncWithI18n(templatePath string, i18nFunc func(string, ...any) string) func(name string, data any) (htmlTemplate.HTML, error) {
+func getPartialFuncWithI18n(
+	templatePath string,
+	i18nFunc func(string, ...any) string,
+) func(name string, data any) (htmlTemplate.HTML, error) {
 	return func(name string, data any) (htmlTemplate.HTML, error) {
 		var templateDir string
 		if templatePath != "" {
@@ -325,6 +331,7 @@ func getPartialFuncWithI18n(templatePath string, i18nFunc func(string, ...any) s
 
 		tmpl := lookUpPartial(templateDir, partialFilename)
 
+		//nolint:nestif // TODO: Refactor partial lookup logic to reduce nesting complexity
 		if tmpl != nil {
 			// If i18n function is provided, clone template and add it to funcMap
 			if i18nFunc != nil {
@@ -422,11 +429,17 @@ func getTextPartialFunc(templatePath string) func(name string, data any) (string
 // GetTextPartialFuncWithI18n creates a text partial template function with i18n support.
 // If i18nFunc is nil, uses the default funcMap i18n function.
 // This allows text partials to use per-request i18n printers for proper translation.
-func GetTextPartialFuncWithI18n(templatePath string, i18nFunc func(string, ...any) string) func(name string, data any) (string, error) {
+func GetTextPartialFuncWithI18n(
+	templatePath string,
+	i18nFunc func(string, ...any) string,
+) func(name string, data any) (string, error) {
 	return getTextPartialFuncWithI18n(templatePath, i18nFunc)
 }
 
-func getTextPartialFuncWithI18n(templatePath string, i18nFunc func(string, ...any) string) func(name string, data any) (string, error) {
+func getTextPartialFuncWithI18n(
+	templatePath string,
+	i18nFunc func(string, ...any) string,
+) func(name string, data any) (string, error) {
 	return func(name string, data any) (string, error) {
 		var templateDir string
 		if templatePath != "" {
@@ -437,6 +450,7 @@ func getTextPartialFuncWithI18n(templatePath string, i18nFunc func(string, ...an
 
 		tmpl := lookUpTextPartial(templateDir, partialFilename)
 
+		//nolint:nestif // TODO: Refactor text partial lookup logic to reduce nesting complexity
 		if tmpl != nil {
 			// If i18n function is provided, clone template and add it to funcMap
 			if i18nFunc != nil {

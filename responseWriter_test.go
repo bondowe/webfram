@@ -170,7 +170,7 @@ func TestResponseWriter_StatusCode(t *testing.T) {
 		},
 		{
 			name: "status code not set",
-			setupFunc: func(rw *ResponseWriter) {
+			setupFunc: func(_ *ResponseWriter) {
 				// Don't write any headers
 			},
 			expectedCode:   0,

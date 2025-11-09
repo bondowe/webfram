@@ -27,6 +27,65 @@ func findByField(errs []ValidationError, field string) *ValidationError {
 	return nil
 }
 
+func TestUnsignedIntegerValidation(t *testing.T) {
+	type UintStruct struct {
+		Count    uint   `json:"count"    validate:"min=10,max=100"`
+		Port     uint16 `json:"port"     validate:"min=1024,max=65535"`
+		Age      uint8  `json:"age"      validate:"min=18,max=120"`
+		ID       uint64 `json:"id"       validate:"min=1"`
+		Multiple uint32 `json:"multiple" validate:"multipleOf=5"`
+		Status   uint   `json:"status"   validate:"enum=0|1|2"`
+	}
+
+	// Test valid values
+	validStruct := UintStruct{
+		Count:    50,
+		Port:     8080,
+		Age:      25,
+		ID:       1000,
+		Multiple: 15,
+		Status:   1,
+	}
+	errs := runValidate(validStruct)
+	if len(errs) > 0 {
+		t.Errorf("expected no errors for valid unsigned integers, got: %+v", errs)
+	}
+
+	// Test violations
+	invalidStruct := UintStruct{
+		Count:    5,   // min violation
+		Port:     100, // min violation
+		Age:      200, // max violation (exceeds uint8 range in validation)
+		ID:       0,   // min violation
+		Multiple: 12,  // multipleOf violation
+		Status:   99,  // enum violation
+	}
+	errs = runValidate(invalidStruct)
+	if len(errs) != 6 {
+		t.Errorf("expected 6 errors for invalid unsigned integers, got %d: %+v", len(errs), errs)
+	}
+
+	// Verify specific errors
+	if e := findByField(errs, "count"); e == nil {
+		t.Error("expected error for count field")
+	}
+	if e := findByField(errs, "port"); e == nil {
+		t.Error("expected error for port field")
+	}
+	if e := findByField(errs, "age"); e == nil {
+		t.Error("expected error for age field")
+	}
+	if e := findByField(errs, "id"); e == nil {
+		t.Error("expected error for id field")
+	}
+	if e := findByField(errs, "multiple"); e == nil {
+		t.Error("expected error for multiple field")
+	}
+	if e := findByField(errs, "status"); e == nil {
+		t.Error("expected error for status field")
+	}
+}
+
 func TestRequiredAndMinIntValidation(t *testing.T) {
 	type User struct {
 		Name string `json:"name" validate:"required"      errmsg:"required=Name is required"`

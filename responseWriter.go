@@ -27,7 +27,7 @@ type ResponseWriter struct {
 	context context.Context
 }
 
-var (
+const (
 	httpResponseStatusCodeKey contextKey = "httpResponseStatusCode"
 )
 

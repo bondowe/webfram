@@ -94,7 +94,6 @@ func bindRecursive(
 		case reflect.Bool:
 			field.SetBool(values[0] == "true")
 		case reflect.Slice:
-
 			if errs := validateSliceLength(&fieldType, values); errs != nil {
 				*errors = append(*errors, *errs)
 			}
@@ -103,130 +102,10 @@ func bindRecursive(
 				*errors = append(*errors, *errs)
 			}
 
-			switch field.Type().Elem() {
-			case reflect.TypeOf(uuid.UUID{}):
-				vs, errs := validateUUIDSliceFieldString(&fieldType, values)
-				if len(errs) > 0 {
-					*errors = append(*errors, errs...)
-				}
-				field.Set(reflect.ValueOf(vs))
-			case reflect.TypeOf(time.Time{}):
-				vs, errs := validateTimeSliceFieldString(&fieldType, values)
-				if len(errs) > 0 {
-					*errors = append(*errors, errs...)
-				}
-				field.Set(reflect.ValueOf(vs))
+			// Use the shared bindSliceField function to avoid code duplication
+			if err := bindSliceField(field, fieldType, values, errors); err != nil {
+				return err
 			}
-
-			switch field.Type().Elem().Kind() {
-			case reflect.String:
-				field.Set(reflect.ValueOf(values))
-			case reflect.Int:
-				intSlice := []int{}
-				for _, v := range values {
-					iv, err := strconv.Atoi(v)
-					if err != nil {
-						*errors = append(
-							*errors,
-							ValidationError{Field: fieldType.Name, Error: "invalid int in slice"},
-						)
-						continue
-					}
-					intSlice = append(intSlice, iv)
-				}
-				field.Set(reflect.ValueOf(intSlice))
-			case reflect.Int8:
-				intSlice := []int8{}
-				for _, v := range values {
-					iv, err := strconv.ParseInt(v, 10, 8)
-					if err != nil {
-						*errors = append(
-							*errors,
-							ValidationError{Field: fieldType.Name, Error: "invalid int8 in slice"},
-						)
-						continue
-					}
-					intSlice = append(intSlice, int8(iv))
-				}
-				field.Set(reflect.ValueOf(intSlice))
-			case reflect.Int16:
-				intSlice := []int16{}
-				for _, v := range values {
-					iv, err := strconv.ParseInt(v, 10, 16)
-					if err != nil {
-						*errors = append(
-							*errors,
-							ValidationError{Field: fieldType.Name, Error: "invalid int16 in slice"},
-						)
-						continue
-					}
-					intSlice = append(intSlice, int16(iv))
-				}
-				field.Set(reflect.ValueOf(intSlice))
-			case reflect.Int32:
-				intSlice := []int32{}
-				for _, v := range values {
-					iv, err := strconv.ParseInt(v, 10, 32)
-					if err != nil {
-						*errors = append(
-							*errors,
-							ValidationError{Field: fieldType.Name, Error: "invalid int32 in slice"},
-						)
-						continue
-					}
-					intSlice = append(intSlice, int32(iv))
-				}
-				field.Set(reflect.ValueOf(intSlice))
-			case reflect.Int64:
-				intSlice := []int64{}
-				for _, v := range values {
-					iv, err := strconv.ParseInt(v, 10, 64)
-					if err != nil {
-						*errors = append(
-							*errors,
-							ValidationError{Field: fieldType.Name, Error: "invalid int64 in slice"},
-						)
-						continue
-					}
-					intSlice = append(intSlice, iv)
-				}
-				field.Set(reflect.ValueOf(intSlice))
-			case reflect.Float32:
-				floatSlice := []float32{}
-				for _, v := range values {
-					fv, err := strconv.ParseFloat(v, 32)
-					if err != nil {
-						*errors = append(
-							*errors,
-							ValidationError{
-								Field: fieldType.Name,
-								Error: "invalid float32 in slice",
-							},
-						)
-						continue
-					}
-					floatSlice = append(floatSlice, float32(fv))
-				}
-				field.Set(reflect.ValueOf(floatSlice))
-			case reflect.Float64:
-				floatSlice := []float64{}
-				for _, v := range values {
-					fv, err := strconv.ParseFloat(v, 64)
-					if err != nil {
-						*errors = append(
-							*errors,
-							ValidationError{
-								Field: fieldType.Name,
-								Error: "invalid float64 in slice",
-							},
-						)
-						continue
-					}
-					floatSlice = append(floatSlice, fv)
-				}
-				field.Set(reflect.ValueOf(floatSlice))
-			}
-
 		case reflect.Map:
 			// Initialize the map if nil
 			if field.IsNil() {

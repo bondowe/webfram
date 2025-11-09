@@ -598,16 +598,14 @@ func TestLookUpPartial_RootLevel(t *testing.T) {
 				if !strings.Contains(sb.String(), tt.expectedInBody) {
 					t.Errorf("Expected partial to contain %q, got %q", tt.expectedInBody, sb.String())
 				}
-			} else {
-				if result != nil {
-					t.Errorf("Expected not to find partial %s from %s, but got a template", tt.partialFile, tt.startFolder)
-				}
+			} else if result != nil {
+				t.Errorf("Expected not to find partial %s from %s, but got a template", tt.partialFile, tt.startFolder)
 			}
 		})
 	}
 }
 
-// TestLookUpPartial_Caching tests that the partial lookup results are properly cached
+// TestLookUpPartial_Caching tests that the partial lookup results are properly cached.
 func TestLookUpPartial_Caching(t *testing.T) {
 	resetTemplateConfig()
 
@@ -649,7 +647,7 @@ func TestLookUpPartial_Caching(t *testing.T) {
 	}
 }
 
-// TestLookUpPartial_EmptyFolder tests edge cases with empty or root folder paths
+// TestLookUpPartial_EmptyFolder tests edge cases with empty or root folder paths.
 func TestLookUpPartial_EmptyFolder(t *testing.T) {
 	resetTemplateConfig()
 
@@ -712,7 +710,7 @@ func TestLookUpPartial_EmptyFolder(t *testing.T) {
 	}
 }
 
-// TestGetPartialFuncWithI18n tests the i18n-aware partial function creation
+// TestGetPartialFuncWithI18n tests the i18n-aware partial function creation.
 func TestGetPartialFuncWithI18n(t *testing.T) {
 	resetTemplateConfig()
 
@@ -736,7 +734,7 @@ func TestGetPartialFuncWithI18n(t *testing.T) {
 	}{
 		{
 			name: "Partial with custom i18n function",
-			i18nFunc: func(format string, args ...any) string {
+			i18nFunc: func(format string, _ ...any) string {
 				// Simple test i18n that prefixes with [FR]
 				return "[FR] " + format
 			},
@@ -785,7 +783,7 @@ func TestGetPartialFuncWithI18n(t *testing.T) {
 	}
 }
 
-// TestGetPartialFuncWithI18n_NestedPartials tests that nested partials inherit i18n
+// TestGetPartialFuncWithI18n_NestedPartials tests that nested partials inherit i18n.
 func TestGetPartialFuncWithI18n_NestedPartials(t *testing.T) {
 	resetTemplateConfig()
 
@@ -800,7 +798,7 @@ func TestGetPartialFuncWithI18n_NestedPartials(t *testing.T) {
 	Configure(cfg)
 
 	// Create a custom i18n function that prefixes with language tag
-	spanishFunc := func(format string, args ...any) string {
+	spanishFunc := func(format string, _ ...any) string {
 		return "[ES] " + format
 	}
 
@@ -824,7 +822,7 @@ func TestGetPartialFuncWithI18n_NestedPartials(t *testing.T) {
 	}
 }
 
-// TestGetPartialFuncWithI18n_TemplateCloning tests that i18n injection doesn't affect cached templates
+// TestGetPartialFuncWithI18n_TemplateCloning tests that i18n injection doesn't affect cached templates.
 func TestGetPartialFuncWithI18n_TemplateCloning(t *testing.T) {
 	resetTemplateConfig()
 
@@ -839,11 +837,11 @@ func TestGetPartialFuncWithI18n_TemplateCloning(t *testing.T) {
 	Configure(cfg)
 
 	// Create two different i18n functions
-	englishFunc := func(format string, args ...any) string {
+	englishFunc := func(format string, _ ...any) string {
 		return "[EN] " + format
 	}
 
-	frenchFunc := func(format string, args ...any) string {
+	frenchFunc := func(format string, _ ...any) string {
 		return "[FR] " + format
 	}
 
@@ -878,7 +876,7 @@ func TestGetPartialFuncWithI18n_TemplateCloning(t *testing.T) {
 	}
 }
 
-// TestGetPartialFunc_DefaultBehavior tests that getPartialFunc works without custom i18n injection
+// TestGetPartialFunc_DefaultBehavior tests that getPartialFunc works without custom i18n injection.
 func TestGetPartialFunc_DefaultBehavior(t *testing.T) {
 	resetTemplateConfig()
 
@@ -1177,10 +1175,8 @@ func TestLookUpTextPartial_RootLevel(t *testing.T) {
 				if !strings.Contains(sb.String(), tt.expectedInBody) {
 					t.Errorf("Expected partial to contain %q, got %q", tt.expectedInBody, sb.String())
 				}
-			} else {
-				if result != nil {
-					t.Errorf("Expected not to find partial %s from %s, but got a template", tt.partialFile, tt.startFolder)
-				}
+			} else if result != nil {
+				t.Errorf("Expected not to find partial %s from %s, but got a template", tt.partialFile, tt.startFolder)
 			}
 		})
 	}
@@ -1209,7 +1205,7 @@ func TestGetTextPartialFuncWithI18n(t *testing.T) {
 	}{
 		{
 			name: "Text partial with custom i18n function",
-			i18nFunc: func(format string, args ...any) string {
+			i18nFunc: func(format string, _ ...any) string {
 				return "[FR] " + format
 			},
 			partialName:    "i18n_test",
@@ -1269,7 +1265,7 @@ func TestGetTextPartialFuncWithI18n_NestedPartials(t *testing.T) {
 
 	Configure(cfg)
 
-	spanishFunc := func(format string, args ...any) string {
+	spanishFunc := func(format string, _ ...any) string {
 		return "[ES] " + format
 	}
 
@@ -1304,11 +1300,11 @@ func TestGetTextPartialFuncWithI18n_TemplateCloning(t *testing.T) {
 
 	Configure(cfg)
 
-	englishFunc := func(format string, args ...any) string {
+	englishFunc := func(format string, _ ...any) string {
 		return "[EN] " + format
 	}
 
-	frenchFunc := func(format string, args ...any) string {
+	frenchFunc := func(format string, _ ...any) string {
 		return "[FR] " + format
 	}
 

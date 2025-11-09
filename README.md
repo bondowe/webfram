@@ -318,7 +318,7 @@ app.Configure(&app.Config{
 
    **Important:** If you use partial templates (files starting with `_`), you **must** use the `all:` prefix in your embed directive (e.g., `//go:embed all:assets`). By default, Go's embed excludes files starting with `_` or `.`. The `all:` prefix includes these files.
 
-2. **Environment-Specific Configuration**: Use environment variables for deployment-specific settings:
+1. **Environment-Specific Configuration**: Use environment variables for deployment-specific settings:
 
 ```go
 //go:embed all:assets
@@ -351,7 +351,7 @@ func getConfig() *app.Config {
 }
 ```
 
-3. **Validate Configuration**: Check configuration errors early:
+1. **Validate Configuration**: Check configuration errors early:
 
 ```go
 func main() {
@@ -367,7 +367,7 @@ func main() {
 }
 ```
 
-4. **Single Configuration Call**: Only call `Configure()` once at startup:
+1. **Single Configuration Call**: Only call `Configure()` once at startup:
 
 ```go
 func main() {
@@ -387,22 +387,26 @@ func main() {
 The `ListenAndServe` function starts an HTTP server with the specified address, multiplexer, and optional server configuration. It provides automatic graceful shutdown, OpenAPI endpoint registration, and configurable server timeouts.
 
 **Signature:**
+
 ```go
 func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig)
 ```
 
 **Parameters:**
+
 - `addr`: Server address (e.g., `:8080`, `localhost:3000`, `0.0.0.0:8080`)
 - `mux`: ServeMux instance with registered routes
 - `cfg`: Optional ServerConfig for customizing server behavior (can be `nil` for defaults)
 
 **Features:**
+
 - Automatically registers OpenAPI endpoint if configured
 - Graceful shutdown on SIGINT/SIGTERM signals
 - Configurable timeouts with sensible defaults
 - Panics on startup or shutdown errors for fail-fast behavior
 
 **Basic Usage:**
+
 ```go
 mux := app.NewServeMux()
 mux.HandleFunc("GET /hello", handleHello)
@@ -412,6 +416,7 @@ app.ListenAndServe(":8080", mux, nil)
 ```
 
 **With Custom Configuration:**
+
 ```go
 mux := app.NewServeMux()
 mux.HandleFunc("GET /hello", handleHello)
@@ -978,7 +983,7 @@ mux.HandleFunc("POST /users", func(w app.ResponseWriter, r *app.Request) {
 
 **Form data example:**
 
-```
+```text
 name=John+Doe&email=john@example.com&age=30&role=admin&birthdate=1993-01-15&hobbies=reading&hobbies=coding
 ```
 
@@ -1092,7 +1097,7 @@ type User struct {
 
 **Form data example:**
 
-```
+```text
 name=John+Doe&address.street=123+Main+St&address.city=Springfield&address.zip=12345
 ```
 
@@ -1140,7 +1145,7 @@ mux.HandleFunc("POST /config", func(w app.ResponseWriter, r *app.Request) {
 
 **Form data example:**
 
-```
+```text
 metadata[color]=red&metadata[size]=large&scores[math]=95&scores[science]=87&settings[1]=enabled&settings[2]=disabled
 ```
 
@@ -1297,6 +1302,285 @@ if valErrors.Any() {
 ### Skipping Validation
 
 For JSON and XML binding, you can skip validation by passing `false` as the second parameter:
+
+```go
+// Skip validation - useful when you trust the data source
+user, valErrors, err := app.BindJSON[User](r, false)
+// valErrors will be empty, only binding errors are checked
+
+// With validation enabled
+user, valErrors, err := app.BindJSON[User](r, true)
+// Both binding and validation errors are checked
+```
+
+**Note:** Form binding always performs validation.
+
+### Unified Bind Method
+
+WebFram provides a powerful unified `Bind[T any](r *http.Request, validate bool) (T, []ValidationError, error)` method that can bind data from multiple sources simultaneously. This method respects the `bindFrom` struct tag to explicitly specify binding sources, or uses intelligent precedence rules when no tag is present.
+
+#### Binding Sources
+
+The `bindFrom` tag supports the following values:
+
+- `path` - Bind from URL path parameters
+- `query` - Bind from URL query parameters
+- `header` - Bind from HTTP headers
+- `cookie` - Bind from HTTP cookies
+- `form` - Bind from form data (query + POST body)
+- `body` - Bind from request body (JSON/XML based on Content-Type)
+- `auto` (or omitted) - Use precedence rules
+
+#### Struct Tag Fallback Behavior
+
+When determining the field name to use for binding, the `Bind` method uses a **tag fallback strategy**:
+
+1. **`form` tag** - First priority for field name lookup
+2. **`json` tag** - Used if no `form` tag exists (options like `omitempty` are stripped)
+3. **`xml` tag** - Used if neither `form` nor `json` tags exist (options are stripped)
+4. **Field name** - Used if no tags are present
+
+This allows you to use existing `json` or `xml` tags without duplicating them as `form` tags:
+
+```go
+type User struct {
+    // Uses "user_name" for binding (from json tag)
+    Name string `json:"user_name" bindFrom:"query"`
+    
+    // Uses "user_age" for binding (from xml tag, no json tag present)
+    Age int `xml:"user_age" bindFrom:"header"`
+    
+    // Uses "Email" for binding (field name, no tags present)
+    Email string `bindFrom:"cookie"`
+    
+    // Uses "user_status" for binding (form tag takes precedence)
+    Status string `form:"user_status" json:"status" bindFrom:"query"`
+    
+    // Options are stripped: uses "active" (not "active,omitempty")
+    Active bool `json:"active,omitempty" bindFrom:"query"`
+}
+```
+
+This tag fallback works consistently across all binding sources (path, query, header, cookie, form, body), making it easy to reuse struct definitions across different contexts without additional configuration.
+
+#### Precedence Rules
+
+When `bindFrom` is not specified, the method follows this precedence order:
+
+1. **Path parameters** (highest priority)
+2. **Query parameters**
+3. **Headers**
+4. **Cookies**
+5. **Form/Body data** (lowest priority)
+
+This means if a field exists in multiple sources, the one with higher precedence will be used.
+
+#### Basic Usage with Auto Detection
+
+```go
+type UserRequest struct {
+    ID      string `form:"id"`       // Will be bound from path if available, else query, etc.
+    Search  string `form:"q"`        // Will be bound from query if available, else headers, etc.
+    Token   string `form:"token"`    // Will be bound from the first available source
+    Name    string `form:"name"`
+    Email   string `form:"email" validate:"required,format=email"`
+}
+
+mux.HandleFunc("GET /users/{id}", func(w app.ResponseWriter, r *app.Request) {
+    // Bind from all sources with validation
+    user, valErrors, err := bind.Bind[UserRequest](r, true)
+    
+    if err != nil {
+        w.Error(http.StatusBadRequest, err.Error())
+        return
+    }
+    
+    if len(valErrors) > 0 {
+        w.WriteHeader(http.StatusBadRequest)
+        w.JSON(bind.ValidationErrors{Errors: valErrors})
+        return
+    }
+    
+    // user.ID will be bound from path parameter
+    // user.Search will be bound from query parameter "q"
+    w.JSON(user)
+})
+```
+
+#### Explicit Source Binding
+
+Use the `bindFrom` tag to explicitly specify the binding source:
+
+```go
+type MixedRequest struct {
+    UserID      string   `form:"id" bindFrom:"path"`          // Always from path
+    SearchQuery string   `form:"q" bindFrom:"query"`          // Always from query
+    AuthToken   string   `form:"Authorization" bindFrom:"header"` // Always from header
+    SessionID   string   `form:"session_id" bindFrom:"cookie"`    // Always from cookie
+    Username    string   `form:"username" bindFrom:"form"`        // Always from form data
+    Tags        []string `form:"tags" bindFrom:"query"`           // Multi-value from query
+}
+
+mux.HandleFunc("POST /users/{id}/update", func(w app.ResponseWriter, r *app.Request) {
+    // Each field binds from its specified source
+    req, valErrors, err := bind.Bind[MixedRequest](r, true)
+    
+    if err != nil {
+        w.Error(http.StatusBadRequest, err.Error())
+        return
+    }
+    
+    if len(valErrors) > 0 {
+        w.WriteHeader(http.StatusBadRequest)
+        w.JSON(bind.ValidationErrors{Errors: valErrors})
+        return
+    }
+    
+    // req.UserID comes from URL path
+    // req.SearchQuery comes from query string
+    // req.AuthToken comes from Authorization header
+    // req.SessionID comes from session_id cookie
+    // req.Username comes from form data
+    w.JSON(req)
+})
+```
+
+#### Complex Types and Slices
+
+The unified `Bind` method supports all the same types as other binding methods:
+
+```go
+type ComplexRequest struct {
+    ID        uuid.UUID   `form:"id" bindFrom:"path"`
+    CreatedAt time.Time   `form:"created" bindFrom:"query" format:"2006-01-02"`
+    Tags      []string    `form:"tags" bindFrom:"query" validate:"minItems=1,maxItems=10"`
+    Scores    []int       `form:"scores" bindFrom:"query" validate:"minItems=1"`
+    Active    bool        `form:"active" bindFrom:"query"`
+    UserAgent string      `form:"User-Agent" bindFrom:"header"`
+}
+
+// Example request: GET /items/550e8400-e29b-41d4-a716-446655440000?created=2024-01-15&tags=go&tags=web&scores=100&scores=95&active=true
+mux.HandleFunc("GET /items/{id}", func(w app.ResponseWriter, r *app.Request) {
+    req, valErrors, err := bind.Bind[ComplexRequest](r, true)
+    
+    if err != nil {
+        w.Error(http.StatusBadRequest, err.Error())
+        return
+    }
+    
+    if len(valErrors) > 0 {
+        w.WriteHeader(http.StatusBadRequest)
+        w.JSON(bind.ValidationErrors{Errors: valErrors})
+        return
+    }
+    
+    // All fields are properly typed and validated
+    w.JSON(req)
+})
+```
+
+#### Form Data Binding
+
+When binding from form data, the method automatically parses both URL-encoded and multipart forms:
+
+```go
+type LoginRequest struct {
+    Username string `form:"username" bindFrom:"form" validate:"required,minlength=3"`
+    Password string `form:"password" bindFrom:"form" validate:"required,minlength=8"`
+    Remember bool   `form:"remember" bindFrom:"form"`
+}
+
+mux.HandleFunc("POST /login", func(w app.ResponseWriter, r *app.Request) {
+    req, valErrors, err := bind.Bind[LoginRequest](r, true)
+    
+    if err != nil {
+        w.Error(http.StatusBadRequest, err.Error())
+        return
+    }
+    
+    if len(valErrors) > 0 {
+        w.WriteHeader(http.StatusBadRequest)
+        w.JSON(bind.ValidationErrors{Errors: valErrors})
+        return
+    }
+    
+    // Process login
+    w.JSON(map[string]string{"status": "success"})
+})
+```
+
+#### Validation with Unified Bind
+
+The unified `Bind` method supports all validation tags and works the same way as other binding methods:
+
+```go
+type CreateUserRequest struct {
+    Name  string `form:"name" bindFrom:"form" validate:"required,minlength=3,maxlength=50" errmsg:"required=Name is required;minlength=Name too short;maxlength=Name too long"`
+    Email string `form:"email" bindFrom:"form" validate:"required,format=email" errmsg:"required=Email is required;format=Invalid email format"`
+    Age   int    `form:"age" bindFrom:"query" validate:"min=18,max=120" errmsg:"min=Must be at least 18;max=Must be at most 120"`
+    Role  string `form:"role" bindFrom:"header" validate:"enum=admin|user|guest" errmsg:"enum=Invalid role"`
+}
+
+mux.HandleFunc("POST /users", func(w app.ResponseWriter, r *app.Request) {
+    // Bind with validation from multiple sources
+    user, valErrors, err := bind.Bind[CreateUserRequest](r, true)
+    
+    if err != nil {
+        w.Error(http.StatusBadRequest, err.Error())
+        return
+    }
+    
+    if len(valErrors) > 0 {
+        w.WriteHeader(http.StatusBadRequest)
+        w.JSON(bind.ValidationErrors{Errors: valErrors})
+        return
+    }
+    
+    // All validation rules have been checked
+    w.JSON(user)
+})
+```
+
+#### Binding without Validation
+
+You can skip validation by passing `false` as the second parameter:
+
+```go
+// Bind without validation
+user, valErrors, err := bind.Bind[User](r, false)
+// valErrors will be empty, only binding/parsing errors are checked
+
+// Bind with validation
+user, valErrors, err := bind.Bind[User](r, true)
+// Both binding and validation errors are checked
+```
+
+#### Advantages of Unified Bind
+
+1. **Single Method**: One method to bind from all sources instead of multiple specialized methods
+2. **Explicit Control**: Use `bindFrom` tag to explicitly specify the source for each field
+3. **Intelligent Defaults**: Sensible precedence rules when source is not specified
+4. **Type Safety**: Full compile-time type safety with Go generics
+5. **Comprehensive**: Supports all field types, validation tags, and custom error messages
+6. **Flexible**: Mix and match different sources in a single struct
+
+#### When to Use Unified Bind vs Specialized Methods
+
+**Use Unified `Bind`** when:
+
+- You need to bind from multiple sources in one request
+- You want explicit control over binding sources with `bindFrom` tags
+- You want a single, consistent binding interface
+
+**Use Specialized Methods** (`BindForm`, `BindJSON`, `BindXML`, `Path`, `Query`, `Header`, `Cookie`) when:
+
+- You're binding from a single, known source
+- You want to be explicit about the binding method in your code
+- You're working with existing code that uses these methods
+
+Both approaches are fully supported and can be used interchangeably based on your preferences and use case.
+
+### Skipping Validation (Legacy Methods)
 
 ```go
 // Skip validation - useful when you trust the data source
@@ -1937,7 +2221,7 @@ eventSource.onerror = function(error) {
 - **`errorFunc`**: Called on stream errors. Defaults to printing errors if `nil`.
 - **`headers`**: Map of custom HTTP headers to include in the response. Can be `nil`.
 
-### Use Cases
+### SSE Use Cases
 
 **Real-time Dashboards:**
 
@@ -1998,7 +2282,7 @@ app.Configure(&app.Config{
 
 Your project structure should have an `assets` directory containing both `templates` and `locales`:
 
-```
+```text
 assets/
 ├── templates/
 │   ├── layout.go.html              # Root layout (inherited by all)
@@ -2998,6 +3282,6 @@ go tool cover -html=coverage.out
 
 This project is licensed under the MIT License.
 
-## Contributing
+## Project Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

@@ -493,6 +493,81 @@ func BindXML[T any](r *Request, validate bool) (T, *ValidationErrors, error) {
 	return val, vErrors, err
 }
 
+// BindPath parses URL path parameters from the request and binds them to the provided type T.
+// Path parameters are extracted using r.PathValue() method (Go 1.22+).
+// It validates the data according to struct tags (validate, errmsg) and returns validation errors if any.
+// Struct fields should use the "form" tag to specify parameter names.
+// Returns the bound data and validation errors (nil if valid).
+func BindPath[T any](r *Request) (T, *ValidationErrors) {
+	val, valErrors, _ := bind.Path[T](r.Request)
+
+	vErrors := &ValidationErrors{}
+	for _, err := range valErrors {
+		vErrors.Errors = append(vErrors.Errors, ValidationError{
+			Field: err.Field,
+			Error: err.Error,
+		})
+	}
+
+	return val, vErrors
+}
+
+// BindQuery parses query parameters from the request URL and binds them to the provided type T.
+// It validates the data according to struct tags (validate, errmsg) and returns validation errors if any.
+// Struct fields should use the "form" tag to specify parameter names.
+// Supports slices for multi-value query parameters.
+// Returns the bound data, validation errors (nil if valid), and a parsing error (nil if successful).
+func BindQuery[T any](r *Request) (T, *ValidationErrors, error) {
+	val, valErrors, err := bind.Query[T](r.Request)
+
+	vErrors := &ValidationErrors{}
+	for _, err := range valErrors {
+		vErrors.Errors = append(vErrors.Errors, ValidationError{
+			Field: err.Field,
+			Error: err.Error,
+		})
+	}
+
+	return val, vErrors, err
+}
+
+// BindCookie parses HTTP cookies from the request and binds them to the provided type T.
+// It validates the data according to struct tags (validate, errmsg) and returns validation errors if any.
+// Struct fields should use the "form" tag to specify cookie names.
+// Returns the bound data, validation errors (nil if valid), and a parsing error (nil if successful).
+func BindCookie[T any](r *Request) (T, *ValidationErrors, error) {
+	val, valErrors, err := bind.Cookie[T](r.Request)
+
+	vErrors := &ValidationErrors{}
+	for _, err := range valErrors {
+		vErrors.Errors = append(vErrors.Errors, ValidationError{
+			Field: err.Field,
+			Error: err.Error,
+		})
+	}
+
+	return val, vErrors, err
+}
+
+// BindHeader parses HTTP headers from the request and binds them to the provided type T.
+// It validates the data according to struct tags (validate, errmsg) and returns validation errors if any.
+// Struct fields should use the "form" tag to specify header names (case-insensitive).
+// Supports slices for multi-value headers.
+// Returns the bound data, validation errors (nil if valid), and a parsing error (nil if successful).
+func BindHeader[T any](r *Request) (T, *ValidationErrors, error) {
+	val, valErrors, err := bind.Header[T](r.Request)
+
+	vErrors := &ValidationErrors{}
+	for _, err := range valErrors {
+		vErrors.Errors = append(vErrors.Errors, ValidationError{
+			Field: err.Field,
+			Error: err.Error,
+		})
+	}
+
+	return val, vErrors, err
+}
+
 // PatchJSON applies JSON Patch (RFC 6902) operations to the provided data.
 // The request must use PATCH method and have Content-Type application/json-patch+json.
 // If validate is true, validates the patched data according to struct tags.

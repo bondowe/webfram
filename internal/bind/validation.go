@@ -247,14 +247,14 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 
 			case strings.HasPrefix(rule, ruleMin+"=") && IsIntType(kind):
 				minVal, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMin+"="))
-				if field.Int() < int64(minVal) {
+				if getIntValue(field) < int64(minVal) {
 					msg := getErrorMessage(&fieldType, ruleMin, fmt.Sprintf("must be ≥ %d", minVal))
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
 			case strings.HasPrefix(rule, ruleMax+"=") && IsIntType(kind):
 				maxVal, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMax+"="))
-				if field.Int() > int64(maxVal) {
+				if getIntValue(field) > int64(maxVal) {
 					msg := getErrorMessage(&fieldType, ruleMax, fmt.Sprintf("must be ≤ %d", maxVal))
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
@@ -275,7 +275,7 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 
 			case strings.HasPrefix(rule, ruleMultipleOf+"=") && IsIntType(kind):
 				multVal, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMultipleOf+"="))
-				if field.Int()%int64(multVal) != 0 {
+				if getIntValue(field)%int64(multVal) != 0 {
 					msg := getErrorMessage(
 						&fieldType,
 						ruleMultipleOf,
@@ -391,7 +391,7 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 				found := false
 				for _, a := range allowed {
 					allowedVal, _ := strconv.Atoi(a)
-					if field.Int() == int64(allowedVal) {
+					if getIntValue(field) == int64(allowedVal) {
 						found = true
 						break
 					}
@@ -575,12 +575,34 @@ func getErrorMessage(field *reflect.StructField, rule, fallback string) string {
 // Includes signed and unsigned integers of all sizes (int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64).
 func IsIntType(kind reflect.Kind) bool {
 	return kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 ||
-		kind == reflect.Int32 ||
-		kind == reflect.Int64
+		kind == reflect.Int32 || kind == reflect.Int64 ||
+		kind == reflect.Uint || kind == reflect.Uint8 || kind == reflect.Uint16 ||
+		kind == reflect.Uint32 || kind == reflect.Uint64
 }
 
 // IsFloatType returns true if the given reflect.Kind represents a floating-point type.
 // Includes float32 and float64.
 func IsFloatType(kind reflect.Kind) bool {
 	return kind == reflect.Float32 || kind == reflect.Float64
+}
+
+// IsUintType returns true if the given reflect.Kind represents an unsigned integer type.
+func IsUintType(kind reflect.Kind) bool {
+	return kind == reflect.Uint || kind == reflect.Uint8 || kind == reflect.Uint16 ||
+		kind == reflect.Uint32 || kind == reflect.Uint64
+}
+
+// getIntValue returns the integer value from a field, handling both signed and unsigned types.
+// For unsigned values that exceed int64 max, it returns the max int64 value to avoid overflow.
+func getIntValue(field reflect.Value) int64 {
+	if IsUintType(field.Kind()) {
+		uVal := field.Uint()
+		// Check if the uint64 value fits in int64 range
+		if uVal > uint64(1<<63-1) {
+			// Return max int64 if it would overflow
+			return 1<<63 - 1
+		}
+		return int64(uVal)
+	}
+	return field.Int()
 }
