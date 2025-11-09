@@ -198,13 +198,17 @@ func (w *ResponseWriter) renderTemplate(path string, data any, contentType strin
 	if tmpl, tmplFound := template.LookupTemplate(path+extension, false); tmplFound {
 		if msgPrinter, printerOk := i18n.PrinterFromContext(w.context); printerOk {
 			if isHTML {
+				i18nFunc := i18nPrinterFunc(msgPrinter)
 				funcs := htmlTemplate.FuncMap{
-					tmplConfig.I18nFuncName: i18nPrinterFunc(msgPrinter),
+					tmplConfig.I18nFuncName: i18nFunc,
+					"partial":               template.GetPartialFuncWithI18n(path+extension, i18nFunc),
 				}
 				return template.Must(tmpl.Clone()).Funcs(funcs).Execute(w.ResponseWriter, data)
 			}
+			i18nFunc := i18nPrinterFunc(msgPrinter)
 			funcs := textTemplate.FuncMap{
-				tmplConfig.I18nFuncName: i18nPrinterFunc(msgPrinter),
+				tmplConfig.I18nFuncName: i18nFunc,
+				"partial":               template.GetTextPartialFuncWithI18n(path+extension, i18nFunc),
 			}
 			return template.Must(tmpl.Clone()).Funcs(funcs).Execute(w.ResponseWriter, data)
 		}

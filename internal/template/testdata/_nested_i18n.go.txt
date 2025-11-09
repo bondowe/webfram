@@ -1,0 +1,2 @@
+{{T "Nested partial message"}}
+{{partial "i18n_test" .}}

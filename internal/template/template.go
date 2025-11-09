@@ -284,10 +284,17 @@ func lookUpPartial(folder, partialFilename string) *htmlTemplate.Template {
 			return tmpl
 		}
 
+		// Check if we've reached the root before calculating parent
+		if currentFolder == "" || currentFolder == "." || currentFolder == "/" {
+			// Not found, cache nil to avoid repeated searches
+			partialsCache.Store(cacheKey, nil)
+			return nil
+		}
+
 		parentFolder := strings.ReplaceAll(filepath.Dir(currentFolder), "\\", "/")
 
-		if parentFolder == "." || parentFolder == "/" || parentFolder == currentFolder {
-			// Not found, cache nil to avoid repeated searches
+		// Check if parent is same as current (shouldn't happen, but safety check)
+		if parentFolder == currentFolder {
 			partialsCache.Store(cacheKey, nil)
 			return nil
 		}
@@ -297,6 +304,17 @@ func lookUpPartial(folder, partialFilename string) *htmlTemplate.Template {
 }
 
 func getPartialFunc(templatePath string) func(name string, data any) (htmlTemplate.HTML, error) {
+	return getPartialFuncWithI18n(templatePath, nil)
+}
+
+// GetPartialFuncWithI18n creates a partial template function with i18n support.
+// If i18nFunc is nil, uses the default funcMap i18n function.
+// This allows partials to use per-request i18n printers for proper translation.
+func GetPartialFuncWithI18n(templatePath string, i18nFunc func(string, ...any) string) func(name string, data any) (htmlTemplate.HTML, error) {
+	return getPartialFuncWithI18n(templatePath, i18nFunc)
+}
+
+func getPartialFuncWithI18n(templatePath string, i18nFunc func(string, ...any) string) func(name string, data any) (htmlTemplate.HTML, error) {
 	return func(name string, data any) (htmlTemplate.HTML, error) {
 		var templateDir string
 		if templatePath != "" {
@@ -308,10 +326,142 @@ func getPartialFunc(templatePath string) func(name string, data any) (htmlTempla
 		tmpl := lookUpPartial(templateDir, partialFilename)
 
 		if tmpl != nil {
+			// If i18n function is provided, clone template and add it to funcMap
+			if i18nFunc != nil {
+				// Get the partial's path for nested partial lookups
+				var partialPath string
+				if templateDir == "" || templateDir == "." {
+					partialPath = partialFilename
+				} else {
+					partialPath = templateDir + "/" + partialFilename
+				}
+
+				funcs := htmlTemplate.FuncMap{
+					config.I18nFuncName: i18nFunc,
+					"partial":           getPartialFuncWithI18n(partialPath, i18nFunc),
+				}
+				cloned, err := tmpl.Clone()
+				if err != nil {
+					return "", fmt.Errorf("failed to clone partial template: %w", err)
+				}
+				tmpl = cloned.Funcs(funcs)
+			}
+
 			var sb strings.Builder
 			err := tmpl.Execute(&sb, data)
 			// #nosec G203 -- Partial templates are trusted, pre-defined templates, not user input
 			return htmlTemplate.HTML(sb.String()), err
+		}
+
+		return "", fmt.Errorf("template not found: %s", name)
+	}
+}
+
+// Text template partial functions (similar to HTML but for text templates)
+
+func lookUpTextPartial(folder, partialFilename string) *textTemplate.Template {
+	// Create cache key from starting folder and partial filename
+	cacheKey := "text|" + folder + "|" + partialFilename
+
+	// Check if we've already resolved this partial from this folder
+	if cached, ok := partialsCache.Load(cacheKey); ok {
+		if cached == nil {
+			return nil
+		}
+		if tmpl, tmplOk := cached.(*textTemplate.Template); tmplOk {
+			return tmpl
+		}
+	}
+
+	// Search up the directory tree
+	currentFolder := folder
+	for {
+		var partialPath string
+		if currentFolder == "" || currentFolder == "." {
+			partialPath = partialFilename
+		} else {
+			partialPath = currentFolder + "/" + partialFilename
+		}
+
+		// Look up in cache directly - check if it's a text template
+		nv, ok := templatesCache.Load(partialPath)
+		if ok {
+			arr, arrOk := nv.([2]any)
+			if arrOk {
+				if tmpl, tmplOk := arr[1].(*textTemplate.Template); tmplOk {
+					// Cache the result for the original folder
+					partialsCache.Store(cacheKey, tmpl)
+					return tmpl
+				}
+			}
+		}
+
+		// Check if we've reached the root before calculating parent
+		if currentFolder == "" || currentFolder == "." || currentFolder == "/" {
+			// Not found, cache nil to avoid repeated searches
+			partialsCache.Store(cacheKey, nil)
+			return nil
+		}
+
+		parentFolder := strings.ReplaceAll(filepath.Dir(currentFolder), "\\", "/")
+
+		// Check if parent is same as current (shouldn't happen, but safety check)
+		if parentFolder == currentFolder {
+			partialsCache.Store(cacheKey, nil)
+			return nil
+		}
+
+		currentFolder = parentFolder
+	}
+}
+
+func getTextPartialFunc(templatePath string) func(name string, data any) (string, error) {
+	return getTextPartialFuncWithI18n(templatePath, nil)
+}
+
+// GetTextPartialFuncWithI18n creates a text partial template function with i18n support.
+// If i18nFunc is nil, uses the default funcMap i18n function.
+// This allows text partials to use per-request i18n printers for proper translation.
+func GetTextPartialFuncWithI18n(templatePath string, i18nFunc func(string, ...any) string) func(name string, data any) (string, error) {
+	return getTextPartialFuncWithI18n(templatePath, i18nFunc)
+}
+
+func getTextPartialFuncWithI18n(templatePath string, i18nFunc func(string, ...any) string) func(name string, data any) (string, error) {
+	return func(name string, data any) (string, error) {
+		var templateDir string
+		if templatePath != "" {
+			templateDir = strings.ReplaceAll(filepath.Dir(templatePath), "\\", "/")
+		}
+
+		partialFilename := "_" + name + config.TextTemplateExtension
+
+		tmpl := lookUpTextPartial(templateDir, partialFilename)
+
+		if tmpl != nil {
+			// If i18n function is provided, clone template and add it to funcMap
+			if i18nFunc != nil {
+				// Get the partial's path for nested partial lookups
+				var partialPath string
+				if templateDir == "" || templateDir == "." {
+					partialPath = partialFilename
+				} else {
+					partialPath = templateDir + "/" + partialFilename
+				}
+
+				funcs := textTemplate.FuncMap{
+					config.I18nFuncName: i18nFunc,
+					"partial":           getTextPartialFuncWithI18n(partialPath, i18nFunc),
+				}
+				cloned, err := tmpl.Clone()
+				if err != nil {
+					return "", fmt.Errorf("failed to clone partial template: %w", err)
+				}
+				tmpl = cloned.Funcs(funcs)
+			}
+
+			var sb strings.Builder
+			err := tmpl.Execute(&sb, data)
+			return sb.String(), err
 		}
 
 		return "", fmt.Errorf("template not found: %s", name)
@@ -375,15 +525,22 @@ func parseTextTemplate(templatePath string, layouts []string) (string, *textTemp
 	var tmpl *textTemplate.Template
 	var tmplName string
 
+	// Create a text-specific funcMap with partial support
+	textFuncMap := make(textTemplate.FuncMap)
+	for k, v := range funcMap {
+		textFuncMap[k] = v
+	}
+	textFuncMap["partial"] = getTextPartialFunc(templatePath)
+
 	data := Must(fs.ReadFile(config.FS, templatePath))
 
 	if len(layouts) > 0 {
 		tmpl = getTextTemplateWithLayout(templatePath, layouts)
-		tmpl = textTemplate.Must(textTemplate.Must(tmpl.Clone()).Parse(string(data)))
+		tmpl = textTemplate.Must(textTemplate.Must(tmpl.Clone()).Funcs(textFuncMap).Parse(string(data)))
 		tmplName = tmpl.Name()
 	} else {
 		tmplName = filepath.Base(templatePath)
-		tmpl = textTemplate.Must(textTemplate.New(tmplName).Parse(string(data)))
+		tmpl = textTemplate.Must(textTemplate.New(tmplName).Funcs(textFuncMap).Parse(string(data)))
 	}
 
 	return tmplName, tmpl
@@ -401,6 +558,13 @@ func getTextTemplateWithLayout(templatePath string, layouts []string) *textTempl
 func getOrCreateTextLayoutChain(layouts []string) *textTemplate.Template {
 	var tmpl *textTemplate.Template
 
+	// Create a text-specific funcMap with partial support
+	textFuncMap := make(textTemplate.FuncMap)
+	for k, v := range funcMap {
+		textFuncMap[k] = v
+	}
+	textFuncMap["partial"] = getTextPartialFunc("")
+
 	for i := range layouts {
 		if v, ok := layoutsCache[layouts[i]]; ok {
 			if textTmpl, textOk := v.(*textTemplate.Template); textOk {
@@ -409,11 +573,11 @@ func getOrCreateTextLayoutChain(layouts []string) *textTemplate.Template {
 		} else {
 			if tmpl == nil {
 				tmplName := filepath.Base(layouts[i])
-				tmpl = textTemplate.Must(textTemplate.New(tmplName).ParseFS(config.FS, layouts[i]))
+				tmpl = textTemplate.Must(textTemplate.New(tmplName).Funcs(textFuncMap).ParseFS(config.FS, layouts[i]))
 			} else {
 				data := Must(fs.ReadFile(config.FS, layouts[i]))
 
-				tmpl = Must(textTemplate.Must(tmpl.Clone()).Parse(string(data)))
+				tmpl = Must(textTemplate.Must(tmpl.Clone()).Funcs(textFuncMap).Parse(string(data)))
 			}
 			layoutsCache[layouts[i]] = tmpl
 		}
