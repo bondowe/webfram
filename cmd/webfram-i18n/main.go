@@ -1,4 +1,45 @@
-// Package main provides a command-line tool for extracting translation strings.
+// Package main provides webfram-i18n, a CLI tool for extracting translatable strings from Go code and templates.
+//
+// webfram-i18n automatically extracts translation strings from your WebFram application,
+// generating properly formatted message files for internationalization. It supports extraction
+// from both Go source code (i18n printer methods) and template files ({{T "..."}} calls),
+// preserving existing translations and detecting placeholder types.
+//
+// Installation:
+//
+//	go install github.com/bondowe/webfram/cmd/webfram-i18n@latest
+//
+// Basic Usage:
+//
+// Extract from both templates and code:
+//
+//	webfram-i18n -languages "en,fr,es" -templates ./assets/templates
+//
+// Extract only from Go code:
+//
+//	webfram-i18n -languages "en,fr" -mode code
+//
+// Extract only from templates:
+//
+//	webfram-i18n -languages "en,de" -mode templates -templates ./assets/templates
+//
+// Custom output directory:
+//
+//	webfram-i18n -languages "en,fr" -templates ./assets/templates -locales ./assets/locales
+//
+// Flags:
+//
+//	-languages    Comma-separated language codes (required, e.g., "en,fr,es")
+//	-templates    Directory containing template files (required for templates mode)
+//	-mode         Extraction mode: templates, code, or both (default: both)
+//	-code         Directory containing Go source files (default: current directory)
+//	-locales      Output directory for message files (default: ./locales)
+//
+// The tool generates or updates messages.<lang>.json files with the correct format for
+// WebFram's i18n support, automatically detecting placeholder types (%s, %d, etc.)
+// and preserving existing translations when updating files.
+//
+// For more information, visit: https://github.com/bondowe/webfram
 package main
 
 import (

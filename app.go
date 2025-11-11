@@ -1,4 +1,46 @@
-// Package webfram provides a lightweight web framework with built-in support for i18n, templating, and OpenAPI.
+// Package webfram provides a production-ready, lightweight Go web framework built on net/http.
+//
+// WebFram offers enterprise-grade features including automatic template caching with layouts,
+// comprehensive data binding with validation, internationalization (i18n), Server-Sent Events (SSE),
+// JSON Patch support, JSONP, OpenAPI 3.2.0 documentation generation, built-in Prometheus telemetry,
+// and flexible middleware support—all while maintaining minimal dependencies and maximum performance.
+//
+// Key Features:
+//   - Smart Templates: Automatic caching with layout inheritance and hot-reload in development
+//   - Data Binding: Type-safe Form, JSON, and XML binding with 20+ validation rules
+//   - i18n Support: First-class internationalization using golang.org/x/text
+//   - Telemetry: Built-in Prometheus metrics with optional separate server
+//   - OpenAPI 3.2.0: Automatic API documentation generation from code
+//   - SSE Support: Production-ready Server-Sent Events for real-time updates
+//   - JSON Patch: Full RFC 6902 support for partial resource updates
+//   - JSONP: Secure cross-origin requests with automatic callback validation
+//   - Flexible Middleware: Support for both custom and standard HTTP middleware
+//
+// Example usage:
+//
+//	package main
+//
+//	import (
+//	    app "github.com/bondowe/webfram"
+//	)
+//
+//	func main() {
+//	    // Configure the application
+//	    app.Configure(&app.Config{
+//	        Telemetry: &app.Telemetry{Enabled: true},
+//	    })
+//
+//	    // Create mux and register routes
+//	    mux := app.NewServeMux()
+//	    mux.HandleFunc("GET /hello", func(w app.ResponseWriter, r *app.Request) {
+//	        w.JSON(r.Context(), map[string]string{"message": "Hello, World!"})
+//	    })
+//
+//	    // Start server with graceful shutdown
+//	    app.ListenAndServe(":8080", mux, nil)
+//	}
+//
+// For complete documentation and examples, visit: https://github.com/bondowe/webfram
 package webfram
 
 import (
