@@ -5,10 +5,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/bondowe/webfram/internal/i18n"
+	"github.com/bondowe/webfram/internal/telemetry"
 	"github.com/bondowe/webfram/openapi"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"golang.org/x/text/language"
 )
 
@@ -36,12 +40,12 @@ func setupMuxTest() {
 func setupMuxTestWithOpenAPI() {
 	appConfigured = false
 	appMiddlewares = nil
-	openAPIConfig = &OpenAPI{EndpointEnabled: true}
+	openAPIConfig = &OpenAPI{Enabled: true}
 	jsonpCallbackParamName = ""
 
 	Configure(&Config{
 		OpenAPI: &OpenAPI{
-			EndpointEnabled: true,
+			Enabled: true,
 			Config: &openapi.Config{
 				Info: &openapi.Info{
 					Title:   "Test API",
@@ -635,29 +639,6 @@ func TestHandlerFunc_ServeHTTP_Basic(t *testing.T) {
 	}
 }
 
-func TestHandlerFunc_ServeHTTP_SetsContext(t *testing.T) {
-	setupMuxTest()
-
-	var ctxSet bool
-	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
-		if w.Context() != nil {
-			ctxSet = true
-		}
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
-	rec := httptest.NewRecorder()
-	rw := ResponseWriter{ResponseWriter: rec}
-	r := &Request{Request: req}
-
-	handler.ServeHTTP(rw, r)
-
-	if !ctxSet {
-		t.Error("Expected context to be set on ResponseWriter")
-	}
-}
-
 func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Valid(t *testing.T) {
 	setupMuxTest()
 
@@ -674,8 +655,8 @@ func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Valid(t *testing.T) {
 		},
 	})
 
-	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
-		_ = w.JSON(map[string]string{"message": "test"})
+	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+		_ = w.JSON(r.Context(), map[string]string{"message": "test"})
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test?callback=myCallback", http.NoBody)
@@ -711,8 +692,8 @@ func TestHandlerFunc_ServeHTTP_WithJSONPCallback_Invalid(t *testing.T) {
 		},
 	})
 
-	handler := HandlerFunc(func(w ResponseWriter, _ *Request) {
-		_ = w.JSON(map[string]string{"message": "test"})
+	handler := HandlerFunc(func(w ResponseWriter, r *Request) {
+		_ = w.JSON(r.Context(), map[string]string{"message": "test"})
 	})
 
 	invalidCallbacks := []string{
@@ -1951,5 +1932,405 @@ func BenchmarkParseAcceptLanguage(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		_ = parseAcceptLanguage(acceptLang)
+	}
+}
+
+// =============================================================================
+// Telemetry Middleware Tests
+// =============================================================================
+
+func TestTelemetryMiddleware_RequestsTotal(t *testing.T) {
+	setupMuxTest()
+
+	// Reset telemetry metrics
+	telemetry.RequestsTotal.Reset()
+	telemetry.RequestDurationSeconds.Reset()
+	telemetry.ActiveConnections.Set(0)
+
+	mux := NewServeMux()
+
+	// Create a handler that returns different status codes
+	handler := func(w ResponseWriter, r *Request) {
+		switch r.URL.Path {
+		case "/success":
+			w.WriteHeader(http.StatusOK)
+		case "/created":
+			w.WriteHeader(http.StatusCreated)
+		case "/notfound":
+			w.WriteHeader(http.StatusNotFound)
+		case "/error":
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}
+
+	mux.HandleFunc("GET /success", handler)
+	mux.HandleFunc("POST /created", handler)
+	mux.HandleFunc("GET /notfound", handler)
+	mux.HandleFunc("GET /error", handler)
+
+	// Make requests
+	testCases := []struct {
+		method       string
+		path         string
+		expectedCode int
+	}{
+		{"GET", "/success", http.StatusOK},
+		{"GET", "/success", http.StatusOK}, // Duplicate to test counter increment
+		{"POST", "/created", http.StatusCreated},
+		{"GET", "/notfound", http.StatusNotFound},
+		{"GET", "/error", http.StatusInternalServerError},
+	}
+
+	for _, tc := range testCases {
+		req := httptest.NewRequest(tc.method, tc.path, http.NoBody)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != tc.expectedCode {
+			t.Errorf("Expected status %d, got %d for %s %s", tc.expectedCode, rec.Code, tc.method, tc.path)
+		}
+	}
+
+	// Verify metrics were recorded
+
+	// Check GET /success 2xx was incremented twice
+	count := testutil.ToFloat64(telemetry.RequestsTotal.WithLabelValues("GET", "/success", "2xx"))
+	if count != 2 {
+		t.Errorf("Expected GET /success 2xx count to be 2, got %f", count)
+	}
+
+	// Check POST /created 2xx was incremented once
+	count = testutil.ToFloat64(telemetry.RequestsTotal.WithLabelValues("POST", "/created", "2xx"))
+	if count != 1 {
+		t.Errorf("Expected POST /created 2xx count to be 1, got %f", count)
+	}
+
+	// Check GET /notfound 4xx was incremented once
+	count = testutil.ToFloat64(telemetry.RequestsTotal.WithLabelValues("GET", "/notfound", "4xx"))
+	if count != 1 {
+		t.Errorf("Expected GET /notfound 4xx count to be 1, got %f", count)
+	}
+
+	// Check GET /error 5xx was incremented once
+	count = testutil.ToFloat64(telemetry.RequestsTotal.WithLabelValues("GET", "/error", "5xx"))
+	if count != 1 {
+		t.Errorf("Expected GET /error 5xx count to be 1, got %f", count)
+	}
+}
+
+func TestTelemetryMiddleware_ActiveConnections(t *testing.T) {
+	setupMuxTest()
+
+	// Reset telemetry metrics
+	telemetry.ActiveConnections.Set(0)
+
+	mux := NewServeMux()
+
+	// Channel to control handler execution
+	handlerStarted := make(chan bool)
+	handlerCanFinish := make(chan bool)
+
+	handler := func(w ResponseWriter, _ *Request) {
+		handlerStarted <- true
+		<-handlerCanFinish
+		w.WriteHeader(http.StatusOK)
+	}
+
+	mux.HandleFunc("GET /test", handler)
+
+	// Start request in goroutine
+	go func() {
+		req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+	}()
+
+	// Wait for handler to start
+	<-handlerStarted
+
+	// Check active connections is 1
+	active := testutil.ToFloat64(telemetry.ActiveConnections)
+	if active != 1 {
+		t.Errorf("Expected active connections to be 1, got %f", active)
+	}
+
+	// Allow handler to finish
+	handlerCanFinish <- true
+
+	// Give it time to finish
+	time.Sleep(50 * time.Millisecond)
+
+	// Check active connections is back to 0
+	active = testutil.ToFloat64(telemetry.ActiveConnections)
+	if active != 0 {
+		t.Errorf("Expected active connections to be 0 after request, got %f", active)
+	}
+}
+
+func TestTelemetryMiddleware_RequestDuration(t *testing.T) {
+	setupMuxTest()
+
+	// Reset telemetry metrics
+	telemetry.RequestDurationSeconds.Reset()
+
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, _ *Request) {
+		// Simulate some work
+		time.Sleep(10 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}
+
+	mux.HandleFunc("GET /timed", handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/timed", http.NoBody)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	// Verify duration was recorded (we can't check exact value, but we can verify metrics exist)
+	problems, err := testutil.CollectAndLint(telemetry.RequestDurationSeconds)
+	if err != nil {
+		t.Errorf("Failed to collect request duration metrics: %v", err)
+	}
+	if len(problems) > 0 {
+		t.Errorf("Linting issues with request duration metrics: %v", problems)
+	}
+}
+
+func TestResponseWriter_StatusCodeTracking_WriteHeader(t *testing.T) {
+	rec := httptest.NewRecorder()
+	statusCode := 0
+	w := ResponseWriter{
+		ResponseWriter: rec,
+		statusCode:     &statusCode,
+	}
+
+	// Test capturing status code via WriteHeader
+	w.WriteHeader(http.StatusNotFound)
+
+	statusCode, ok := w.StatusCode()
+	if !ok {
+		t.Error("Expected status code to be set")
+	}
+
+	if statusCode != http.StatusNotFound {
+		t.Errorf("Expected status code %d, got %d", http.StatusNotFound, statusCode)
+	}
+
+	// Verify it was sent to the underlying writer
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("Expected recorder status code %d, got %d", http.StatusNotFound, rec.Code)
+	}
+}
+
+func TestResponseWriter_StatusCodeTracking_Write(t *testing.T) {
+	rec := httptest.NewRecorder()
+	statusCode := 0
+	w := ResponseWriter{
+		ResponseWriter: rec,
+		statusCode:     &statusCode,
+	}
+
+	// Test implicit 200 OK on first write
+	data := []byte("test data")
+	n, err := w.Write(data)
+
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	if n != len(data) {
+		t.Errorf("Expected to write %d bytes, wrote %d", len(data), n)
+	}
+
+	// Verify status code was set to 200 in context
+	statusCode, ok := w.StatusCode()
+	if !ok {
+		t.Error("Expected status code to be set")
+	}
+
+	if statusCode != http.StatusOK {
+		t.Errorf("Expected status code %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if rec.Body.String() != string(data) {
+		t.Errorf("Expected body %q, got %q", data, rec.Body.String())
+	}
+}
+
+func TestResponseWriter_StatusCodeTracking_WriteAfterWriteHeader(t *testing.T) {
+	rec := httptest.NewRecorder()
+	statusCode := 0
+	w := ResponseWriter{
+		ResponseWriter: rec,
+		statusCode:     &statusCode,
+	}
+
+	// Set status first
+	w.WriteHeader(http.StatusCreated)
+
+	// Then write data
+	data := []byte("created")
+	n, err := w.Write(data)
+
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	if n != len(data) {
+		t.Errorf("Expected to write %d bytes, wrote %d", len(data), n)
+	}
+
+	// Status should remain as set by WriteHeader
+	statusCode, ok := w.StatusCode()
+	if !ok {
+		t.Error("Expected status code to be set")
+	}
+
+	if statusCode != http.StatusCreated {
+		t.Errorf("Expected status code %d, got %d", http.StatusCreated, statusCode)
+	}
+
+	if rec.Body.String() != string(data) {
+		t.Errorf("Expected body %q, got %q", data, rec.Body.String())
+	}
+}
+
+func TestTelemetryMiddleware_StatusClasses(t *testing.T) {
+	setupMuxTest()
+
+	// Reset telemetry metrics
+	telemetry.RequestsTotal.Reset()
+
+	mux := NewServeMux()
+
+	// Test various status codes and their classes
+	testCases := []struct {
+		path          string
+		statusCode    int
+		expectedClass string
+	}{
+		{"/status-200", http.StatusOK, "2xx"},
+		{"/status-201", http.StatusCreated, "2xx"},
+		{"/status-204", http.StatusNoContent, "2xx"},
+		{"/status-301", http.StatusMovedPermanently, "3xx"},
+		{"/status-302", http.StatusFound, "3xx"},
+		{"/status-400", http.StatusBadRequest, "4xx"},
+		{"/status-401", http.StatusUnauthorized, "4xx"},
+		{"/status-403", http.StatusForbidden, "4xx"},
+		{"/status-404", http.StatusNotFound, "4xx"},
+		{"/status-500", http.StatusInternalServerError, "5xx"},
+		{"/status-502", http.StatusBadGateway, "5xx"},
+		{"/status-503", http.StatusServiceUnavailable, "5xx"},
+	}
+
+	// Register handlers
+	for _, tc := range testCases {
+		path := tc.path
+		code := tc.statusCode
+		mux.HandleFunc("GET "+path, func(w ResponseWriter, _ *Request) {
+			w.WriteHeader(code)
+		})
+	}
+
+	// Make requests and verify metrics
+	for _, tc := range testCases {
+		req := httptest.NewRequest(http.MethodGet, tc.path, http.NoBody)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != tc.statusCode {
+			t.Errorf("Expected status %d, got %d for %s", tc.statusCode, rec.Code, tc.path)
+		}
+
+		// Verify the metric was recorded with correct status class
+		count := testutil.ToFloat64(telemetry.RequestsTotal.WithLabelValues("GET", tc.path, tc.expectedClass))
+		if count != 1 {
+			t.Errorf("Expected count 1 for GET %s %s, got %f", tc.path, tc.expectedClass, count)
+		}
+	}
+}
+
+func TestTelemetryMiddleware_DifferentHTTPMethods(t *testing.T) {
+	setupMuxTest()
+
+	// Reset telemetry metrics
+	telemetry.RequestsTotal.Reset()
+
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, _ *Request) {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	// Register handlers for different methods
+	mux.HandleFunc("GET /resource", handler)
+	mux.HandleFunc("POST /resource", handler)
+	mux.HandleFunc("PUT /resource", handler)
+	mux.HandleFunc("DELETE /resource", handler)
+	mux.HandleFunc("PATCH /resource", handler)
+
+	methods := []string{"GET", "POST", "PUT", "DELETE", "PATCH"}
+
+	for _, method := range methods {
+		req := httptest.NewRequest(method, "/resource", http.NoBody)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d for %s", rec.Code, method)
+		}
+
+		// Verify the metric was recorded with correct method
+		count := testutil.ToFloat64(telemetry.RequestsTotal.WithLabelValues(method, "/resource", "2xx"))
+		if count != 1 {
+			t.Errorf("Expected count 1 for %s /resource 2xx, got %f", method, count)
+		}
+	}
+}
+
+func TestTelemetryMiddleware_ConcurrentRequests(t *testing.T) {
+	setupMuxTest()
+
+	// Reset telemetry metrics
+	telemetry.RequestsTotal.Reset()
+	telemetry.ActiveConnections.Set(0)
+
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, _ *Request) {
+		time.Sleep(10 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}
+
+	mux.HandleFunc("GET /concurrent", handler)
+
+	// Make concurrent requests
+	var wg sync.WaitGroup
+	numRequests := 10
+
+	//nolint:intrange // classic for loop for concurrent requests
+	for i := 0; i < numRequests; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req := httptest.NewRequest(http.MethodGet, "/concurrent", http.NoBody)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+		}()
+	}
+
+	wg.Wait()
+
+	// Verify all requests were counted
+	count := testutil.ToFloat64(telemetry.RequestsTotal.WithLabelValues("GET", "/concurrent", "2xx"))
+	if count != float64(numRequests) {
+		t.Errorf("Expected count %d, got %f", numRequests, count)
+	}
+
+	// Active connections should be back to 0
+	active := testutil.ToFloat64(telemetry.ActiveConnections)
+	if active != 0 {
+		t.Errorf("Expected active connections to be 0 after all requests, got %f", active)
 	}
 }

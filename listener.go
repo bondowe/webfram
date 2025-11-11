@@ -11,6 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/bondowe/webfram/internal/telemetry"
 )
 
 // ServerConfig configures HTTP server settings.
@@ -39,24 +41,56 @@ const (
 	maxHeaderBytes    = http.DefaultMaxHeaderBytes
 )
 
-// ListenAndServe starts an HTTP server on the specified address with the given multiplexer.
-// It automatically sets up OpenAPI endpoint if configured, applies server configuration,
-// and handles graceful shutdown on SIGINT or SIGTERM signals.
-// Blocks until the server is shut down. Panics if server startup or shutdown fails.
-func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
-	if openAPIConfig != nil && openAPIConfig.EndpointEnabled {
-		doc, err := openAPIConfig.Config.MarshalJSON()
-		if err != nil {
-			panic(err)
-		}
-		mux.HandleFunc(openAPIConfig.URLPath, func(w ResponseWriter, _ *Request) {
-			_ = w.Bytes(doc, "application/openapi+json")
-		})
+// setupOpenAPIEndpoint configures the OpenAPI endpoint if enabled.
+func setupOpenAPIEndpoint(mux *ServeMux) {
+	if openAPIConfig == nil || !openAPIConfig.Enabled {
+		return
+	}
+	doc, err := openAPIConfig.Config.MarshalJSON()
+	if err != nil {
+		panic(err)
+	}
+	mux.HandleFunc(openAPIConfig.URLPath, func(w ResponseWriter, _ *Request) {
+		_ = w.Bytes(doc, "application/openapi+json")
+	})
+}
+
+// setupTelemetry configures telemetry endpoints and returns a telemetry server if configured separately.
+func setupTelemetry(addr string, mux *ServeMux) (*http.Server, bool) {
+	if telemetryConfig == nil || !telemetryConfig.Enabled {
+		return nil, false
 	}
 
+	handler := telemetry.GetHTTPHandler(telemetryConfig.HandlerOpts)
+
+	// Check if telemetry should run on a separate server
+	if telemetryConfig.Addr != "" && telemetryConfig.Addr != addr {
+		// Create separate telemetry server
+		telemetryMux := NewServeMux()
+		telemetryMux.Handle(telemetryConfig.URLPath, adaptHTTPHandler(handler))
+
+		telemetryServer := &http.Server{
+			Addr:              telemetryConfig.Addr,
+			Handler:           telemetryMux,
+			ReadHeaderTimeout: readHeaderTimeout,
+			ReadTimeout:       readTimeout,
+			WriteTimeout:      writeTimeout,
+			IdleTimeout:       idleTimeout,
+			MaxHeaderBytes:    maxHeaderBytes,
+		}
+		return telemetryServer, true
+	}
+
+	// Run telemetry on the main server
+	mux.Handle(telemetryConfig.URLPath, adaptHTTPHandler(handler))
+	return nil, false
+}
+
+// createHTTPServer creates and configures an HTTP server with the provided settings.
+func createHTTPServer(addr string, handler http.Handler, cfg *ServerConfig) *http.Server {
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,
@@ -80,32 +114,74 @@ func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
 		server.Protocols = cfg.Protocols
 	}
 
-	serverError := make(chan error, 1)
+	return server
+}
 
+// startServer starts an HTTP server in a goroutine and reports errors to the provided channel.
+func startServer(server *http.Server, serverType string, errorChan chan<- error) {
 	go func() {
-		slog.Info("Starting server", "addr", addr)
+		slog.Info("Starting server", "type", serverType, "addr", server.Addr)
 		if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			serverError <- err
+			errorChan <- err
 		}
 	}()
+}
 
+// waitForShutdownSignal waits for either a server error or a shutdown signal.
+// Returns true if a shutdown signal was received, panics if a server error occurred.
+func waitForShutdownSignal(errorChan <-chan error) {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
 	select {
-	case err := <-serverError:
+	case err := <-errorChan:
 		panic(err)
 	case sig := <-stop:
 		//nolint:sloglint // Global logger is appropriate here during server shutdown
 		slog.Info("Received shutdown signal", "signal", sig)
 	}
+}
 
+// shutdownServers gracefully shuts down the main server and optionally the telemetry server.
+func shutdownServers(mainServer *http.Server, telemetryServer *http.Server, hasSeparateTelemetry bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second) //nolint:mnd // graceful shutdown timeout
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
+	// Shutdown main server
+	if err := mainServer.Shutdown(ctx); err != nil {
 		panic(err)
 	}
 	//nolint:sloglint // Global logger is appropriate here after server shutdown
 	slog.Info("Server stopped")
+
+	// Shutdown telemetry server if running separately
+	if hasSeparateTelemetry {
+		if err := telemetryServer.Shutdown(ctx); err != nil {
+			panic(err)
+		}
+		//nolint:sloglint // Global logger is appropriate here after server shutdown
+		slog.Info("Telemetry server stopped")
+	}
+}
+
+// ListenAndServe starts an HTTP server on the specified address with the given multiplexer.
+// It automatically sets up OpenAPI endpoint if configured, applies server configuration,
+// and handles graceful shutdown on SIGINT or SIGTERM signals.
+// If telemetry is configured with a separate address, starts an additional server for metrics.
+// Blocks until the server is shut down. Panics if server startup or shutdown fails.
+func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
+	setupOpenAPIEndpoint(mux)
+	telemetryServer, hasSeparateTelemetry := setupTelemetry(addr, mux)
+	mainServer := createHTTPServer(addr, mux, cfg)
+
+	//nolint:mnd // buffer size for main and telemetry servers
+	serverError := make(chan error, 2)
+	startServer(mainServer, "main", serverError)
+
+	if hasSeparateTelemetry {
+		startServer(telemetryServer, "telemetry", serverError)
+	}
+
+	waitForShutdownSignal(serverError)
+	shutdownServers(mainServer, telemetryServer, hasSeparateTelemetry)
 }

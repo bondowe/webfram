@@ -11,7 +11,9 @@ import (
 
 	"github.com/bondowe/webfram/internal/bind"
 	"github.com/bondowe/webfram/internal/i18n"
+	"github.com/bondowe/webfram/internal/telemetry"
 	"github.com/bondowe/webfram/openapi"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/text/language"
 )
 
@@ -32,6 +34,7 @@ type (
 	}
 	// HandlerFunc is a function that serves HTTP requests.
 	HandlerFunc func(ResponseWriter, *Request)
+
 	// APIConfig configures OpenAPI documentation for a route.
 	APIConfig struct {
 		Method      string
@@ -158,7 +161,7 @@ type (
 // This should be called before registering handlers to set common parameters and servers for a path.
 // Only works if OpenAPI endpoint is enabled in configuration.
 func SetOpenAPIPathInfo(path string, info *PathInfo) {
-	if openAPIConfig == nil || !openAPIConfig.EndpointEnabled {
+	if openAPIConfig == nil || !openAPIConfig.Enabled {
 		return
 	}
 
@@ -176,7 +179,7 @@ func SetOpenAPIPathInfo(path string, info *PathInfo) {
 // This generates OpenAPI documentation for the endpoint with request/response schemas, parameters, etc.
 // Only works if OpenAPI endpoint is enabled in configuration.
 func (c *HandlerConfig) WithAPIConfig(apiConfig *APIConfig) {
-	if apiConfig == nil || openAPIConfig == nil || !openAPIConfig.EndpointEnabled {
+	if apiConfig == nil || openAPIConfig == nil || !openAPIConfig.Enabled {
 		return
 	}
 
@@ -551,6 +554,44 @@ func getHandlerMiddlewares(middlewares []interface{}) []AppMiddleware {
 	return mdwrs
 }
 
+// / TelemetryMiddleware creates middleware that collects HTTP request metrics using Prometheus.
+// / It tracks total requests, request duration, and active connections per endpoint.
+// / It uses the telemetry package's predefined Prometheus metrics.
+func telemetryMiddleware(next Handler) Handler {
+	return HandlerFunc(func(w ResponseWriter, r *Request) {
+		path := r.URL.Path
+		method := r.Method
+
+		// Track active connections
+		telemetry.ActiveConnections.Inc()
+		defer telemetry.ActiveConnections.Dec()
+
+		// Start timer and defer recording metrics
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(func(v float64) {
+			// Get status code from ResponseWriter's context
+			statusCode, ok := w.StatusCode()
+			if !ok {
+				statusCode = http.StatusOK // Default to 200 if not set
+			}
+			//nolint:mnd // divide by 100 to get status class
+			statusClass := fmt.Sprintf("%dxx", statusCode/100)
+			telemetry.RequestDurationSeconds.WithLabelValues(method, path, statusClass).Observe(v)
+		}))
+		defer timer.ObserveDuration()
+
+		next.ServeHTTP(w, r)
+
+		// Record total requests
+		statusCode, ok := w.StatusCode()
+		if !ok {
+			statusCode = http.StatusOK // Default to 200 if not set
+		}
+		//nolint:mnd // divide by 100 to get status class
+		statusClass := fmt.Sprintf("%dxx", statusCode/100)
+		telemetry.RequestsTotal.WithLabelValues(method, path, statusClass).Inc()
+	})
+}
+
 // I18nMiddleware creates middleware that adds internationalization support to handlers.
 // It parses the Accept-Language header and language cookie to determine the user's preferred language,
 // then injects an i18n printer into the request context for message translation.
@@ -677,6 +718,7 @@ func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{})
 	wrappedHandler := wrapMiddlewares(handler, getHandlerMiddlewares(mdwrs))
 	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
 	wrappedHandler = wrapMiddlewares(wrappedHandler, appMiddlewares)
+	wrappedHandler = telemetryMiddleware(wrappedHandler)
 
 	if i18nConfig, ok := i18n.Configuration(); ok && i18nConfig.FS != nil {
 		i18nMdwr := I18nMiddleware(i18nConfig.FS)
@@ -684,7 +726,8 @@ func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{})
 	}
 
 	m.ServeMux.Handle(pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		wrappedHandler.ServeHTTP(ResponseWriter{w, nil}, &Request{r})
+		statusCode := 0
+		wrappedHandler.ServeHTTP(ResponseWriter{w, &statusCode}, &Request{r})
 	}))
 
 	return &HandlerConfig{
@@ -699,6 +742,7 @@ func (m *ServeMux) HandleFunc(pattern string, handler HandlerFunc, mdwrs ...inte
 	wrappedHandler := wrapMiddlewares(handler, getHandlerMiddlewares(mdwrs))
 	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
 	wrappedHandler = wrapMiddlewares(wrappedHandler, appMiddlewares)
+	wrappedHandler = telemetryMiddleware(wrappedHandler)
 
 	if i18nConfig, ok := i18n.Configuration(); ok && i18nConfig.FS != nil {
 		i18nMdwr := I18nMiddleware(i18nConfig.FS)
@@ -706,7 +750,8 @@ func (m *ServeMux) HandleFunc(pattern string, handler HandlerFunc, mdwrs ...inte
 	}
 
 	m.ServeMux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-		wrappedHandler.ServeHTTP(ResponseWriter{w, nil}, &Request{r})
+		statusCode := 0
+		wrappedHandler.ServeHTTP(ResponseWriter{w, &statusCode}, &Request{r})
 	})
 
 	return &HandlerConfig{
@@ -741,7 +786,10 @@ func (hf HandlerFunc) ServeHTTP(w ResponseWriter, r *Request) {
 		ctx = context.WithValue(ctx, jsonpCallbackMethodNameKey, jsonpCallbackMethodName)
 	}
 
-	w.context = ctx
+	// Update request context if modified (for i18n or JSONP)
+	if ctx != r.Context() {
+		r.Request = r.WithContext(ctx)
+	}
 
 	hf(w, r)
 }

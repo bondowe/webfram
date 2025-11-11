@@ -16,8 +16,11 @@ import (
 
 	"github.com/bondowe/webfram/internal/bind"
 	"github.com/bondowe/webfram/internal/i18n"
+	"github.com/bondowe/webfram/internal/telemetry"
 	"github.com/bondowe/webfram/internal/template"
 	"github.com/bondowe/webfram/openapi"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
@@ -35,11 +38,16 @@ type (
 
 	// SSEPayload represents a Server-Sent Events message payload.
 	SSEPayload struct {
-		Data     any
-		ID       string
-		Event    string
+		// Data is the event data.
+		Data any
+		// ID is the event ID.
+		ID string
+		// Event is the event type.
+		Event string
+		// Comments are optional comments for the event.
 		Comments []string
-		Retry    time.Duration
+		// Retry is the reconnection time in case of connection loss.
+		Retry time.Duration
 	}
 	// SSEPayloadFunc is a function that generates SSE payloads.
 	SSEPayloadFunc func() SSEPayload
@@ -86,43 +94,79 @@ type (
 
 	// Templates configures template settings for the framework.
 	Templates struct {
-		Dir                   string
-		LayoutBaseName        string
+		// Dir is the directory where template files are located.
+		Dir string
+		// LayoutBaseName is the base name of the layout template.
+		LayoutBaseName string
+		// HTMLTemplateExtension is the file extension for HTML templates.
 		HTMLTemplateExtension string
+		// TextTemplateExtension is the file extension for text templates.
 		TextTemplateExtension string
+	}
+
+	// Telemetry configures telemetry settings for the framework.
+	Telemetry struct {
+		// UseDefaultRegistry indicates whether to use the default Prometheus registry.
+		UseDefaultRegistry bool
+		// Collectors are custom Prometheus collectors to register.
+		Collectors []prometheus.Collector
+		// URLPath is the HTTP path for the metrics endpoint (e.g., "GET /metrics").
+		URLPath string
+		// Addr is the optional address for a separate telemetry server (e.g., ":9090").
+		// If empty or equal to the main server address, telemetry runs on the main server.
+		Addr string
+		// Enabled indicates whether telemetry is enabled.
+		Enabled bool
+		// HandlerOpts are options for the Prometheus HTTP handler.
+		HandlerOpts promhttp.HandlerOpts
 	}
 
 	// I18nMessages configures internationalization message settings.
 	I18nMessages struct {
-		Dir                string
+		// Dir is the directory where i18n message files are located.
+		Dir string
+		// SupportedLanguages is a list of supported language tags.
 		SupportedLanguages []string
 	}
 
 	// Assets configures static assets and their locations.
 	Assets struct {
-		FS           fs.FS
-		Templates    *Templates
+		// FS is the file system containing the static assets.
+		FS fs.FS
+		// Templates configures template settings for the framework.
+		Templates *Templates
+		// I18nMessages configures internationalization message settings.
 		I18nMessages *I18nMessages
 	}
 
 	// OpenAPI configures OpenAPI documentation settings.
 	OpenAPI struct {
-		Config          *openapi.Config
-		URLPath         string
-		EndpointEnabled bool
+		// Config is the OpenAPI configuration.
+		Config *openapi.Config
+		// URLPath is the HTTP path for the OpenAPI JSON endpoint (e.g., "GET /openapi.json").
+		URLPath string
+		// Enabled indicates whether OpenAPI documentation is enabled.
+		Enabled bool
 	}
 
 	// Config represents the framework configuration.
 	Config struct {
-		I18nMessages           *I18nMessages
-		Assets                 *Assets
-		OpenAPI                *OpenAPI
+		// Telemetry configures telemetry settings for the framework.
+		Telemetry *Telemetry
+		// I18nMessages configures internationalization message settings.
+		I18nMessages *I18nMessages
+		// Assets configures static assets and their locations.
+		Assets *Assets
+		// OpenAPI configures OpenAPI documentation settings.
+		OpenAPI *OpenAPI
+		// JSONPCallbackParamName is the name of the query parameter for JSONP callbacks.
 		JSONPCallbackParamName string
 	}
 )
 
 const (
 	jsonpCallbackMethodNameKey   contextKey = "jsonpCallbackMethodName"
+	defaultTelemetryURLPath      string     = "GET /metrics"
 	defaultOpenAPIURLPath        string     = "GET /openapi.json"
 	defaultTemplateDir           string     = "assets/templates"
 	defaultLayoutBaseName        string     = "layout"
@@ -136,6 +180,7 @@ const (
 var (
 	appConfigured            = false
 	appMiddlewares           []AppMiddleware
+	telemetryConfig          *Telemetry
 	openAPIConfig            *OpenAPI
 	jsonpCallbackParamName   string
 	jsonpCallbackNamePattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
@@ -271,8 +316,23 @@ func (m *SSEHandler) ServeHTTP(w ResponseWriter, r *Request) {
 	}
 }
 
+func configureTelemetry(cfg *Config) {
+	if cfg == nil || cfg.Telemetry == nil || !cfg.Telemetry.Enabled {
+		return
+	}
+	telemetryConfig = cfg.Telemetry
+
+	telemetry.ConfigureTelemetry(telemetryConfig.UseDefaultRegistry, telemetryConfig.Collectors...)
+
+	if telemetryConfig.URLPath == "" {
+		telemetryConfig.URLPath = defaultTelemetryURLPath
+	} else if telemetryConfig.URLPath[0:4] != "GET " {
+		telemetryConfig.URLPath = "GET " + telemetryConfig.URLPath
+	}
+}
+
 func configureOpenAPI(cfg *Config) {
-	if cfg == nil || cfg.OpenAPI == nil || !cfg.OpenAPI.EndpointEnabled {
+	if cfg == nil || cfg.OpenAPI == nil || !cfg.OpenAPI.Enabled {
 		return
 	}
 	openAPIConfig = cfg.OpenAPI
@@ -369,6 +429,7 @@ func Configure(cfg *Config) {
 	}
 	appConfigured = true
 
+	configureTelemetry(cfg)
 	configureOpenAPI(cfg)
 	configureTemplate(cfg)
 	configureI18n(cfg)

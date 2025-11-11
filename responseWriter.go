@@ -24,22 +24,13 @@ import (
 type ResponseWriter struct {
 	http.ResponseWriter
 
-	context context.Context
+	statusCode *int // Pointer to allow mutation across value copies
 }
-
-const (
-	httpResponseStatusCodeKey contextKey = "httpResponseStatusCode"
-)
 
 func i18nPrinterFunc(messagePrinter *message.Printer) func(str string, args ...any) string {
 	return func(str string, args ...any) string {
 		return messagePrinter.Sprintf(str, args...)
 	}
-}
-
-// Context returns the request context associated with this response writer.
-func (w *ResponseWriter) Context() context.Context {
-	return w.context
 }
 
 // Error sends an error response with the specified HTTP status code and message.
@@ -56,14 +47,18 @@ func (w *ResponseWriter) Header() http.Header {
 // Write writes the data to the connection as part of an HTTP reply.
 // Implements the io.Writer interface.
 func (w *ResponseWriter) Write(b []byte) (int, error) {
+	// If no status code has been set yet, default to 200 OK
+	if w.statusCode != nil && *w.statusCode == 0 {
+		*w.statusCode = http.StatusOK
+	}
 	return w.ResponseWriter.Write(b)
 }
 
 // WriteHeader sends an HTTP response header with the provided status code.
 func (w *ResponseWriter) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
-	if w.context != nil {
-		w.context = context.WithValue(w.context, httpResponseStatusCodeKey, statusCode)
+	if w.statusCode != nil {
+		*w.statusCode = statusCode
 	}
 }
 
@@ -114,16 +109,19 @@ func (w *ResponseWriter) Unwrap() http.ResponseWriter {
 // StatusCode retrieves the HTTP response status code that was written.
 // Returns the status code and true if it was set, or 0 and false if not set.
 func (w *ResponseWriter) StatusCode() (int, bool) {
-	statusCode, ok := w.context.Value(httpResponseStatusCodeKey).(int)
-	return statusCode, ok
+	if w.statusCode != nil && *w.statusCode != 0 {
+		return *w.statusCode, true
+	}
+	return 0, false
 }
 
 // JSON marshals the provided data as JSON and writes it to the response.
 // If a JSONP callback is present in the context, wraps the response in the callback function.
 // Sets Content-Type header to "application/json" or "application/javascript" for JSONP.
+// The ctx parameter is used to check for JSONP callback; pass request context or context.Background().
 // Returns an error if marshaling or writing fails.
-func (w *ResponseWriter) JSON(v any) error {
-	jsonpCallback, ok := w.context.Value(jsonpCallbackMethodNameKey).(string)
+func (w *ResponseWriter) JSON(ctx context.Context, v any) error {
+	jsonpCallback, ok := ctx.Value(jsonpCallbackMethodNameKey).(string)
 	if ok && jsonpCallback != "" {
 		w.Header().Set("Content-Type", "application/javascript")
 		if _, writeErr := w.Write([]byte(jsonpCallback + "(")); writeErr != nil {
@@ -166,9 +164,10 @@ func (w *ResponseWriter) HTMLString(s string, data any) error {
 // The path is relative to the template directory and does not include the extension.
 // Automatically adds i18n support if a message printer is in the context.
 // Sets Content-Type header to "text/html".
+// The ctx parameter is used for i18n support; pass request context or context.Background().
 // Returns an error if templates are not configured, template is not found, or execution fails.
-func (w *ResponseWriter) HTML(path string, data any) error {
-	return w.renderTemplate(path, data, "text/html", true)
+func (w *ResponseWriter) HTML(ctx context.Context, path string, data any) error {
+	return w.renderTemplate(ctx, path, data, "text/html", true)
 }
 
 // TextString parses a plain text template string and executes it with the provided data.
@@ -188,13 +187,20 @@ func (w *ResponseWriter) TextString(s string, data any) error {
 // The path is relative to the template directory and does not include the extension.
 // Automatically adds i18n support if a message printer is in the context.
 // Sets Content-Type header to "text/plain".
+// The ctx parameter is used for i18n support; pass request context or context.Background().
 // Returns an error if templates are not configured, template is not found, or execution fails.
-func (w *ResponseWriter) Text(path string, data any) error {
-	return w.renderTemplate(path, data, "text/plain", false)
+func (w *ResponseWriter) Text(ctx context.Context, path string, data any) error {
+	return w.renderTemplate(ctx, path, data, "text/plain", false)
 }
 
 // renderTemplate is a helper function that handles template rendering for both HTML and text templates.
-func (w *ResponseWriter) renderTemplate(path string, data any, contentType string, isHTML bool) error {
+func (w *ResponseWriter) renderTemplate(
+	ctx context.Context,
+	path string,
+	data any,
+	contentType string,
+	isHTML bool,
+) error {
 	tmplConfig, ok := template.Configuration()
 	if !ok {
 		return errors.New("templates not configured")
@@ -210,7 +216,7 @@ func (w *ResponseWriter) renderTemplate(path string, data any, contentType strin
 	}
 
 	if tmpl, tmplFound := template.LookupTemplate(path+extension, false); tmplFound {
-		if msgPrinter, printerOk := i18n.PrinterFromContext(w.context); printerOk {
+		if msgPrinter, printerOk := i18n.PrinterFromContext(ctx); printerOk {
 			if isHTML {
 				i18nFunc := i18nPrinterFunc(msgPrinter)
 				funcs := htmlTemplate.FuncMap{

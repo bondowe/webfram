@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bondowe/webfram/openapi"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // contextKey is a custom type for context keys to avoid collisions.
@@ -272,8 +273,8 @@ func TestListenAndServe_WithOpenAPIEndpoint(t *testing.T) {
 
 	Configure(&Config{
 		OpenAPI: &OpenAPI{
-			EndpointEnabled: true,
-			URLPath:         "GET /openapi.json",
+			Enabled: true,
+			URLPath: "GET /openapi.json",
 			Config: &openapi.Config{
 				Info: &openapi.Info{
 					Title:   "Test API",
@@ -587,4 +588,605 @@ func BenchmarkGetValueOrDefault(b *testing.B) {
 			getValueOrDefault(10*time.Second, defaultValue)
 		}
 	})
+}
+
+// Telemetry Tests
+
+func TestSetupOpenAPIEndpoint_Enabled(t *testing.T) {
+	// Save and restore original config
+	originalConfig := openAPIConfig
+	defer func() { openAPIConfig = originalConfig }()
+
+	openAPIConfig = &OpenAPI{
+		Enabled: true,
+		URLPath: "GET /api-docs",
+		Config: &openapi.Config{
+			Info: &openapi.Info{
+				Title:   "Test API",
+				Version: "1.0.0",
+			},
+		},
+	}
+
+	mux := NewServeMux()
+	setupOpenAPIEndpoint(mux)
+
+	// The endpoint should exist (won't panic)
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("setupOpenAPIEndpoint panicked: %v", r)
+		}
+	}()
+}
+
+func TestSetupOpenAPIEndpoint_Disabled(_ *testing.T) {
+	originalConfig := openAPIConfig
+	defer func() { openAPIConfig = originalConfig }()
+
+	openAPIConfig = nil
+
+	mux := NewServeMux()
+	setupOpenAPIEndpoint(mux)
+
+	// Should not panic when config is nil
+}
+
+func TestSetupOpenAPIEndpoint_InvalidConfig(t *testing.T) {
+	originalConfig := openAPIConfig
+	defer func() { openAPIConfig = originalConfig }()
+
+	// Invalid config that will fail to marshal
+	openAPIConfig = &OpenAPI{
+		Enabled: true,
+		URLPath: "GET /api-docs",
+		Config:  nil, // This will cause panic
+	}
+
+	mux := NewServeMux()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic for invalid OpenAPI config")
+		}
+	}()
+
+	setupOpenAPIEndpoint(mux)
+}
+
+func TestSetupTelemetry_Disabled(t *testing.T) {
+	originalConfig := telemetryConfig
+	defer func() { telemetryConfig = originalConfig }()
+
+	telemetryConfig = nil
+
+	mux := NewServeMux()
+	server, separate := setupTelemetry(":8080", mux)
+
+	if server != nil {
+		t.Error("Expected nil server when telemetry is disabled")
+	}
+	if separate {
+		t.Error("Expected separate to be false when telemetry is disabled")
+	}
+}
+
+func TestSetupTelemetry_SameServer(t *testing.T) {
+	originalConfig := telemetryConfig
+	defer func() { telemetryConfig = originalConfig }()
+
+	// Reset app configuration
+	appConfigured = false
+	Configure(&Config{
+		Telemetry: &Telemetry{
+			Enabled: true,
+			URLPath: "GET /metrics",
+			Addr:    "", // Empty means same server
+		},
+	})
+
+	mux := NewServeMux()
+	server, separate := setupTelemetry(":8080", mux)
+
+	if server != nil {
+		t.Error("Expected nil server when telemetry runs on same server")
+	}
+	if separate {
+		t.Error("Expected separate to be false when telemetry runs on same server")
+	}
+}
+
+func TestSetupTelemetry_SameServerMatchingAddr(t *testing.T) {
+	originalConfig := telemetryConfig
+	defer func() { telemetryConfig = originalConfig }()
+
+	// Reset app configuration
+	appConfigured = false
+	Configure(&Config{
+		Telemetry: &Telemetry{
+			Enabled: true,
+			URLPath: "GET /metrics",
+			Addr:    ":8080", // Same as main server
+		},
+	})
+
+	mux := NewServeMux()
+	server, separate := setupTelemetry(":8080", mux)
+
+	if server != nil {
+		t.Error("Expected nil server when telemetry addr matches main addr")
+	}
+	if separate {
+		t.Error("Expected separate to be false when telemetry addr matches main addr")
+	}
+}
+
+func TestSetupTelemetry_SeparateServer(t *testing.T) {
+	originalConfig := telemetryConfig
+	defer func() { telemetryConfig = originalConfig }()
+
+	// Reset app configuration
+	appConfigured = false
+	Configure(&Config{
+		Telemetry: &Telemetry{
+			Enabled: true,
+			URLPath: "GET /metrics",
+			Addr:    ":9090", // Different from main server
+		},
+	})
+
+	mux := NewServeMux()
+	server, separate := setupTelemetry(":8080", mux)
+
+	if server == nil {
+		t.Fatal("Expected non-nil server when telemetry runs on separate server")
+	}
+	if !separate {
+		t.Error("Expected separate to be true when telemetry runs on separate server")
+	}
+	if server.Addr != ":9090" {
+		t.Errorf("Expected telemetry server addr to be :9090, got %s", server.Addr)
+	}
+}
+
+func TestCreateHTTPServer_NoConfig(t *testing.T) {
+	mux := NewServeMux()
+	server := createHTTPServer(":8080", mux, nil)
+
+	if server.Addr != ":8080" {
+		t.Errorf("Expected addr :8080, got %s", server.Addr)
+	}
+	if server.Handler != mux {
+		t.Error("Expected handler to be mux")
+	}
+	if server.ReadTimeout != readTimeout {
+		t.Errorf("Expected ReadTimeout %v, got %v", readTimeout, server.ReadTimeout)
+	}
+	if server.WriteTimeout != writeTimeout {
+		t.Errorf("Expected WriteTimeout %v, got %v", writeTimeout, server.WriteTimeout)
+	}
+	if server.IdleTimeout != idleTimeout {
+		t.Errorf("Expected IdleTimeout %v, got %v", idleTimeout, server.IdleTimeout)
+	}
+	if server.MaxHeaderBytes != maxHeaderBytes {
+		t.Errorf("Expected MaxHeaderBytes %d, got %d", maxHeaderBytes, server.MaxHeaderBytes)
+	}
+}
+
+func TestCreateHTTPServer_WithConfig(t *testing.T) {
+	mux := NewServeMux()
+	customReadTimeout := 20 * time.Second
+	customWriteTimeout := 25 * time.Second
+	customIdleTimeout := 90 * time.Second
+	customMaxHeaderBytes := 2 << 20
+
+	cfg := &ServerConfig{
+		ReadTimeout:                  customReadTimeout,
+		WriteTimeout:                 customWriteTimeout,
+		IdleTimeout:                  customIdleTimeout,
+		MaxHeaderBytes:               customMaxHeaderBytes,
+		DisableGeneralOptionsHandler: true,
+	}
+
+	server := createHTTPServer(":8080", mux, cfg)
+
+	if server.ReadTimeout != customReadTimeout {
+		t.Errorf("Expected ReadTimeout %v, got %v", customReadTimeout, server.ReadTimeout)
+	}
+	if server.WriteTimeout != customWriteTimeout {
+		t.Errorf("Expected WriteTimeout %v, got %v", customWriteTimeout, server.WriteTimeout)
+	}
+	if server.IdleTimeout != customIdleTimeout {
+		t.Errorf("Expected IdleTimeout %v, got %v", customIdleTimeout, server.IdleTimeout)
+	}
+	if server.MaxHeaderBytes != customMaxHeaderBytes {
+		t.Errorf("Expected MaxHeaderBytes %d, got %d", customMaxHeaderBytes, server.MaxHeaderBytes)
+	}
+	if !server.DisableGeneralOptionsHandler {
+		t.Error("Expected DisableGeneralOptionsHandler to be true")
+	}
+}
+
+func TestCreateHTTPServer_WithTLSConfig(t *testing.T) {
+	mux := NewServeMux()
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS13,
+	}
+
+	cfg := &ServerConfig{
+		TLSConfig: tlsConfig,
+	}
+
+	server := createHTTPServer(":8443", mux, cfg)
+
+	if server.TLSConfig != tlsConfig {
+		t.Error("Expected TLSConfig to be set")
+	}
+	if server.TLSConfig.MinVersion != tls.VersionTLS13 {
+		t.Errorf("Expected MinVersion TLS 1.3, got %d", server.TLSConfig.MinVersion)
+	}
+}
+
+func TestCreateHTTPServer_WithCallbacks(t *testing.T) {
+	mux := NewServeMux()
+	connStateCalled := false
+	baseContextCalled := false
+	connContextCalled := false
+
+	cfg := &ServerConfig{
+		ConnState: func(_ net.Conn, _ http.ConnState) {
+			connStateCalled = true
+		},
+		BaseContext: func(_ net.Listener) context.Context {
+			baseContextCalled = true
+			return context.Background()
+		},
+		ConnContext: func(ctx context.Context, _ net.Conn) context.Context {
+			connContextCalled = true
+			return ctx
+		},
+	}
+
+	server := createHTTPServer(":8080", mux, cfg)
+
+	if server.ConnState == nil {
+		t.Error("Expected ConnState to be set")
+	}
+	if server.BaseContext == nil {
+		t.Error("Expected BaseContext to be set")
+	}
+	if server.ConnContext == nil {
+		t.Error("Expected ConnContext to be set")
+	}
+
+	// Test callbacks are invoked
+	server.ConnState(nil, http.StateNew)
+	if !connStateCalled {
+		t.Error("ConnState callback was not called")
+	}
+
+	server.BaseContext(nil)
+	if !baseContextCalled {
+		t.Error("BaseContext callback was not called")
+	}
+
+	server.ConnContext(context.Background(), nil)
+	if !connContextCalled {
+		t.Error("ConnContext callback was not called")
+	}
+}
+
+func TestStartServer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping server start test in short mode")
+	}
+
+	mux := NewServeMux()
+	mux.HandleFunc("GET /test", func(w ResponseWriter, _ *Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Find a free port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := listener.Addr().String()
+	listener.Close()
+
+	server := createHTTPServer(addr, mux, nil)
+	errorChan := make(chan error, 1)
+
+	startServer(server, "test", errorChan)
+
+	// Give server time to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify server is running by making a request
+	resp, err := http.Get("http://" + addr + "/test")
+	if err == nil {
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", resp.StatusCode)
+		}
+	} else {
+		t.Logf("Server may not have started yet: %v", err)
+	}
+
+	// Shutdown server
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	server.Shutdown(ctx)
+
+	// Verify no error was sent
+	select {
+	case serverErr := <-errorChan:
+		t.Errorf("Unexpected error from server: %v", serverErr)
+	case <-time.After(100 * time.Millisecond):
+		// No error, as expected
+	}
+}
+
+func TestShutdownServers_MainOnly(t *testing.T) {
+	mux := NewServeMux()
+	mainServer := createHTTPServer(":0", mux, nil)
+
+	// Start the server
+	errorChan := make(chan error, 1)
+	startServer(mainServer, "main", errorChan)
+	time.Sleep(100 * time.Millisecond)
+
+	// Shutdown should not panic
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("shutdownServers panicked: %v", r)
+		}
+	}()
+
+	shutdownServers(mainServer, nil, false)
+}
+
+func TestShutdownServers_BothServers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping dual server test in short mode")
+	}
+
+	// Create and start main server
+	mainMux := NewServeMux()
+	listener1, _ := net.Listen("tcp", "127.0.0.1:0")
+	mainAddr := listener1.Addr().String()
+	listener1.Close()
+	mainServer := createHTTPServer(mainAddr, mainMux, nil)
+
+	// Create and start telemetry server
+	telemetryMux := NewServeMux()
+	listener2, _ := net.Listen("tcp", "127.0.0.1:0")
+	telemetryAddr := listener2.Addr().String()
+	listener2.Close()
+	telemetryServer := createHTTPServer(telemetryAddr, telemetryMux, nil)
+
+	errorChan := make(chan error, 2)
+	startServer(mainServer, "main", errorChan)
+	startServer(telemetryServer, "telemetry", errorChan)
+	time.Sleep(100 * time.Millisecond)
+
+	// Shutdown should not panic
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("shutdownServers panicked: %v", r)
+		}
+	}()
+
+	shutdownServers(mainServer, telemetryServer, true)
+}
+
+func TestTelemetryIntegration_SeparateServer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	// Reset app configuration
+	appConfigured = false
+
+	// Find free ports
+	listener1, _ := net.Listen("tcp", "127.0.0.1:0")
+	mainAddr := listener1.Addr().String()
+	listener1.Close()
+
+	listener2, _ := net.Listen("tcp", "127.0.0.1:0")
+	telemetryAddr := listener2.Addr().String()
+	listener2.Close()
+
+	Configure(&Config{
+		Telemetry: &Telemetry{
+			Enabled: true,
+			URLPath: "GET /metrics",
+			Addr:    telemetryAddr,
+		},
+	})
+
+	mux := NewServeMux()
+	mux.HandleFunc("GET /app", func(w ResponseWriter, _ *Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("app"))
+	})
+
+	telemetryServer, separate := setupTelemetry(mainAddr, mux)
+	if !separate {
+		t.Fatal("Expected separate telemetry server")
+	}
+
+	mainServer := createHTTPServer(mainAddr, mux, nil)
+
+	errorChan := make(chan error, 2)
+	startServer(mainServer, "main", errorChan)
+	startServer(telemetryServer, "telemetry", errorChan)
+
+	time.Sleep(200 * time.Millisecond)
+
+	// Test main server
+	resp, err := http.Get("http://" + mainAddr + "/app")
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Main server: expected status 200, got %d", resp.StatusCode)
+		}
+	}
+
+	// Test telemetry server
+	resp, err = http.Get("http://" + telemetryAddr + "/metrics")
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Telemetry server: expected status 200, got %d", resp.StatusCode)
+		}
+	}
+
+	// Cleanup
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	mainServer.Shutdown(ctx)
+	telemetryServer.Shutdown(ctx)
+}
+
+func TestTelemetryIntegration_SameServer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	// Reset app configuration
+	appConfigured = false
+
+	listener, _ := net.Listen("tcp", "127.0.0.1:0")
+	addr := listener.Addr().String()
+	listener.Close()
+
+	Configure(&Config{
+		Telemetry: &Telemetry{
+			Enabled: true,
+			URLPath: "GET /metrics",
+			Addr:    "", // Same server
+		},
+	})
+
+	mux := NewServeMux()
+	mux.HandleFunc("GET /app", func(w ResponseWriter, _ *Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	telemetryServer, separate := setupTelemetry(addr, mux)
+	if separate {
+		t.Fatal("Expected telemetry on same server")
+	}
+	if telemetryServer != nil {
+		t.Fatal("Expected nil telemetry server")
+	}
+
+	mainServer := createHTTPServer(addr, mux, nil)
+
+	errorChan := make(chan error, 1)
+	startServer(mainServer, "main", errorChan)
+
+	time.Sleep(200 * time.Millisecond)
+
+	// Test app endpoint
+	resp, err := http.Get("http://" + addr + "/app")
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("App endpoint: expected status 200, got %d", resp.StatusCode)
+		}
+	}
+
+	// Test metrics endpoint on same server
+	resp, err = http.Get("http://" + addr + "/metrics")
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Metrics endpoint: expected status 200, got %d", resp.StatusCode)
+		}
+	}
+
+	// Cleanup
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	mainServer.Shutdown(ctx)
+}
+
+func TestTelemetryConfig_DefaultURLPath(t *testing.T) {
+	// Reset app configuration
+	appConfigured = false
+
+	Configure(&Config{
+		Telemetry: &Telemetry{
+			Enabled: true,
+			URLPath: "", // Should default to "GET /metrics"
+		},
+	})
+
+	if telemetryConfig.URLPath != "GET /metrics" {
+		t.Errorf("Expected default URLPath 'GET /metrics', got %q", telemetryConfig.URLPath)
+	}
+}
+
+func TestTelemetryConfig_CustomURLPath(t *testing.T) {
+	// Reset app configuration
+	appConfigured = false
+
+	Configure(&Config{
+		Telemetry: &Telemetry{
+			Enabled: true,
+			URLPath: "/custom-metrics", // Should be prefixed with "GET "
+		},
+	})
+
+	if telemetryConfig.URLPath != "GET /custom-metrics" {
+		t.Errorf("Expected URLPath 'GET /custom-metrics', got %q", telemetryConfig.URLPath)
+	}
+}
+
+func TestTelemetryConfig_WithHandlerOpts(t *testing.T) {
+	// Reset app configuration
+	appConfigured = false
+
+	handlerOpts := promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+	}
+
+	Configure(&Config{
+		Telemetry: &Telemetry{
+			Enabled:     true,
+			URLPath:     "GET /metrics",
+			HandlerOpts: handlerOpts,
+		},
+	})
+
+	if !telemetryConfig.HandlerOpts.EnableOpenMetrics {
+		t.Error("Expected EnableOpenMetrics to be true")
+	}
+}
+
+//nolint:unused // test helper type for future tests
+type testResponseWriter struct {
+	header     http.Header
+	statusCode int
+	body       []byte
+}
+
+//nolint:unused // test helper method for future tests
+func (w *testResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+//nolint:unused // test helper method for future tests
+func (w *testResponseWriter) Write(b []byte) (int, error) {
+	w.body = append(w.body, b...)
+	return len(b), nil
+}
+
+//nolint:unused // test helper method for future tests
+func (w *testResponseWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
 }

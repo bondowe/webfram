@@ -47,25 +47,6 @@ func setupResponseWriterTests() {
 	})
 }
 
-func TestResponseWriter_Context(t *testing.T) {
-	w := httptest.NewRecorder()
-	ctx := context.WithValue(context.Background(), testContextKey3, "test-value")
-	rw := ResponseWriter{
-		ResponseWriter: w,
-		context:        ctx,
-	}
-
-	result := rw.Context()
-	if result == nil {
-		t.Fatal("Context() returned nil")
-	}
-
-	val := result.Value(testContextKey3)
-	if val != "test-value" {
-		t.Errorf("Expected context value 'test-value', got %v", val)
-	}
-}
-
 func TestResponseWriter_Error(t *testing.T) {
 	w := httptest.NewRecorder()
 	rw := ResponseWriter{ResponseWriter: w}
@@ -115,9 +96,10 @@ func TestResponseWriter_Write(t *testing.T) {
 
 func TestResponseWriter_WriteHeader(t *testing.T) {
 	w := httptest.NewRecorder()
+	statuscode := 0
 	rw := ResponseWriter{
 		ResponseWriter: w,
-		context:        context.Background(),
+		statusCode:     &statuscode,
 	}
 
 	rw.WriteHeader(http.StatusCreated)
@@ -126,13 +108,13 @@ func TestResponseWriter_WriteHeader(t *testing.T) {
 		t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
 	}
 
-	// Verify status code is stored in context
-	statusCode, ok := rw.StatusCode()
+	// Verify status code is stored via pointer
+	code, ok := rw.StatusCode()
 	if !ok {
-		t.Error("Expected status code to be set in context")
+		t.Error("Expected status code to be set via pointer")
 	}
-	if statusCode != http.StatusCreated {
-		t.Errorf("Expected status code %d in context, got %d", http.StatusCreated, statusCode)
+	if code != http.StatusCreated {
+		t.Errorf("Expected status code %d via pointer, got %d", http.StatusCreated, code)
 	}
 }
 
@@ -189,19 +171,20 @@ func TestResponseWriter_StatusCode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
+			statuscode := 0
 			rw := ResponseWriter{
 				ResponseWriter: w,
-				context:        context.Background(),
+				statusCode:     &statuscode,
 			}
 
 			tt.setupFunc(&rw)
 
-			statusCode, ok := rw.StatusCode()
+			code, ok := rw.StatusCode()
 			if ok != tt.expectedExists {
 				t.Errorf("StatusCode() exists = %v, want %v", ok, tt.expectedExists)
 			}
-			if statusCode != tt.expectedCode {
-				t.Errorf("StatusCode() = %d, want %d", statusCode, tt.expectedCode)
+			if code != tt.expectedCode {
+				t.Errorf("StatusCode() = %d, want %d", code, tt.expectedCode)
 			}
 		})
 	}
@@ -212,59 +195,58 @@ func TestResponseWriter_StatusCode_WithExistingContext(t *testing.T) {
 
 	// Create context with some existing values
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, testContextKey3, "existing-value")
+	_ = context.WithValue(ctx, testContextKey3, "existing-value")
 
+	statuscode := 0
 	rw := ResponseWriter{
 		ResponseWriter: w,
-		context:        ctx,
+		statusCode:     &statuscode,
 	}
 
 	// Write a status code
 	rw.WriteHeader(http.StatusAccepted)
 
-	// Verify status code is accessible
-	statusCode, ok := rw.StatusCode()
+	// Verify status code is accessible via pointer
+	code, ok := rw.StatusCode()
 	if !ok {
-		t.Error("Expected status code to be set")
+		t.Error("Expected status code to be set via pointer")
 	}
-	if statusCode != http.StatusAccepted {
-		t.Errorf("Expected status code %d, got %d", http.StatusAccepted, statusCode)
-	}
-
-	// Verify existing context value is still accessible
-	existingVal := rw.Context().Value(testContextKey3)
-	if existingVal != "existing-value" {
-		t.Errorf("Expected existing context value 'existing-value', got %v", existingVal)
+	if code != http.StatusAccepted {
+		t.Errorf("Expected status code %d, got %d", http.StatusAccepted, code)
 	}
 }
 
 func TestResponseWriter_StatusCode_AfterJSONResponse(t *testing.T) {
 	w := httptest.NewRecorder()
+	statusCode := 0
 	rw := ResponseWriter{
 		ResponseWriter: w,
-		context:        context.Background(),
+		statusCode:     &statusCode,
 	}
 
 	// JSON automatically writes status 200 if not explicitly set
 	data := map[string]string{"key": "value"}
-	err := rw.JSON(data)
+	err := rw.JSON(context.Background(), data)
 	if err != nil {
 		t.Fatalf("JSON() error = %v", err)
 	}
 
-	// httptest.ResponseRecorder defaults to 200 after first write
-	// But our StatusCode() only tracks explicit WriteHeader calls
-	statusCode, ok := rw.StatusCode()
-	if ok {
-		t.Errorf("Expected status code not to be set (implicit 200), but got %d", statusCode)
+	// Now we track implicit 200 status codes via Write()
+	code, ok := rw.StatusCode()
+	if !ok {
+		t.Error("Expected status code to be set (implicit 200)")
+	}
+	if code != http.StatusOK {
+		t.Errorf("Expected status code 200, got %d", code)
 	}
 }
 
 func TestResponseWriter_StatusCode_ExplicitThenImplicit(t *testing.T) {
 	w := httptest.NewRecorder()
+	statuscode := 0
 	rw := ResponseWriter{
 		ResponseWriter: w,
-		context:        context.Background(),
+		statusCode:     &statuscode,
 	}
 
 	// Explicitly set status before writing
@@ -272,18 +254,18 @@ func TestResponseWriter_StatusCode_ExplicitThenImplicit(t *testing.T) {
 
 	// Write some data
 	data := map[string]string{"key": "value"}
-	err := rw.JSON(data)
+	err := rw.JSON(context.Background(), data)
 	if err != nil {
 		t.Fatalf("JSON() error = %v", err)
 	}
 
 	// Should still have the explicit status code
-	statusCode, ok := rw.StatusCode()
+	code, ok := rw.StatusCode()
 	if !ok {
-		t.Error("Expected status code to be set")
+		t.Error("Expected status code to be set via pointer")
 	}
-	if statusCode != http.StatusCreated {
-		t.Errorf("Expected status code %d, got %d", http.StatusCreated, statusCode)
+	if code != http.StatusCreated {
+		t.Errorf("Expected status code %d, got %d", http.StatusCreated, code)
 	}
 }
 
@@ -394,10 +376,9 @@ func TestResponseWriter_JSON(t *testing.T) {
 			w := httptest.NewRecorder()
 			rw := ResponseWriter{
 				ResponseWriter: w,
-				context:        context.Background(),
 			}
 
-			err := rw.JSON(tt.data)
+			err := rw.JSON(context.Background(), tt.data)
 			if err != nil {
 				t.Fatalf("JSON() returned error: %v", err)
 			}
@@ -430,11 +411,10 @@ func TestResponseWriter_JSON_JSONP(t *testing.T) {
 	ctx := context.WithValue(context.Background(), jsonpCallbackMethodNameKey, "myCallback")
 	rw := ResponseWriter{
 		ResponseWriter: w,
-		context:        ctx,
 	}
 
 	data := TestData{Message: "hello"}
-	err := rw.JSON(data)
+	err := rw.JSON(ctx, data)
 
 	if err != nil {
 		t.Fatalf("JSON() returned error: %v", err)
@@ -851,9 +831,8 @@ func BenchmarkResponseWriter_JSON(b *testing.B) {
 		w := httptest.NewRecorder()
 		rw := ResponseWriter{
 			ResponseWriter: w,
-			context:        context.Background(),
 		}
-		_ = rw.JSON(data)
+		_ = rw.JSON(context.Background(), data)
 	}
 }
 
@@ -915,10 +894,9 @@ func TestResponseWriter_HTML(t *testing.T) {
 			w := httptest.NewRecorder()
 			rw := ResponseWriter{
 				ResponseWriter: w,
-				context:        context.Background(),
 			}
 
-			err := rw.HTML(tt.path, tt.data)
+			err := rw.HTML(context.Background(), tt.path, tt.data)
 			if (err != nil) != tt.wantError {
 				t.Errorf("HTML() error = %v, wantError %v", err, tt.wantError)
 				return
@@ -944,10 +922,9 @@ func TestResponseWriter_HTML_WithI18n(t *testing.T) {
 
 	rw := ResponseWriter{
 		ResponseWriter: w,
-		context:        ctx,
 	}
 
-	err := rw.HTML("test", map[string]string{"Title": "I18n Test"})
+	err := rw.HTML(ctx, "test", map[string]string{"Title": "I18n Test"})
 	if err != nil {
 		t.Fatalf("HTML() error = %v", err)
 	}

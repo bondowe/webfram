@@ -39,6 +39,11 @@ func loggingMiddleware(next app.Handler) app.Handler {
 func main() {
 	// Configure the application
 	app.Configure(&app.Config{
+		Telemetry: &app.Telemetry{
+			Enabled:            true,
+			UseDefaultRegistry: true,
+			Addr:               ":8081", // Separate telemetry server. Defaults to main server if empty
+		},
 		Assets: &app.Assets{
 			FS: assetsFS,
 			Templates: &app.Templates{
@@ -51,8 +56,8 @@ func main() {
 		},
 		JSONPCallbackParamName: "callback", // Enable JSONP support
 		OpenAPI: &app.OpenAPI{
-			EndpointEnabled: true,
-			Config:          getOpenAPIConfig(),
+			Enabled: true,
+			Config:  getOpenAPIConfig(),
 		},
 	})
 
@@ -65,7 +70,7 @@ func main() {
 	// Routes
 	mux.HandleFunc("GET /", func(w app.ResponseWriter, r *app.Request) {
 		user := User{Name: "John Doe", Email: "john@example.com"}
-		err := w.HTML("home/index", &user)
+		err := w.HTML(r.Context(), "home/index", &user)
 		if err != nil {
 			w.Error(http.StatusInternalServerError, err.Error())
 		}
@@ -77,7 +82,7 @@ func main() {
 			{ID: uuid.New(), Name: "John Doe", Email: "john@example.com"},
 			{ID: uuid.New(), Name: "Jane Smith", Email: "jane@example.com"},
 		}
-		w.JSON(users)
+		w.JSON(r.Context(), users)
 	}).WithAPIConfig(&app.APIConfig{
 		OperationID: "listUsers",
 		Summary:     "List all users",
@@ -103,13 +108,13 @@ func main() {
 
 		if valErrors.Any() {
 			w.WriteHeader(http.StatusBadRequest)
-			w.JSON(valErrors)
+			w.JSON(r.Context(), valErrors)
 			return
 		}
 
 		user.ID = uuid.New()
 		w.WriteHeader(http.StatusCreated)
-		w.JSON(user)
+		w.JSON(r.Context(), user)
 	}).WithAPIConfig(&app.APIConfig{
 		OperationID: "createUser",
 		Summary:     "Create a new user",
@@ -156,11 +161,11 @@ func main() {
 
 		if len(valErrors) > 0 {
 			w.WriteHeader(http.StatusBadRequest)
-			w.JSON(app.ValidationErrors{Errors: valErrors})
+			w.JSON(r.Context(), app.ValidationErrors{Errors: valErrors})
 			return
 		}
 
-		w.JSON(user)
+		w.JSON(r.Context(), user)
 	})
 
 	// SSE endpoint for real-time updates
@@ -187,7 +192,7 @@ func main() {
 	mux.HandleFunc("GET /greeting", func(w app.ResponseWriter, r *app.Request) {
 		printer := app.GetI18nPrinter(language.Spanish)
 		msg := printer.Sprintf("Welcome to %s! Clap %d times.", "WebFram", 5)
-		w.JSON(map[string]string{"message": msg})
+		w.JSON(r.Context(), map[string]string{"message": msg})
 	})
 
 	// Start server

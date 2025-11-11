@@ -234,17 +234,17 @@ func TestConfigureOpenAPI_NilOpenAPIConfig(t *testing.T) {
 }
 
 func TestConfigureOpenAPI_DisabledEndpoint(t *testing.T) {
-	openAPIConfig = &OpenAPI{EndpointEnabled: false}
+	openAPIConfig = &OpenAPI{Enabled: false}
 	cfg := &Config{
 		OpenAPI: &OpenAPI{
-			EndpointEnabled: false,
-			Config:          &openapi.Config{},
+			Enabled: false,
+			Config:  &openapi.Config{},
 		},
 	}
 	configureOpenAPI(cfg)
 
 	// Should not override when disabled
-	if openAPIConfig.EndpointEnabled {
+	if openAPIConfig.Enabled {
 		t.Error("Expected endpoint to remain disabled")
 	}
 }
@@ -252,11 +252,11 @@ func TestConfigureOpenAPI_DisabledEndpoint(t *testing.T) {
 func TestConfigureOpenAPI_WithDefaultURL(t *testing.T) {
 	// Set up initial state - the function checks openAPIConfig.EndpointEnabled
 	// so we need to initialize it first
-	openAPIConfig = &OpenAPI{EndpointEnabled: true}
+	openAPIConfig = &OpenAPI{Enabled: true}
 
 	cfg := &Config{
 		OpenAPI: &OpenAPI{
-			EndpointEnabled: true,
+			Enabled: true,
 			Config: &openapi.Config{
 				Info: &openapi.Info{
 					Title:   "Test API",
@@ -281,13 +281,13 @@ func TestConfigureOpenAPI_WithDefaultURL(t *testing.T) {
 }
 
 func TestConfigureOpenAPI_WithCustomURL(t *testing.T) {
-	openAPIConfig = &OpenAPI{EndpointEnabled: true}
+	openAPIConfig = &OpenAPI{Enabled: true}
 
 	cfg := &Config{
 		OpenAPI: &OpenAPI{
-			EndpointEnabled: true,
-			URLPath:         "/api/spec.json",
-			Config:          &openapi.Config{},
+			Enabled: true,
+			URLPath: "/api/spec.json",
+			Config:  &openapi.Config{},
 		},
 	}
 	configureOpenAPI(cfg)
@@ -299,13 +299,13 @@ func TestConfigureOpenAPI_WithCustomURL(t *testing.T) {
 }
 
 func TestConfigureOpenAPI_URLWithExistingGETPrefix(t *testing.T) {
-	openAPIConfig = &OpenAPI{EndpointEnabled: true}
+	openAPIConfig = &OpenAPI{Enabled: true}
 
 	cfg := &Config{
 		OpenAPI: &OpenAPI{
-			EndpointEnabled: true,
-			URLPath:         "GET /custom.json",
-			Config:          &openapi.Config{},
+			Enabled: true,
+			URLPath: "GET /custom.json",
+			Config:  &openapi.Config{},
 		},
 	}
 	configureOpenAPI(cfg)

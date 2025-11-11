@@ -226,7 +226,7 @@ func main() {
 
     // Define a route
     mux.HandleFunc("GET /hello", func(w app.ResponseWriter, r *app.Request) {
-        w.JSON(map[string]string{"message": "Hello, World!"})
+        w.JSON(r.Context(), map[string]string{"message": "Hello, World!"})
     })
 
     // Start the server (nil for default server configuration)
@@ -655,7 +655,7 @@ mux.HandleFunc("GET /users/{id}", func(w app.ResponseWriter, r *app.Request) {
         return
     }
     
-    w.JSON(user)
+    w.JSON(r.Context(), user)
 })
 
 // Multiple parameters
@@ -665,7 +665,7 @@ mux.HandleFunc("GET /posts/{year}/{month}/{slug}", func(w app.ResponseWriter, r 
     slug := r.PathValue("slug")
     
     post := getPost(year, month, slug)
-    w.JSON(post)
+    w.JSON(r.Context(), post)
 })
 ```
 
@@ -848,12 +848,14 @@ defer r.Body.Close()
 
 ## Response Handling
 
-WebFram provides multiple response methods:
+WebFram provides multiple response methods. Note that JSON, HTML, and Text methods require a `context.Context` as the first parameter, which is typically obtained from `r.Context()`. The context is used for JSONP callback detection and internationalization support.
+
+### Response Methods
 
 ### JSON Response
 
 ```go
-w.JSON(map[string]string{"message": "Success"})
+w.JSON(r.Context(), map[string]string{"message": "Success"})
 ```
 
 The `JSON` method automatically handles JSONP requests if configured (see [JSONP Support](#jsonp-support)).
@@ -863,7 +865,7 @@ The `JSON` method automatically handles JSONP requests if configured (see [JSONP
 ```go
 // Render a template
 data := map[string]interface{}{"Name": "John"}
-err := w.HTML("users/profile", data)
+err := w.HTML(r.Context(), "users/profile", data)
 ```
 
 ### HTML String Response
@@ -876,7 +878,7 @@ err := w.HTMLString("<h1>{{.Title}}</h1>", map[string]string{"Title": "Hello"})
 
 ```go
 // Render a text template
-err := w.Text("users/email", data)
+err := w.Text(r.Context(), "users/email", data)
 ```
 
 ### Text String Response
@@ -941,7 +943,7 @@ w.Error(http.StatusBadRequest, "Invalid request")
 ```go
 w.Header().Set("X-Custom-Header", "value")
 w.WriteHeader(http.StatusOK)
-w.JSON(data)
+w.JSON(r.Context(), data)
 ```
 
 ## Data Binding & Validation
@@ -972,12 +974,12 @@ mux.HandleFunc("POST /users", func(w app.ResponseWriter, r *app.Request) {
     
     if valErrors.Any() {
         w.WriteHeader(http.StatusBadRequest)
-        w.JSON(valErrors)
+        w.JSON(r.Context(), valErrors)
         return
     }
     
     // Process valid user data
-    w.JSON(user)
+    w.JSON(r.Context(), user)
 })
 ```
 
@@ -1010,12 +1012,12 @@ mux.HandleFunc("POST /api/users", func(w app.ResponseWriter, r *app.Request) {
     
     if valErrors.Any() {
         w.WriteHeader(http.StatusBadRequest)
-        w.JSON(valErrors)
+        w.JSON(r.Context(), valErrors)
         return
     }
     
     // Process valid user data
-    w.JSON(user)
+    w.JSON(r.Context(), user)
 })
 ```
 
@@ -1135,11 +1137,11 @@ mux.HandleFunc("POST /config", func(w app.ResponseWriter, r *app.Request) {
     
     if valErrors.Any() {
         w.WriteHeader(http.StatusBadRequest)
-        w.JSON(valErrors)
+        w.JSON(r.Context(), valErrors)
         return
     }
     
-    w.JSON(config)
+    w.JSON(r.Context(), config)
 })
 ```
 
@@ -1239,7 +1241,7 @@ if err != nil {
 if valErrors.Any() {
     // Validation errors - return structured error response
     w.WriteHeader(http.StatusBadRequest)
-    w.JSON(valErrors)
+    w.JSON(r.Context(), valErrors)
     return
 }
 
@@ -1397,13 +1399,13 @@ mux.HandleFunc("GET /users/{id}", func(w app.ResponseWriter, r *app.Request) {
     
     if len(valErrors) > 0 {
         w.WriteHeader(http.StatusBadRequest)
-        w.JSON(bind.ValidationErrors{Errors: valErrors})
+        w.JSON(r.Context(), bind.ValidationErrors{Errors: valErrors})
         return
     }
     
     // user.ID will be bound from path parameter
     // user.Search will be bound from query parameter "q"
-    w.JSON(user)
+    w.JSON(r.Context(), user)
 })
 ```
 
@@ -1432,7 +1434,7 @@ mux.HandleFunc("POST /users/{id}/update", func(w app.ResponseWriter, r *app.Requ
     
     if len(valErrors) > 0 {
         w.WriteHeader(http.StatusBadRequest)
-        w.JSON(bind.ValidationErrors{Errors: valErrors})
+        w.JSON(r.Context(), bind.ValidationErrors{Errors: valErrors})
         return
     }
     
@@ -1441,7 +1443,7 @@ mux.HandleFunc("POST /users/{id}/update", func(w app.ResponseWriter, r *app.Requ
     // req.AuthToken comes from Authorization header
     // req.SessionID comes from session_id cookie
     // req.Username comes from form data
-    w.JSON(req)
+    w.JSON(r.Context(), req)
 })
 ```
 
@@ -1470,12 +1472,12 @@ mux.HandleFunc("GET /items/{id}", func(w app.ResponseWriter, r *app.Request) {
     
     if len(valErrors) > 0 {
         w.WriteHeader(http.StatusBadRequest)
-        w.JSON(bind.ValidationErrors{Errors: valErrors})
+        w.JSON(r.Context(), bind.ValidationErrors{Errors: valErrors})
         return
     }
     
     // All fields are properly typed and validated
-    w.JSON(req)
+    w.JSON(r.Context(), req)
 })
 ```
 
@@ -1500,12 +1502,12 @@ mux.HandleFunc("POST /login", func(w app.ResponseWriter, r *app.Request) {
     
     if len(valErrors) > 0 {
         w.WriteHeader(http.StatusBadRequest)
-        w.JSON(bind.ValidationErrors{Errors: valErrors})
+        w.JSON(r.Context(), bind.ValidationErrors{Errors: valErrors})
         return
     }
     
     // Process login
-    w.JSON(map[string]string{"status": "success"})
+    w.JSON(r.Context(), map[string]string{"status": "success"})
 })
 ```
 
@@ -1532,12 +1534,12 @@ mux.HandleFunc("POST /users", func(w app.ResponseWriter, r *app.Request) {
     
     if len(valErrors) > 0 {
         w.WriteHeader(http.StatusBadRequest)
-        w.JSON(bind.ValidationErrors{Errors: valErrors})
+        w.JSON(r.Context(), bind.ValidationErrors{Errors: valErrors})
         return
     }
     
     // All validation rules have been checked
-    w.JSON(user)
+    w.JSON(r.Context(), user)
 })
 ```
 
@@ -1631,7 +1633,7 @@ mux.HandleFunc("PATCH /users/{id}", func(w app.ResponseWriter, r *app.Request) {
     
     if len(valErrors) > 0 {
         w.WriteHeader(http.StatusBadRequest)
-        w.JSON(app.ValidationErrors{Errors: valErrors})
+        w.JSON(r.Context(), app.ValidationErrors{Errors: valErrors})
         return
     }
     
@@ -1642,7 +1644,7 @@ mux.HandleFunc("PATCH /users/{id}", func(w app.ResponseWriter, r *app.Request) {
         return
     }
     
-    w.JSON(user)
+    w.JSON(r.Context(), user)
 })
 ```
 
@@ -1740,9 +1742,9 @@ if err != nil {
 if len(valErrors) > 0 {
     // Validation failed after applying patch
     w.WriteHeader(http.StatusBadRequest)
-    w.JSON(app.ValidationErrors{Errors: valErrors})
+    w.JSON(r.Context(), app.ValidationErrors{Errors: valErrors})
     return
-}
+  }
 ```
 
 ## JSONP Support
@@ -1766,7 +1768,7 @@ If `JSONPCallbackParamName` is not set or is empty, JSONP is disabled and all JS
 
 ### Using JSONP
 
-Once configured, any route that uses `w.JSON()` will automatically support JSONP when the callback parameter is present in the query string:
+Once configured, any route that uses `w.JSON(r.Context(), data)` will automatically support JSONP when the callback parameter is present in the query string:
 
 ```go
 mux.HandleFunc("GET /api/users", func(w app.ResponseWriter, r *app.Request) {
@@ -1776,7 +1778,7 @@ mux.HandleFunc("GET /api/users", func(w app.ResponseWriter, r *app.Request) {
     }
     
     // Automatically handles both JSON and JSONP
-    w.JSON(users)
+    w.JSON(r.Context(), users)
 })
 ```
 
@@ -2372,7 +2374,7 @@ mux.HandleFunc("GET /users", func(w app.ResponseWriter, r *app.Request) {
         },
     }
     
-    err := w.HTML("users/list", data)
+    err := w.HTML(r.Context(), "users/list", data)
     if err != nil {
         w.Error(http.StatusInternalServerError, err.Error())
     }
@@ -2571,7 +2573,7 @@ mux.HandleFunc("POST /set-language", func(w app.ResponseWriter, r *app.Request) 
     // Set language cookie for 30 days
     app.SetLanguageCookie(w, lang, 30*24*3600)
     
-    w.JSON(map[string]string{"message": "Language preference saved"})
+    w.JSON(r.Context(), map[string]string{"message": "Language preference saved"})
 })
 ```
 
@@ -2654,7 +2656,7 @@ import "golang.org/x/text/language"
 mux.HandleFunc("GET /greeting", func(w app.ResponseWriter, r *app.Request) {
     printer := app.GetI18nPrinter(language.Spanish)
     msg := printer.Sprintf("Welcome to %s! Clap %d times.", "WebFram", 5)
-    w.JSON(map[string]string{"message": msg})
+    w.JSON(r.Context(), map[string]string{"message": msg})
 })
 ```
 
@@ -2741,7 +2743,7 @@ func main() {
 
  // Routes
  mux.HandleFunc("GET /", func(w app.ResponseWriter, r *app.Request) {
-  err := w.HTML("index", &struct {
+  err := w.HTML(r.Context(), "index", &struct {
    Name string
   }{
    Name: "De ba Mbonze",
@@ -2757,7 +2759,7 @@ func main() {
    {ID: uuid.New(), Name: "John Doe", Email: "john@example.com"},
    {ID: uuid.New(), Name: "Jane Smith", Email: "jane@example.com"},
   }
-  w.JSON(users)
+  w.JSON(r.Context(), users)
  }).WithAPIConfig(&app.APIConfig{
   OperationID: "listUsers",
   Summary:     "List all users",
@@ -2783,13 +2785,13 @@ func main() {
 
   if valErrors.Any() {
    w.WriteHeader(http.StatusBadRequest)
-   w.JSON(valErrors)
+   w.JSON(r.Context(), valErrors)
    return
   }
 
   user.ID = uuid.New()
   w.WriteHeader(http.StatusCreated)
-  w.JSON(user)
+  w.JSON(r.Context(), user)
  }).WithAPIConfig(&app.APIConfig{
   OperationID: "createUser",
   Summary:     "Create a new user",
@@ -2836,11 +2838,11 @@ func main() {
 
   if len(valErrors) > 0 {
    w.WriteHeader(http.StatusBadRequest)
-   w.JSON(app.ValidationErrors{Errors: valErrors})
+   w.JSON(r.Context(), app.ValidationErrors{Errors: valErrors})
    return
   }
 
-  w.JSON(user)
+  w.JSON(r.Context(), user)
  })
 
  // SSE endpoint for real-time updates
@@ -2867,7 +2869,7 @@ func main() {
  mux.HandleFunc("GET /greeting", func(w app.ResponseWriter, r *app.Request) {
   printer := app.GetI18nPrinter(language.Spanish)
   msg := printer.Sprintf("Welcome to %s! Clap %d times.", "WebFram", 5)
-  w.JSON(map[string]string{"message": msg})
+  w.JSON(r.Context(), map[string]string{"message": msg})
  })
 
  // Start server
@@ -3226,7 +3228,7 @@ func main() {
 
 ```go
 mux.HandleFunc("GET /health", func(w app.ResponseWriter, r *app.Request) {
-    w.JSON(map[string]string{
+    w.JSON(r.Context(), map[string]string{
         "status": "healthy",
         "version": version,
     })
@@ -3236,61 +3238,274 @@ mux.HandleFunc("GET /readiness", func(w app.ResponseWriter, r *app.Request) {
     // Check database, cache, etc.
     if !isReady() {
         w.WriteHeader(http.StatusServiceUnavailable)
-        w.JSON(map[string]string{
+        w.JSON(r.Context(), map[string]string{
             "status": "not ready",
         })
         return
     }
     
-    w.JSON(map[string]string{
+    w.JSON(r.Context(), map[string]string{
         "status": "ready",
     })
 })
 ```
 
-### Monitoring & Metrics
+### Telemetry & Monitoring
+
+WebFram includes **built-in Prometheus metrics** for monitoring HTTP requests without requiring custom middleware. The telemetry feature automatically tracks request counts, durations, and can run on a separate server for isolation.
+
+#### Built-in Metrics
+
+WebFram automatically collects the following Prometheus metrics:
+
+- **`http_requests_total`**: Counter of HTTP requests by method, path, and status class (2xx, 3xx, 4xx, 5xx)
+- **`http_request_duration_seconds`**: Histogram of HTTP request durations by method, path, and status class
+
+These metrics are compatible with Prometheus, Grafana, and other monitoring tools.
+
+#### Enabling Telemetry
+
+Enable telemetry in your server configuration:
 
 ```go
 import (
-    "github.com/prometheus/client_golang/prometheus"
+    app "github.com/bondowe/webfram"
     "github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-var (
-    requestDuration = prometheus.NewHistogramVec(
-        prometheus.HistogramOpts{
-            Name: "http_request_duration_seconds",
-            Help: "HTTP request duration in seconds",
+func main() {
+    app.Configure(getConfig())
+    mux := app.NewServeMux()
+    
+    // Register your routes
+    mux.HandleFunc("GET /api/users", listUsers)
+    mux.HandleFunc("POST /api/users", createUser)
+    
+    // Enable telemetry with server configuration
+    serverCfg := &app.ServerConfig{
+        ReadTimeout:  30 * time.Second,
+        WriteTimeout: 30 * time.Second,
+        Telemetry: &app.Telemetry{
+            Enabled: true,
+            // Optional: defaults to promhttp.HandlerOpts{}
+            HandlerOpts: promhttp.HandlerOpts{
+                EnableOpenMetrics: true,
+            },
         },
-        []string{"method", "path", "status"},
-    )
-)
-
-func init() {
-    prometheus.MustRegister(requestDuration)
+    }
+    
+    app.ListenAndServe(":8080", mux, serverCfg)
 }
-
-func metricsMiddleware(next app.Handler) app.Handler {
-    return app.HandlerFunc(func(w app.ResponseWriter, r *app.Request) {
-        start := time.Now()
-        
-        // Wrap response writer to capture status
-        wrapped := &statusRecorder{ResponseWriter: w, status: 200}
-        
-        next.ServeHTTP(*wrapped, r)
-        
-        duration := time.Since(start).Seconds()
-        requestDuration.WithLabelValues(
-            r.Method,
-            r.URL.Path,
-            strconv.Itoa(wrapped.status),
-        ).Observe(duration)
-    })
-}
-
-// Expose metrics endpoint
-mux.Handle("GET /metrics", promhttp.Handler())
 ```
+
+With this configuration:
+- Main server runs on `:8080` (handles your API routes)
+- Telemetry endpoint available at `http://localhost:8080/metrics`
+- Metrics are automatically collected for all HTTP requests
+
+#### Separate Telemetry Server
+
+For production deployments, you can run telemetry on a **separate server** to isolate monitoring from application traffic:
+
+```go
+func main() {
+    app.Configure(getConfig())
+    mux := app.NewServeMux()
+    
+    // Register your application routes
+    mux.HandleFunc("GET /api/users", listUsers)
+    mux.HandleFunc("POST /api/users", createUser)
+    
+    serverCfg := &app.ServerConfig{
+        ReadTimeout:  30 * time.Second,
+        WriteTimeout: 30 * time.Second,
+        Telemetry: &app.Telemetry{
+            Enabled: true,
+            Addr:    ":9090", // Separate port for telemetry
+            HandlerOpts: promhttp.HandlerOpts{
+                EnableOpenMetrics: true,
+            },
+        },
+    }
+    
+    app.ListenAndServe(":8080", mux, serverCfg)
+}
+```
+
+With this configuration:
+
+- Main server runs on `:8080` (handles your API routes)
+- **Telemetry server runs on `:9090`** (separate server for metrics)
+- Metrics endpoint: `http://localhost:9090/metrics`
+- Telemetry traffic is completely isolated from application traffic
+
+#### Benefits of Separate Telemetry Server
+
+1. **Security**: Metrics endpoint not exposed on public API server
+2. **Performance**: Monitoring traffic doesn't compete with application traffic
+3. **Network Isolation**: Can run on internal network only
+4. **Independent Scaling**: Telemetry server can have different resource limits
+5. **Firewall Rules**: Easy to restrict metrics access to monitoring systems only
+
+#### Telemetry Configuration Options
+
+```go
+type Telemetry struct {
+    Enabled     bool                     // Enable/disable telemetry
+    Addr        string                   // Optional: separate address for telemetry server (e.g., ":9090")
+    HandlerOpts promhttp.HandlerOpts    // Optional: Prometheus handler options
+}
+```
+
+**Configuration Examples:**
+
+```go
+// Telemetry on same server (default)
+Telemetry: &app.Telemetry{
+    Enabled: true,
+}
+// Metrics at: http://localhost:8080/metrics
+
+// Telemetry on separate port
+Telemetry: &app.Telemetry{
+    Enabled: true,
+    Addr:    ":9090",
+}
+// Metrics at: http://localhost:9090/metrics
+
+// Telemetry with custom Prometheus options
+Telemetry: &app.Telemetry{
+    Enabled: true,
+    Addr:    ":9090",
+    HandlerOpts: promhttp.HandlerOpts{
+        EnableOpenMetrics:   true,
+        MaxRequestsInFlight: 10,
+        Timeout:             30 * time.Second,
+    },
+}
+```
+
+#### Accessing Metrics
+
+**View metrics in your browser:**
+
+```bash
+# Same server
+curl http://localhost:8080/metrics
+
+# Separate server
+curl http://localhost:9090/metrics
+```
+
+**Example metrics output:**
+
+```text
+# HELP http_requests_total Total number of HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{method="GET",path="/api/users",status="2xx"} 42
+http_requests_total{method="POST",path="/api/users",status="2xx"} 15
+http_requests_total{method="GET",path="/api/users/123",status="4xx"} 3
+
+# HELP http_request_duration_seconds HTTP request duration in seconds
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{method="GET",path="/api/users",status="2xx",le="0.005"} 20
+http_request_duration_seconds_bucket{method="GET",path="/api/users",status="2xx",le="0.01"} 35
+http_request_duration_seconds_bucket{method="GET",path="/api/users",status="2xx",le="0.025"} 40
+http_request_duration_seconds_sum{method="GET",path="/api/users",status="2xx"} 0.523
+http_request_duration_seconds_count{method="GET",path="/api/users",status="2xx"} 42
+```
+
+#### Prometheus Configuration
+
+Add your WebFram application to `prometheus.yml`:
+
+```yaml
+# Same server configuration
+scrape_configs:
+  - job_name: 'webfram-app'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+# Separate server configuration (recommended)
+scrape_configs:
+  - job_name: 'webfram-app'
+    static_configs:
+      - targets: ['localhost:9090']  # Separate telemetry server
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+```
+
+#### Grafana Dashboard
+
+Create dashboards to visualize your metrics:
+
+**Request Rate Panel:**
+
+```promql
+rate(http_requests_total[5m])
+```
+
+**Request Duration (p95):**
+
+```promql
+histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+```
+
+**Error Rate:**
+
+```promql
+rate(http_requests_total{status=~"4xx|5xx"}[5m])
+```
+
+**Success Rate:**
+
+```promql
+rate(http_requests_total{status="2xx"}[5m]) / rate(http_requests_total[5m])
+```
+
+#### Production Best Practices
+
+1. **Use Separate Telemetry Server** in production:
+
+   ```go
+   Telemetry: &app.Telemetry{
+       Enabled: true,
+       Addr:    ":9090", // Internal port, not exposed publicly
+   }
+   ```
+
+2. **Restrict Access** with firewall rules:
+
+   ```bash
+   # Only allow Prometheus server to access metrics
+   iptables -A INPUT -p tcp --dport 9090 -s prometheus-server-ip -j ACCEPT
+   iptables -A INPUT -p tcp --dport 9090 -j DROP
+   ```
+
+3. **Enable OpenMetrics** for better compatibility:
+
+   ```go
+   HandlerOpts: promhttp.HandlerOpts{
+       EnableOpenMetrics: true,
+   }
+   ```
+
+4. **Monitor Telemetry Server Health**:
+   - Check that both servers start successfully
+   - Monitor telemetry server logs
+   - Set up alerts for scrape failures
+
+5. **Resource Limits**: Set appropriate timeouts and limits:
+
+   ```go
+   HandlerOpts: promhttp.HandlerOpts{
+       EnableOpenMetrics:   true,
+       MaxRequestsInFlight: 10,
+       Timeout:             30 * time.Second,
+   }
+   ```
 
 ### Performance Tuning
 
