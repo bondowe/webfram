@@ -3265,7 +3265,7 @@ These metrics are compatible with Prometheus, Grafana, and other monitoring tool
 
 #### Enabling Telemetry
 
-Enable telemetry in your server configuration:
+Enable telemetry in your application configuration:
 
 ```go
 import (
@@ -3274,17 +3274,7 @@ import (
 )
 
 func main() {
-    app.Configure(getConfig())
-    mux := app.NewServeMux()
-    
-    // Register your routes
-    mux.HandleFunc("GET /api/users", listUsers)
-    mux.HandleFunc("POST /api/users", createUser)
-    
-    // Enable telemetry with server configuration
-    serverCfg := &app.ServerConfig{
-        ReadTimeout:  30 * time.Second,
-        WriteTimeout: 30 * time.Second,
+    app.Configure(&app.Config{
         Telemetry: &app.Telemetry{
             Enabled: true,
             // Optional: defaults to promhttp.HandlerOpts{}
@@ -3292,9 +3282,16 @@ func main() {
                 EnableOpenMetrics: true,
             },
         },
-    }
+        // ... other config options
+    })
     
-    app.ListenAndServe(":8080", mux, serverCfg)
+    mux := app.NewServeMux()
+    
+    // Register your routes
+    mux.HandleFunc("GET /api/users", listUsers)
+    mux.HandleFunc("POST /api/users", createUser)
+    
+    app.ListenAndServe(":8080", mux, nil)
 }
 ```
 
@@ -3309,16 +3306,7 @@ For production deployments, you can run telemetry on a **separate server** to is
 
 ```go
 func main() {
-    app.Configure(getConfig())
-    mux := app.NewServeMux()
-    
-    // Register your application routes
-    mux.HandleFunc("GET /api/users", listUsers)
-    mux.HandleFunc("POST /api/users", createUser)
-    
-    serverCfg := &app.ServerConfig{
-        ReadTimeout:  30 * time.Second,
-        WriteTimeout: 30 * time.Second,
+    app.Configure(&app.Config{
         Telemetry: &app.Telemetry{
             Enabled: true,
             Addr:    ":9090", // Separate port for telemetry
@@ -3326,9 +3314,16 @@ func main() {
                 EnableOpenMetrics: true,
             },
         },
-    }
+        // ... other config options
+    })
     
-    app.ListenAndServe(":8080", mux, serverCfg)
+    mux := app.NewServeMux()
+    
+    // Register your application routes
+    mux.HandleFunc("GET /api/users", listUsers)
+    mux.HandleFunc("POST /api/users", createUser)
+    
+    app.ListenAndServe(":8080", mux, nil)
 }
 ```
 
