@@ -44,6 +44,7 @@ curl http://localhost:8080/api/users
 ```
 
 Response:
+
 ```json
 [
   {"id": "123...", "name": "John Doe"},
@@ -58,6 +59,7 @@ curl http://localhost:8080/api/users?callback=myCallback
 ```
 
 Response:
+
 ```javascript
 myCallback([
   {"id": "123...", "name": "John Doe"},
@@ -111,6 +113,7 @@ When JSONP is enabled and callback parameter is provided:
 - **Pattern**: `^[a-zA-Z_][a-zA-Z0-9_]*$`
 
 **Valid callbacks:**
+
 - `myCallback`
 - `callback123`
 - `my_callback_function`
@@ -118,6 +121,7 @@ When JSONP is enabled and callback parameter is provided:
 - `jQuery123456789_callback`
 
 **Invalid callbacks:**
+
 - `123callback` (starts with number)
 - `my-callback` (contains hyphen)
 - `callback()` (contains parentheses)

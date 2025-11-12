@@ -1,6 +1,17 @@
+---
+layout: default
+title: Home
+nav_order: 1
+description: "WebFram is a production-ready, lightweight Go web framework built on net/http"
+permalink: /
+---
+
 # WebFram Documentation
 
+{: .fs-9 }
+
 Welcome to the WebFram documentation! This comprehensive guide will help you build production-ready web applications with Go.
+{: .fs-6 .fw-300 }
 
 ## Table of Contents
 

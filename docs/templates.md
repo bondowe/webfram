@@ -1,6 +1,23 @@
+---
+layout: default
+title: Templates
+nav_order: 12
+description: "Template system with layouts and partials"
+---
+
 # Templates
 
-WebFram provides a powerful templating system with automatic caching, layout inheritance, and partials.
+{: .no_toc }
+
+WebFram provides a powerful template system with automatic caching, layout inheritance, and partials support.
+{: .fs-6 .fw-300 }
+
+## Table of contents
+
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc}
 
 ## Configuration
 

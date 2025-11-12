@@ -1,6 +1,23 @@
+---
+layout: default
+title: Deployment
+nav_order: 15
+description: "Production deployment guide"
+---
+
 # Production Deployment
 
+{: .no_toc }
+
 Guide for deploying WebFram applications to production.
+{: .fs-6 .fw-300 }
+
+## Table of contents
+
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc}
 
 ## Build Optimization
 
@@ -190,10 +207,12 @@ app.Configure(&app.Config{
 ```
 
 **Metrics available:**
+
 - `http_requests_total` - Request count by method, path, status
 - `http_request_duration_seconds` - Request duration histogram
 
 **Access metrics:**
+
 ```bash
 curl http://localhost:9090/metrics
 ```

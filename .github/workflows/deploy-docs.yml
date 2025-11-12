@@ -1,0 +1,52 @@
+name: Deploy Documentation to GitHub Pages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch: # Allow manual triggering
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      
+      - name: Prepare documentation
+        run: |
+          # Create a temporary directory for the site
+          mkdir -p _site
+          
+          # Copy documentation files
+          cp -r docs/* _site/
+          
+          # Copy README as a fallback
+          cp README.md _site/README.md
+          
+          echo "Documentation prepared successfully"
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

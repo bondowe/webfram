@@ -1,6 +1,25 @@
+---
+layout: default
+title: Getting Started
+nav_order: 2
+description: "Installation and quick start guide for WebFram"
+---
+
 # Getting Started
 
+{: .no_toc }
+
 Get up and running with WebFram in minutes.
+{: .fs-6 .fw-300 }
+
+## Table of contents
+
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc}
+
+---
 
 ## Installation
 

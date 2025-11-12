@@ -196,6 +196,7 @@ mux.HandleFunc("PATCH /products/{id}", func(w app.ResponseWriter, r *app.Request
 ```
 
 **Request:**
+
 ```bash
 curl -X PATCH http://localhost:8080/products/550e8400-e29b-41d4-a716-446655440000 \
   -H "Content-Type: application/json-patch+json" \

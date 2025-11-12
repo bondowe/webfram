@@ -5,6 +5,7 @@ WebFram provides built-in support for Server-Sent Events, enabling real-time ser
 ## Overview
 
 SSE is perfect for:
+
 - Push notifications
 - Live updates
 - Streaming data
@@ -292,6 +293,7 @@ mux.Handle("GET /events", app.SSE(
 ## Browser Support
 
 SSE is supported in all modern browsers:
+
 - Chrome
 - Firefox
 - Safari
@@ -299,6 +301,7 @@ SSE is supported in all modern browsers:
 - Opera
 
 For older browsers, consider:
+
 - Polyfills
 - Fallback to WebSockets
 - Long polling

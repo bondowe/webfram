@@ -144,6 +144,7 @@ type User struct {
 ```
 
 Generates OpenAPI schema with:
+
 - Required fields
 - String length constraints (minLength, maxLength)
 - Numeric constraints (minimum, maximum)

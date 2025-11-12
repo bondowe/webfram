@@ -44,6 +44,7 @@ mux.HandleFunc("POST /users", func(w app.ResponseWriter, r *app.Request) {
 ```
 
 **Form data:**
+
 ```text
 name=John+Doe&email=john@example.com&age=30&role=admin&hobbies=reading&hobbies=coding
 ```
@@ -80,6 +81,7 @@ mux.HandleFunc("POST /api/users", func(w app.ResponseWriter, r *app.Request) {
 ```
 
 **JSON request:**
+
 ```json
 {
   "name": "John Doe",
@@ -121,6 +123,7 @@ mux.HandleFunc("POST /api/users", func(w app.ResponseWriter, r *app.Request) {
 ```
 
 **XML request:**
+
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <user>
@@ -154,6 +157,7 @@ WebFram supports 20+ validation tags:
 | `format=LAYOUT` | time.Time | Time parsing layout | `format:"2006-01-02"` |
 
 **Combine multiple rules:**
+
 ```go
 type Product struct {
     Name  string `json:"name" validate:"required,minlength=2,maxlength=100"`
@@ -193,6 +197,7 @@ type ValidationError struct {
 ```
 
 **Check for errors:**
+
 ```go
 if valErrors.Any() {
     w.WriteHeader(http.StatusBadRequest)
@@ -202,6 +207,7 @@ if valErrors.Any() {
 ```
 
 **Error response (JSON):**
+
 ```json
 {
   "errors": [
@@ -247,6 +253,7 @@ type Config struct {
 ```
 
 **Supported map types:**
+
 - `map[string]string`
 - `map[string]int`
 - `map[int]string`
@@ -273,6 +280,7 @@ mux.HandleFunc("POST /users/{id}", func(w app.ResponseWriter, r *app.Request) {
 ```
 
 **Binding sources:**
+
 - `path` - URL path parameters
 - `query` - Query parameters
 - `header` - HTTP headers
