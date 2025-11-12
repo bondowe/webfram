@@ -1,3 +1,10 @@
+---
+layout: default
+title: Testing
+nav_order: 14
+description: "Testing strategies and examples"
+---
+
 # Testing
 
 WebFram is designed to be easily testable with comprehensive test utilities.
