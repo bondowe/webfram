@@ -1,3 +1,10 @@
+---
+layout: default
+title: JSON Patch
+nav_order: 8
+description: "RFC 6902 JSON Patch support for partial updates"
+---
+
 # JSON Patch Support
 
 WebFram supports [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902) for partial resource updates.

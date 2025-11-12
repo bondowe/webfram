@@ -1,3 +1,10 @@
+---
+layout: default
+title: Request & Response
+nav_order: 6
+description: "HTTP request handling and response generation"
+---
+
 # Request & Response Handling
 
 Learn how to handle HTTP requests and generate responses in WebFram.

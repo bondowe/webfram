@@ -1,6 +1,23 @@
+---
+layout: default
+title: Routing
+nav_order: 4
+description: "URL routing patterns and parameters"
+---
+
 # Routing
+{: .no_toc }
 
 WebFram uses Go 1.22+ routing patterns with HTTP method prefixes for powerful and flexible route matching.
+{: .fs-6 .fw-300 }
+
+## Table of contents
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc}
+
+---
 
 ## Basic Routes
 

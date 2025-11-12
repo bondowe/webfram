@@ -1,3 +1,10 @@
+---
+layout: default
+title: OpenAPI Documentation
+nav_order: 10
+description: "Automatic API documentation generation"
+---
+
 # OpenAPI Documentation
 
 WebFram automatically generates OpenAPI 3.2.0 documentation from your route definitions, validation tags, and API configurations.

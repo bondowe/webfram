@@ -1,3 +1,10 @@
+---
+layout: default
+title: JSONP
+nav_order: 9
+description: "Cross-origin requests with JSONP"
+---
+
 # JSONP Support
 
 WebFram provides built-in support for JSONP (JSON with Padding) to enable cross-origin requests from browsers that don't support CORS.

@@ -1,3 +1,10 @@
+---
+layout: default
+title: Server-Sent Events
+nav_order: 11
+description: "Real-time server-to-client streaming with SSE"
+---
+
 # Server-Sent Events (SSE)
 
 WebFram provides built-in support for Server-Sent Events, enabling real-time server-to-client communication over HTTP.

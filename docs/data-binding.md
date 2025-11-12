@@ -1,3 +1,10 @@
+---
+layout: default
+title: Data Binding & Validation
+nav_order: 7
+description: "Form, JSON, XML binding with comprehensive validation"
+---
+
 # Data Binding & Validation
 
 WebFram provides type-safe data binding with comprehensive validation for Form, JSON, and XML formats.

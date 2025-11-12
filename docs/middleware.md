@@ -1,3 +1,10 @@
+---
+layout: default
+title: Middleware
+nav_order: 5
+description: "Request/response interceptors and middleware patterns"
+---
+
 # Middleware
 
 WebFram supports both custom and standard HTTP middleware with flexible composition.

@@ -1,6 +1,23 @@
+---
+layout: default
+title: Configuration
+nav_order: 3
+description: "Application and server configuration guide"
+---
+
 # Configuration
+{: .no_toc }
 
 Learn how to configure WebFram for your application needs.
+{: .fs-6 .fw-300 }
+
+## Table of contents
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc}
+
+---
 
 ## Basic Configuration
 
