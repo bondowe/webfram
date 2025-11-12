@@ -264,6 +264,6 @@ func getServerConfig() *app.ServerConfig {
 
 ## See Also
 
-- [Getting Started](getting-started.html)
-- [Routing](routing.html)
-- [Deployment](deployment.html)
+- [Getting Started](getting-started)
+- [Routing](routing)
+- [Deployment](deployment)

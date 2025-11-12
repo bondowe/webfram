@@ -281,6 +281,6 @@ curl http://localhost:8080/openapi.json
 
 ## See Also
 
-- [Data Binding](data-binding.html)
-- [Routing](routing.html)
-- [Configuration](configuration.html)
+- [Data Binding](data-binding)
+- [Routing](routing)
+- [Configuration](configuration)
