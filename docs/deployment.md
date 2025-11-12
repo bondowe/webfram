@@ -407,6 +407,6 @@ spec:
 
 ## See Also
 
-- [Configuration](configuration)
-- [Testing](testing)
-- [Middleware](middleware)
+- [Configuration](configuration.html)
+- [Testing](testing.html)
+- [Middleware](middleware.html)

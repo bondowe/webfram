@@ -117,11 +117,11 @@ func main() {
 
 Now that you have a basic application running, explore these topics:
 
-1. **[Configuration](configuration)** - Learn about app configuration and server setup
-2. **[Routing](routing)** - Understand routing patterns and parameters
-3. **[Middleware](middleware)** - Add logging, auth, and custom middleware
-4. **[Data Binding](data-binding)** - Handle form and JSON data with validation
-5. **[Templates](templates)** - Build server-side rendered pages
+1. **[Configuration](configuration.html)** - Learn about app configuration and server setup
+2. **[Routing](routing.html)** - Understand routing patterns and parameters
+3. **[Middleware](middleware.html)** - Add logging, auth, and custom middleware
+4. **[Data Binding](data-binding.html)** - Handle form and JSON data with validation
+5. **[Templates](templates.html)** - Build server-side rendered pages
 
 ## Complete Example Application
 

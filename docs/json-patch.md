@@ -216,6 +216,6 @@ curl -X PATCH http://localhost:8080/products/550e8400-e29b-41d4-a716-44665544000
 
 ## See Also
 
-- [Data Binding](data-binding)
-- [Request & Response](request-response)
-- [OpenAPI](openapi)
+- [Data Binding](data-binding.html)
+- [Request & Response](request-response.html)
+- [OpenAPI](openapi.html)

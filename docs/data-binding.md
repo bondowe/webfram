@@ -26,7 +26,7 @@ type CreateUserRequest struct {
 }
 
 mux.HandleFunc("POST /users", func(w app.ResponseWriter, r *app.Request) {
-    user, valErrors, err := app.BindForm[CreateUserRequest](r)
+    user, valErrors, err := app.BindForm[CreateUserRequest](r.html)
     
     if err != nil {
         w.Error(http.StatusBadRequest, err.Error())
@@ -315,6 +315,6 @@ user, valErrors, err := app.BindJSON[User](r, true)
 
 ## See Also
 
-- [Request & Response](request-response)
-- [JSON Patch](json-patch)
-- [Routing](routing)
+- [Request & Response](request-response.html)
+- [JSON Patch](json-patch.html)
+- [Routing](routing.html)

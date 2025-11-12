@@ -56,20 +56,6 @@ nav_external_links:
 # Google Analytics (optional - add your tracking ID)
 # ga_tracking: UA-XXXXXXXX-X
 
-# Collections for organizing docs
-collections:
-  docs:
-    permalink: "/:collection/:path/"
-    output: true
-
-defaults:
-  - scope:
-      path: ""
-      type: "docs"
-    values:
-      layout: "default"
-      nav_exclude: false
-
 # Kramdown settings
 kramdown:
   syntax_highlighter_opts:

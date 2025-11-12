@@ -205,6 +205,6 @@ func getConfig() *app.Config {
 
 ## See Also
 
-- [Request & Response](request-response)
-- [Configuration](configuration)
-- [Middleware](middleware)
+- [Request & Response](request-response.html)
+- [Configuration](configuration.html)
+- [Middleware](middleware.html)
