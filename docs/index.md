@@ -8,7 +8,7 @@ permalink: /
 
 # WebFram Documentation
 
-{: .fs-9 }
+{: .fs-6 }
 
 Welcome to the WebFram documentation! This comprehensive guide will help you build production-ready web applications with Go.
 {: .fs-6 .fw-300 }
