@@ -1,10 +1,18 @@
 # WebFram
 
+<div align="center">
+  <img src="webfram-logo.svg" alt="WebFram Logo" width="200"/>
+</div>
+
+<div align="center">
+
 [![CI](https://github.com/bondowe/webfram/actions/workflows/ci.yml/badge.svg)](https://github.com/bondowe/webfram/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/bondowe/webfram/branch/main/graph/badge.svg)](https://codecov.io/gh/bondowe/webfram)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bondowe/webfram)](https://goreportcard.com/report/github.com/bondowe/webfram)
 [![Go Reference](https://pkg.go.dev/badge/github.com/bondowe/webfram.svg)](https://pkg.go.dev/github.com/bondowe/webfram)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+</div>
 
 **WebFram** is a production-ready, lightweight, feature-rich Go web framework built on top of the standard library's `net/http` package. It provides enterprise-grade features like automatic template caching with layouts, comprehensive data binding with validation, internationalization (i18n), Server-Sent Events (SSE), JSON Patch support, JSONP, OpenAPI 3.2.0 documentation generation, and flexible middleware support—all while maintaining minimal dependencies and maximum performance.
 

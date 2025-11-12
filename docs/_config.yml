@@ -7,6 +7,12 @@ description: Production-ready, lightweight Go web framework
 url: https://bondowe.github.io
 baseurl: /webfram
 
+# Logo
+logo: "/webfram/assets/images/webfram-logo.svg"
+
+# Favicon
+favicon_ico: "/webfram/assets/images/webfram-logo.svg"
+
 # Just the Docs theme configuration
 color_scheme: webfram
 

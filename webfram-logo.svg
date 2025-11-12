@@ -1,0 +1,9 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <mask id="text-mask">
+      <rect width="200" height="200" fill="white"/>
+      <text x="100" y="145" font-size="130" font-family="Roboto Condensed, sans-serif" fill="black" text-anchor="middle" font-weight="bold">WF</text>
+    </mask>
+  </defs>
+  <circle cx="100" cy="100" r="95" fill="#4B0082" mask="url(#text-mask)" stroke="#FFFFFF" stroke-width="2"/>
+</svg>
