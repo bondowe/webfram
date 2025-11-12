@@ -18,6 +18,8 @@ WebFram provides a powerful template system with automatic caching, layout inher
 1. TOC
 {:toc}
 
+---
+
 ## Configuration
 
 Templates must be provided via an embedded file system:

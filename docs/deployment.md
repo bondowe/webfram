@@ -18,6 +18,8 @@ Guide for deploying WebFram applications to production.
 1. TOC
 {:toc}
 
+---
+
 ## Build Optimization
 
 Build with optimizations:
