@@ -105,9 +105,11 @@ if err != nil {
 
 Render inline HTML template:
 
+{% raw %}
 ```go
 err := w.HTMLString("<h1>{{.Title}}</h1>", map[string]string{"Title": "Hello"})
 ```
+{% endraw %}
 
 ### Text Response
 
@@ -121,9 +123,11 @@ err := w.Text(r.Context(), "users/email", data)
 
 Render inline text template:
 
+{% raw %}
 ```go
 err := w.TextString("Hello {{.Name}}", map[string]string{"Name": "John"})
 ```
+{% endraw %}
 
 ### XML Response
 

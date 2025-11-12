@@ -71,6 +71,7 @@ Layouts are automatically detected and applied:
 
 **Root layout** (`templates/layout.go.html`):
 
+{% raw %}
 ```html
 <!DOCTYPE html>
 <html>
@@ -82,9 +83,11 @@ Layouts are automatically detected and applied:
 </body>
 </html>
 ```
+{% endraw %}
 
 **Page template** (`templates/users/list.go.html`):
 
+{% raw %}
 ```html
 {{define "title"}}Users List{{end}}
 
@@ -97,6 +100,7 @@ Layouts are automatically detected and applied:
 </ul>
 {{end}}
 ```
+{% endraw %}
 
 ## Partials
 
@@ -104,14 +108,17 @@ Partials are reusable components with names starting with `_`:
 
 **Partial** (`templates/_partOne.go.html`):
 
+{% raw %}
 ```html
 <header>
     <h1>{{.Title}}</h1>
 </header>
 ```
+{% endraw %}
 
 **Using partials:**
 
+{% raw %}
 ```html
 {{define "content"}}
     <!-- Include a partial -->
@@ -120,6 +127,7 @@ Partials are reusable components with names starting with `_`:
     <div>Your main content here</div>
 {{end}}
 ```
+{% endraw %}
 
 **Important:** Use `//go:embed all:assets` to include files starting with `_`.
 
@@ -167,6 +175,7 @@ WebFram provides built-in template functions:
 
 Go's standard template functions are available:
 
+{% raw %}
 ```html
 {{/* Conditionals */}}
 {{if .IsAdmin}}Admin Panel{{end}}
@@ -184,18 +193,23 @@ Go's standard template functions are available:
 {{/* Pipelines */}}
 {{.Name | printf "%s is logged in"}}
 ```
+{% endraw %}
 
 ### Partial Function
 
+{% raw %}
 ```html
 {{partial "header" .}}
 ```
+{% endraw %}
 
 ### i18n Function
 
+{% raw %}
 ```html
 {{T "Welcome to %s!" .AppName}}
 ```
+{% endraw %}
 
 See [Internationalization](i18n.md) for details.
 
@@ -215,6 +229,7 @@ mux.HandleFunc("GET /email", func(w app.ResponseWriter, r *app.Request) {
 
 **Email template** (`templates/email/welcome.go.txt`):
 
+{% raw %}
 ```text
 Hello {{.Name}},
 
@@ -223,6 +238,7 @@ Welcome to our service!
 Best regards,
 The Team
 ```
+{% endraw %}
 
 ## Inline Templates
 
@@ -312,6 +328,7 @@ func main() {
 
 **Template** (`templates/home/index.go.html`):
 
+{% raw %}
 ```html
 {{define "title"}}{{.Title}}{{end}}
 
@@ -324,6 +341,7 @@ func main() {
 </div>
 {{end}}
 ```
+{% endraw %}
 
 **Partial** (`templates/_header.go.html`):
 
