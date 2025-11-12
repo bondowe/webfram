@@ -1,0 +1,63 @@
+---
+---
+
+/* Custom code block styling for WebFram documentation */
+
+/* Improve code block readability */
+.highlight {
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  background-color: #f6f8fa !important;
+  border: 1px solid #e1e4e8;
+}
+
+/* Code within text */
+code {
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  background-color: #f6f8fa;
+  border-radius: 3px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+/* Code blocks */
+pre code {
+  background-color: transparent;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Ensure proper spacing */
+div.highlight pre {
+  margin: 0;
+  padding: 0;
+  background-color: transparent;
+}
+
+/* Copy button positioning */
+.highlight {
+  position: relative;
+}
+
+/* Improve Go syntax highlighting colors */
+.highlight .k, .highlight .kd, .highlight .kt { color: #d73a49; } /* keywords */
+.highlight .nx { color: #24292e; } /* identifiers */
+.highlight .s, .highlight .s1, .highlight .s2 { color: #032f62; } /* strings */
+.highlight .c, .highlight .c1, .highlight .cm { color: #6a737d; } /* comments */
+.highlight .mi, .highlight .mf { color: #005cc5; } /* numbers */
+.highlight .nf { color: #6f42c1; } /* function names */
+
+/* HTML/Template syntax */
+.highlight .nt { color: #22863a; } /* HTML tags */
+.highlight .na { color: #6f42c1; } /* HTML attributes */
+
+/* Ensure code doesn't break layout */
+pre {
+  white-space: pre;
+  word-wrap: normal;
+  overflow-x: auto;
+}

@@ -10,6 +10,10 @@ baseurl: /webfram
 # Just the Docs theme configuration
 color_scheme: webfram
 
+# Custom CSS
+sass:
+  style: compressed
+
 # Enable search
 search_enabled: true
 search:
@@ -58,8 +62,13 @@ nav_external_links:
 
 # Kramdown settings
 kramdown:
+  syntax_highlighter: rouge
   syntax_highlighter_opts:
+    default_lang: go
+    css_class: 'highlight'
     block:
+      line_numbers: false
+    span:
       line_numbers: false
 
 # Plugins
