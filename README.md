@@ -12,23 +12,23 @@
 
 ## 📚 Full Documentation
 
-**[View Complete Documentation →](docs/index.md)**
+**[View Complete Documentation →](https://bondowe.github.io/webfram/)**
 
 For comprehensive guides, API reference, and detailed examples, visit our documentation:
 
-- 📖 [Getting Started](docs/getting-started.md) - Installation and quick start
-- ⚙️ [Configuration](docs/configuration.md) - App and server setup
-- 🔗 [Routing](docs/routing.md) - URL patterns and parameters
-- 🔧 [Middleware](docs/middleware.md) - Request/response interceptors
-- 📨 [Request & Response](docs/request-response.md) - HTTP handling
-- 📋 [Data Binding](docs/data-binding.md) - Form, JSON, XML binding with validation
-- 🔄 [JSON Patch](docs/json-patch.md) - RFC 6902 partial updates
-- 🌐 [JSONP](docs/jsonp.md) - Cross-origin requests
-- 📚 [OpenAPI](docs/openapi.md) - Auto-generated API docs
-- 📡 [Server-Sent Events](docs/sse.md) - Real-time streaming
-- 🎨 [Templates](docs/templates.md) - Template system with layouts
-- 🌍 [Internationalization](docs/i18n.md) - Multi-language support
-- 🧪 [Testing](docs/testing.md) - Testing strategies
+- 📖 [Getting Started](https://bondowe.github.io/webfram/getting-started.html) - Installation and quick start
+- ⚙️ [Configuration](https://bondowe.github.io/webfram/configuration.html) - App and server setup
+- 🔗 [Routing](https://bondowe.github.io/webfram/routing.html) - URL patterns and parameters
+- 🔧 [Middleware](https://bondowe.github.io/webfram/middleware.html) - Request/response interceptors
+- 📨 [Request & Response](https://bondowe.github.io/webfram/request-response.html) - HTTP handling
+- 📋 [Data Binding](https://bondowe.github.io/webfram/data-binding.html) - Form, JSON, XML binding with validation
+- 🔄 [JSON Patch](https://bondowe.github.io/webfram/json-patch.html) - RFC 6902 partial updates
+- 🌐 [JSONP](https://bondowe.github.io/webfram/jsonp.html) - Cross-origin requests
+- 📚 [OpenAPI](https://bondowe.github.io/webfram/openapi.html) - Auto-generated API docs
+- 📡 [Server-Sent Events](https://bondowe.github.io/webfram/sse.html) - Real-time streaming
+- 🎨 [Templates](https://bondowe.github.io/webfram/templates.html) - Template system with layouts
+- 🌍 [Internationalization](https://bondowe.github.io/webfram/i18n.html) - Multi-language support
+- 🧪 [Testing](https://bondowe.github.io/webfram/testing.html) - Testing strategies
 - 🚀 [Deployment](docs/deployment.md) - Production deployment guide
 
 ---
@@ -153,7 +153,7 @@ For complete documentation including:
 - Testing approaches
 - And much more...
 
-**[Visit the Documentation →](docs/index.md)**
+**[Visit the Documentation →](https://bondowe.github.io/webfram/)**
 
 ---
 
@@ -171,7 +171,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔗 Resources
 
-- [Documentation](docs/index.md)
+- [Documentation](https://bondowe.github.io/webfram/)
 - [API Reference](https://pkg.go.dev/github.com/bondowe/webfram)
 - [GitHub Repository](https://github.com/bondowe/webfram)
 - [Issue Tracker](https://github.com/bondowe/webfram/issues)

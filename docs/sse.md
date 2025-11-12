@@ -308,6 +308,6 @@ For older browsers, consider:
 
 ## See Also
 
-- [Request & Response](request-response.md)
-- [Routing](routing.md)
-- [Middleware](middleware.md)
+- [Request & Response](request-response.html)
+- [Routing](routing.html)
+- [Middleware](middleware.html)

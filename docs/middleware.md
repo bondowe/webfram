@@ -259,6 +259,6 @@ mux.HandleFunc("GET /profile", func(w app.ResponseWriter, r *app.Request) {
 
 ## See Also
 
-- [Routing](routing.md)
-- [Request & Response](request-response.md)
-- [Deployment](deployment.md)
+- [Routing](routing.html)
+- [Request & Response](request-response.html)
+- [Deployment](deployment.html)

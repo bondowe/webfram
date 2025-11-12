@@ -50,7 +50,7 @@ body, err := io.ReadAll(r.Body)
 defer r.Body.Close()
 ```
 
-For structured data, use [Data Binding](data-binding.md) instead.
+For structured data, use [Data Binding](data-binding.html) instead.
 
 ### Request Context
 
@@ -302,7 +302,7 @@ mux.HandleFunc("GET /stream", func(w app.ResponseWriter, r *app.Request) {
 
 ## See Also
 
-- [Data Binding](data-binding.md)
-- [Templates](templates.md)
-- [JSONP](jsonp.md)
-- [Middleware](middleware.md)
+- [Data Binding](data-binding.html)
+- [Templates](templates.html)
+- [JSONP](jsonp.html)
+- [Middleware](middleware.html)

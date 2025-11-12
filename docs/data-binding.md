@@ -315,6 +315,6 @@ user, valErrors, err := app.BindJSON[User](r, true)
 
 ## See Also
 
-- [Request & Response](request-response.md)
-- [JSON Patch](json-patch.md)
-- [Routing](routing.md)
+- [Request & Response](request-response.html)
+- [JSON Patch](json-patch.html)
+- [Routing](routing.html)
