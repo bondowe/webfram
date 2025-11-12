@@ -1,0 +1,66 @@
+# WebFram Documentation
+
+Welcome to the WebFram documentation! This comprehensive guide will help you build production-ready web applications with Go.
+
+## Table of Contents
+
+### Getting Started
+
+- **[Getting Started](getting-started.md)** - Installation, quick start, and your first WebFram application
+
+### Core Concepts
+
+- **[Configuration](configuration.md)** - Application configuration, server setup, and best practices
+- **[Routing](routing.md)** - URL routing, path parameters, and route patterns
+- **[Middleware](middleware.md)** - Global, mux-level, and route-specific middleware
+- **[Request & Response](request-response.md)** - Handling requests and generating responses
+
+### Data Handling
+
+- **[Data Binding & Validation](data-binding.md)** - Form, JSON, and XML binding with comprehensive validation
+- **[JSON Patch](json-patch.md)** - RFC 6902 JSON Patch support for partial updates
+- **[JSONP](jsonp.md)** - Cross-origin requests with JSONP
+
+### Advanced Features
+
+- **[OpenAPI Documentation](openapi.md)** - Automatic API documentation generation
+- **[Server-Sent Events (SSE)](sse.md)** - Real-time server-to-client streaming
+- **[Templates](templates.md)** - Server-side rendering with layouts and partials
+- **[Internationalization (i18n)](i18n.md)** - Multi-language support
+
+### Production
+
+- **[Testing](testing.md)** - Unit testing, integration testing, and best practices
+- **[Deployment](deployment.md)** - Production deployment, Docker, monitoring, and security
+
+## Quick Links
+
+- [GitHub Repository](https://github.com/bondowe/webfram)
+- [Go Package Documentation](https://pkg.go.dev/github.com/bondowe/webfram)
+- [Examples](https://github.com/bondowe/webfram/tree/main/cmd/sample-app)
+
+## Why WebFram?
+
+WebFram bridges the gap between using the raw `net/http` package and heavyweight frameworks. It provides:
+
+- 🚀 **Lightweight & Fast** - Built directly on `net/http`
+- 📝 **Smart Templates** - Automatic caching with layout inheritance
+- ✅ **Data Binding** - Type-safe Form, JSON, and XML binding
+- 🔄 **JSON Patch** - Full RFC 6902 support
+- 📡 **Server-Sent Events** - Production-ready SSE
+- 📚 **OpenAPI 3.2.0** - Automatic documentation
+- 🌍 **i18n Support** - First-class internationalization
+- 🔧 **Flexible Middleware** - Custom and standard HTTP middleware
+
+## Getting Help
+
+If you encounter issues or have questions:
+
+1. Check the [documentation](index.md)
+2. Search [existing issues](https://github.com/bondowe/webfram/issues)
+3. Open a [new issue](https://github.com/bondowe/webfram/issues/new)
+4. Read the [contributing guide](../CONTRIBUTING.md)
+
+## License
+
+WebFram is licensed under the [MIT License](https://opensource.org/licenses/MIT).
