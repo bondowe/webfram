@@ -6,7 +6,6 @@ description: "Template system with layouts and partials"
 ---
 
 # Templates
-
 {: .no_toc }
 
 WebFram provides a powerful template system with automatic caching, layout inheritance, and partials support.

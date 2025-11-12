@@ -6,7 +6,6 @@ description: "Installation and quick start guide for WebFram"
 ---
 
 # Getting Started
-
 {: .no_toc }
 
 Get up and running with WebFram in minutes.
