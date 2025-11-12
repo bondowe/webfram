@@ -17,32 +17,32 @@ Welcome to the WebFram documentation! This comprehensive guide will help you bui
 
 ### Getting Started
 
-- **[Getting Started](getting-started.html)** - Installation, quick start, and your first WebFram application
+- **[Getting Started]({{ site.baseurl }}/getting-started.html)** - Installation, quick start, and your first WebFram application
 
 ### Core Concepts
 
-- **[Configuration](configuration.html)** - Application configuration, server setup, and best practices
-- **[Routing](routing.html)** - URL routing, path parameters, and route patterns
-- **[Middleware](middleware.html)** - Global, mux-level, and route-specific middleware
-- **[Request & Response](request-response.html)** - Handling requests and generating responses
+- **[Configuration]({{ site.baseurl }}/configuration.html)** - Application configuration, server setup, and best practices
+- **[Routing]({{ site.baseurl }}/routing.html)** - URL routing, path parameters, and route patterns
+- **[Middleware]({{ site.baseurl }}/middleware.html)** - Global, mux-level, and route-specific middleware
+- **[Request & Response]({{ site.baseurl }}/request-response.html)** - Handling requests and generating responses
 
 ### Data Handling
 
-- **[Data Binding & Validation](data-binding.html)** - Form, JSON, and XML binding with comprehensive validation
-- **[JSON Patch](json-patch.html)** - RFC 6902 JSON Patch support for partial updates
-- **[JSONP](jsonp.html)** - Cross-origin requests with JSONP
+- **[Data Binding & Validation]({{ site.baseurl }}/data-binding.html)** - Form, JSON, and XML binding with comprehensive validation
+- **[JSON Patch]({{ site.baseurl }}/json-patch.html)** - RFC 6902 JSON Patch support for partial updates
+- **[JSONP]({{ site.baseurl }}/jsonp.html)** - Cross-origin requests with JSONP
 
 ### Advanced Features
 
-- **[OpenAPI Documentation](openapi.html)** - Automatic API documentation generation
-- **[Server-Sent Events (SSE)](sse.html)** - Real-time server-to-client streaming
-- **[Templates](templates.html)** - Server-side rendering with layouts and partials
-- **[Internationalization (i18n)](i18n.html)** - Multi-language support
+- **[OpenAPI Documentation]({{ site.baseurl }}/openapi.html)** - Automatic API documentation generation
+- **[Server-Sent Events (SSE)]({{ site.baseurl }}/sse.html)** - Real-time server-to-client streaming
+- **[Templates]({{ site.baseurl }}/templates.html)** - Server-side rendering with layouts and partials
+- **[Internationalization (i18n)]({{ site.baseurl }}/i18n.html)** - Multi-language support
 
 ### Production
 
-- **[Testing](testing.html)** - Unit testing, integration testing, and best practices
-- **[Deployment](deployment.html)** - Production deployment, Docker, monitoring, and security
+- **[Testing]({{ site.baseurl }}/testing.html)** - Unit testing, integration testing, and best practices
+- **[Deployment]({{ site.baseurl }}/deployment.html)** - Production deployment, Docker, monitoring, and security
 
 ## Quick Links
 
