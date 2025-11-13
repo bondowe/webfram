@@ -258,15 +258,11 @@ err := w.TextString("Hello {{.Name}}", map[string]string{"Name": "John"})
 
 ## Template Caching
 
-Templates are automatically cached:
+Templates are automatically cached on application start:
 
-- **Production**: Templates cached on first use
-- **Development**: Set environment variable for hot-reload
-
-```go
-// Enable template reloading (development only)
-os.Setenv("TEMPLATE_RELOAD", "true")
-```
+- All templates are parsed and cached during the initial `Configure` call
+- Templates remain in memory for the lifetime of the application
+- No hot-reload support - restart the application to pick up template changes
 
 ## Error Handling
 
