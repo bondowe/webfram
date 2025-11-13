@@ -6,44 +6,44 @@ import (
 	"testing"
 )
 
-// BenchmarkWebFram_Simple tests a simple route with WebFram
+// BenchmarkWebFram_Simple tests a simple route with WebFram.
 func BenchmarkWebFram_Simple(b *testing.B) {
 	mux := NewServeMux()
-	mux.HandleFunc("GET /ping", func(w ResponseWriter, r *Request) {
+	mux.HandleFunc("GET /ping", func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("pong"))
+		_, _ = w.Write([]byte("pong"))
 	})
 
-	req := httptest.NewRequest("GET", "/ping", nil)
+	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	w := httptest.NewRecorder()
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		mux.ServeHTTP(w, req)
 	}
 }
 
-// BenchmarkWebFram_PathParam tests route with path parameters
+// BenchmarkWebFram_PathParam tests route with path parameters.
 func BenchmarkWebFram_PathParam(b *testing.B) {
 	mux := NewServeMux()
 	mux.HandleFunc("GET /user/{id}", func(w ResponseWriter, r *Request) {
 		id := r.PathValue("id")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(id))
+		_, _ = w.Write([]byte(id))
 	})
 
-	req := httptest.NewRequest("GET", "/user/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		mux.ServeHTTP(w, req)
 	}
 }
 
-// BenchmarkWebFram_JSON tests JSON response
+// BenchmarkWebFram_JSON tests JSON response.
 func BenchmarkWebFram_JSON(b *testing.B) {
 	mux := NewServeMux()
 	mux.HandleFunc("GET /json", func(w ResponseWriter, r *Request) {
@@ -51,49 +51,49 @@ func BenchmarkWebFram_JSON(b *testing.B) {
 			"message": "Hello, World!",
 			"status":  "success",
 		}
-		w.JSON(r.Context(), data)
+		_ = w.JSON(r.Context(), data)
 	})
 
-	req := httptest.NewRequest("GET", "/json", nil)
+	req := httptest.NewRequest(http.MethodGet, "/json", nil)
 	w := httptest.NewRecorder()
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		mux.ServeHTTP(w, req)
 	}
 }
 
-// BenchmarkWebFram_5Routes tests routing with 5 routes
+// BenchmarkWebFram_5Routes tests routing with 5 routes.
 func BenchmarkWebFram_5Routes(b *testing.B) {
 	mux := NewServeMux()
-	mux.HandleFunc("GET /ping", func(w ResponseWriter, r *Request) {
-		w.Write([]byte("pong"))
+	mux.HandleFunc("GET /ping", func(w ResponseWriter, _ *Request) {
+		_, _ = w.Write([]byte("pong"))
 	})
 	mux.HandleFunc("GET /user/{id}", func(w ResponseWriter, r *Request) {
-		w.Write([]byte(r.PathValue("id")))
+		_, _ = w.Write([]byte(r.PathValue("id")))
 	})
-	mux.HandleFunc("POST /user", func(w ResponseWriter, r *Request) {
+	mux.HandleFunc("POST /user", func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusCreated)
 	})
-	mux.HandleFunc("GET /users", func(w ResponseWriter, r *Request) {
-		w.Write([]byte("users"))
+	mux.HandleFunc("GET /users", func(w ResponseWriter, _ *Request) {
+		_, _ = w.Write([]byte("users"))
 	})
-	mux.HandleFunc("DELETE /user/{id}", func(w ResponseWriter, r *Request) {
+	mux.HandleFunc("DELETE /user/{id}", func(w ResponseWriter, _ *Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	req := httptest.NewRequest("GET", "/user/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		mux.ServeHTTP(w, req)
 	}
 }
 
-// BenchmarkWebFram_Middleware tests with middleware
+// BenchmarkWebFram_Middleware tests with middleware.
 func BenchmarkWebFram_Middleware(b *testing.B) {
 	mux := NewServeMux()
 
@@ -104,53 +104,53 @@ func BenchmarkWebFram_Middleware(b *testing.B) {
 		})
 	})
 
-	mux.HandleFunc("GET /ping", func(w ResponseWriter, r *Request) {
-		w.Write([]byte("pong"))
+	mux.HandleFunc("GET /ping", func(w ResponseWriter, _ *Request) {
+		_, _ = w.Write([]byte("pong"))
 	})
 
-	req := httptest.NewRequest("GET", "/ping", nil)
+	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	w := httptest.NewRecorder()
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		mux.ServeHTTP(w, req)
 	}
 }
 
-// BenchmarkStdLib_Simple tests standard library for comparison
+// BenchmarkStdLib_Simple tests standard library for comparison.
 func BenchmarkStdLib_Simple(b *testing.B) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /ping", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /ping", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("pong"))
+		_, _ = w.Write([]byte("pong"))
 	})
 
-	req := httptest.NewRequest("GET", "/ping", nil)
+	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	w := httptest.NewRecorder()
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		mux.ServeHTTP(w, req)
 	}
 }
 
-// BenchmarkStdLib_PathParam tests standard library with path parameters
+// BenchmarkStdLib_PathParam tests standard library with path parameters.
 func BenchmarkStdLib_PathParam(b *testing.B) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /user/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(id))
+		_, _ = w.Write([]byte(id))
 	})
 
-	req := httptest.NewRequest("GET", "/user/123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
 	w := httptest.NewRecorder()
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		mux.ServeHTTP(w, req)
 	}
 }
