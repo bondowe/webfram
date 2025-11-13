@@ -37,7 +37,8 @@ For comprehensive guides, API reference, and detailed examples, visit our docume
 - 🎨 [Templates](https://bondowe.github.io/webfram/templates.html) - Template system with layouts
 - 🌍 [Internationalization](https://bondowe.github.io/webfram/i18n.html) - Multi-language support
 - 🧪 [Testing](https://bondowe.github.io/webfram/testing.html) - Testing strategies
-- 🚀 [Deployment](docs/deployment.md) - Production deployment guide
+- ⚡ [Benchmarks](https://bondowe.github.io/webfram/benchmarks.html) - Performance benchmarks
+- 🚀 [Deployment](https://bondowe.github.io/webfram/deployment.html) - Production deployment guide
 
 ---
 

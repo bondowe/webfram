@@ -42,6 +42,7 @@ Welcome to the WebFram documentation! This comprehensive guide will help you bui
 ### Production
 
 - **[Testing]({{ site.baseurl }}/testing.html)** - Unit testing, integration testing, and best practices
+- **[Benchmarks]({{ site.baseurl }}/benchmarks.html)** - Performance benchmarks and comparisons
 - **[Deployment]({{ site.baseurl }}/deployment.html)** - Production deployment, Docker, monitoring, and security
 
 ## Quick Links
