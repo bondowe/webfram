@@ -464,6 +464,10 @@ func TestConfigureI18n_WithCustomDirectory(_ *testing.T) {
 // =============================================================================
 
 func TestGetSupportedLanguages_FromConfig(t *testing.T) {
+	// Set global assetsFS for the test
+	assetsFS = testI18nFS2
+	defer func() { assetsFS = nil }()
+
 	cfg := &Config{
 		Assets: &Assets{
 			FS: testI18nFS2,
@@ -474,7 +478,7 @@ func TestGetSupportedLanguages_FromConfig(t *testing.T) {
 		},
 	}
 
-	langs := getSupportedLanguages(cfg, testI18nFS2, "testdata/locales")
+	langs := getSupportedLanguages(cfg, "testdata/locales")
 
 	if len(langs) != 3 {
 		t.Fatalf("Expected 3 languages, got %d", len(langs))
@@ -490,8 +494,12 @@ func TestGetSupportedLanguages_FromConfig(t *testing.T) {
 }
 
 func TestGetSupportedLanguages_AutoDetectFromFiles(t *testing.T) {
+	// Set global assetsFS for the test
+	assetsFS = testI18nFS2
+	defer func() { assetsFS = nil }()
+
 	// Pass nil config to trigger auto-detection
-	langs := getSupportedLanguages(nil, testI18nFS2, "testdata/locales")
+	langs := getSupportedLanguages(nil, "testdata/locales")
 
 	// Should detect en, es, fr, de from testdata/locales directory
 	if len(langs) < 1 {
@@ -514,6 +522,10 @@ func TestGetSupportedLanguages_AutoDetectFromFiles(t *testing.T) {
 }
 
 func TestGetSupportedLanguages_EmptyConfig(t *testing.T) {
+	// Set global assetsFS for the test
+	assetsFS = testI18nFS2
+	defer func() { assetsFS = nil }()
+
 	cfg := &Config{
 		Assets: &Assets{
 			FS: testI18nFS2,
@@ -525,7 +537,7 @@ func TestGetSupportedLanguages_EmptyConfig(t *testing.T) {
 	}
 
 	// Should auto-detect when list is empty
-	langs := getSupportedLanguages(cfg, testI18nFS2, "testdata/locales")
+	langs := getSupportedLanguages(cfg, "testdata/locales")
 
 	if len(langs) < 1 {
 		t.Fatal("Expected auto-detection when SupportedLanguages is empty")
@@ -533,6 +545,10 @@ func TestGetSupportedLanguages_EmptyConfig(t *testing.T) {
 }
 
 func TestGetSupportedLanguages_InvalidDirectory(t *testing.T) {
+	// Set global assetsFS for the test
+	assetsFS = testI18nFS2
+	defer func() { assetsFS = nil }()
+
 	cfg := &Config{
 		Assets: &Assets{
 			FS: testI18nFS2,
@@ -543,7 +559,7 @@ func TestGetSupportedLanguages_InvalidDirectory(t *testing.T) {
 		},
 	}
 
-	langs := getSupportedLanguages(cfg, testI18nFS2, "nonexistent")
+	langs := getSupportedLanguages(cfg, "nonexistent")
 
 	// Should return default language (English)
 	if len(langs) != 1 {
@@ -557,6 +573,10 @@ func TestGetSupportedLanguages_InvalidDirectory(t *testing.T) {
 }
 
 func TestGetSupportedLanguages_NoValidFiles(t *testing.T) {
+	// Set global assetsFS to a filesystem with no valid message files
+	assetsFS = testTemplatesFS2
+	defer func() { assetsFS = nil }()
+
 	// Create a test filesystem with no valid message files
 	cfg := &Config{
 		Assets: &Assets{
@@ -568,7 +588,7 @@ func TestGetSupportedLanguages_NoValidFiles(t *testing.T) {
 		},
 	}
 
-	langs := getSupportedLanguages(cfg, testTemplatesFS2, "testdata/templates")
+	langs := getSupportedLanguages(cfg, "testdata/templates")
 
 	// Should return default language when no valid files found
 	if len(langs) != 1 {

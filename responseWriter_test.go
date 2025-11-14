@@ -666,20 +666,44 @@ func TestResponseWriter_ServeFile(t *testing.T) {
 	tests := []struct {
 		name                string
 		filename            string
+		options             *ServeFileOptions
 		expectedDisposition string
-		inline              bool
+		expectedFilename    string
 	}{
 		{
-			name:                "inline file",
-			filename:            "testdata/templates/test.go.html",
-			inline:              true,
+			name:     "inline file",
+			filename: "testdata/templates/test.go.html",
+			options: &ServeFileOptions{
+				Inline: true,
+			},
 			expectedDisposition: "inline",
+			expectedFilename:    "test.go.html",
 		},
 		{
-			name:                "attachment file",
-			filename:            "testdata/templates/test.go.html",
-			inline:              false,
+			name:     "attachment file",
+			filename: "testdata/templates/test.go.html",
+			options: &ServeFileOptions{
+				Inline: false,
+			},
 			expectedDisposition: "attachment",
+			expectedFilename:    "test.go.html",
+		},
+		{
+			name:     "custom filename",
+			filename: "testdata/templates/test.go.html",
+			options: &ServeFileOptions{
+				Inline:   false,
+				Filename: "custom-name.html",
+			},
+			expectedDisposition: "attachment",
+			expectedFilename:    "custom-name.html",
+		},
+		{
+			name:                "nil options (default to attachment)",
+			filename:            "testdata/templates/test.go.html",
+			options:             nil,
+			expectedDisposition: "attachment",
+			expectedFilename:    "test.go.html",
 		},
 	}
 
@@ -691,12 +715,17 @@ func TestResponseWriter_ServeFile(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/file", http.NoBody)
 			r := &Request{Request: req}
 
-			rw.ServeFile(r, tt.filename, tt.inline)
+			rw.ServeFile(r, tt.filename, tt.options)
 
 			disposition := w.Header().Get("Content-Disposition")
 			if !strings.HasPrefix(disposition, tt.expectedDisposition) {
 				t.Errorf("Expected Content-Disposition to start with %q, got %q",
 					tt.expectedDisposition, disposition)
+			}
+
+			if !strings.Contains(disposition, tt.expectedFilename) {
+				t.Errorf("Expected Content-Disposition to contain filename %q, got %q",
+					tt.expectedFilename, disposition)
 			}
 		})
 	}
