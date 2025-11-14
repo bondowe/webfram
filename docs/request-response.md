@@ -166,7 +166,11 @@ w.Redirect(r.Request, "/login", http.StatusSeeOther)
 
 ### Serve Static Files
 
-Serve files from the configured assets filesystem (or working directory if not configured):
+Webfram provides two methods for serving static files:
+
+#### ServeFile - Serve from Filesystem
+
+Serves files from the local filesystem:
 
 ```go
 // Serve file with default options (attachment download)
@@ -184,14 +188,44 @@ w.ServeFile(r, "assets/public/report.pdf", &app.ServeFileOptions{
 })
 ```
 
+#### ServeFileFS - Serve from Embedded Filesystem
+
+Serves files from an `fs.FS` filesystem (typically an embedded filesystem):
+
+```go
+//go:embed assets
+var assetsFS embed.FS
+
+// Serve file from embedded FS with default options (attachment download)
+w.ServeFileFS(r, assetsFS, "assets/public/document.pdf", nil)
+
+// Serve file inline (display in browser)
+w.ServeFileFS(r, assetsFS, "assets/public/image.png", &app.ServeFileOptions{
+    Inline: true,
+})
+
+// Serve with custom filename
+w.ServeFileFS(r, assetsFS, "assets/public/report.pdf", &app.ServeFileOptions{
+    Inline:   false,
+    Filename: "monthly-report.pdf",
+})
+```
+
 **File path resolution:**
-- If `Assets.FS` is configured (e.g., via `//go:embed`), files are served from the embedded filesystem
-- If `Assets.FS` is not configured, files are served relative to the application's working directory
-- Paths are relative to the filesystem root (embedded or working directory)
+
+- `ServeFile`: Serves files from the local filesystem relative to the application's working directory
+- `ServeFileFS`: Serves files from the provided `fs.FS` filesystem (embedded or custom filesystem)
+- Paths are relative to the filesystem root
 
 **ServeFileOptions:**
+
 - `Inline`: If `true`, file is displayed in browser; if `false`, downloaded as attachment (default: `false`)
 - `Filename`: Custom filename for Content-Disposition header (default: uses original filename)
+
+**When to use each method:**
+
+- Use `ServeFile` for files on the local filesystem during development or when serving user-uploaded content
+- Use `ServeFileFS` for embedded static assets (using `//go:embed`) to bundle resources within the binary
 
 ### Error Response
 

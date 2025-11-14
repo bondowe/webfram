@@ -1164,29 +1164,3 @@ func TestTelemetryConfig_WithHandlerOpts(t *testing.T) {
 		t.Error("Expected EnableOpenMetrics to be true")
 	}
 }
-
-//nolint:unused // test helper type for future tests
-type testResponseWriter struct {
-	header     http.Header
-	statusCode int
-	body       []byte
-}
-
-//nolint:unused // test helper method for future tests
-func (w *testResponseWriter) Header() http.Header {
-	if w.header == nil {
-		w.header = make(http.Header)
-	}
-	return w.header
-}
-
-//nolint:unused // test helper method for future tests
-func (w *testResponseWriter) Write(b []byte) (int, error) {
-	w.body = append(w.body, b...)
-	return len(b), nil
-}
-
-//nolint:unused // test helper method for future tests
-func (w *testResponseWriter) WriteHeader(statusCode int) {
-	w.statusCode = statusCode
-}

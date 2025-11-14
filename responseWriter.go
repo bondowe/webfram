@@ -9,6 +9,7 @@ import (
 	"fmt"
 	htmlTemplate "html/template"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -299,10 +300,36 @@ func (w *ResponseWriter) Redirect(req *Request, urlStr string, code int) {
 	http.Redirect(w.ResponseWriter, req.Request, urlStr, code)
 }
 
-// ServeFile replies to the request with the contents of the named file.
-// Sets the Content-Disposition header based on the options provided.
-// If options is nil, defaults to serving the file as an attachment with the original filename.
-// Uses http.ServeFileFS to serve the file from the embedded assets filesystem, if provided, or the working directory.
+// ServeFileFS serves a file from the specified fs.FS at the given path.
+// The options parameter allows setting Content-Disposition headers for inline or attachment serving.
+// If options is nil, defaults to attachment serving with the original filename.
+// Uses http.ServeFileFS to handle file serving.
+// The req parameter is the original request.
+func (w *ResponseWriter) ServeFileFS(req *Request, fsys fs.FS, path string, options *ServeFileOptions) {
+	var disposition string
+	var filename string
+
+	if options != nil && options.Inline {
+		disposition = "inline"
+	} else {
+		disposition = "attachment"
+	}
+
+	if options != nil && options.Filename != "" {
+		filename = options.Filename
+	} else {
+		filename = filepath.Base(path)
+	}
+
+	w.Header().Set("Content-Disposition", disposition+"; filename=\""+filepath.Base(filename)+"\"")
+	http.ServeFileFS(w.ResponseWriter, req.Request, fsys, path)
+}
+
+// ServeFile serves a file from the local filesystem at the given path.
+// The options parameter allows setting Content-Disposition headers for inline or attachment serving.
+// If options is nil, defaults to attachment serving with the original filename.
+// Uses http.ServeFile to handle file serving.
+// The req parameter is the original request.
 func (w *ResponseWriter) ServeFile(req *Request, path string, options *ServeFileOptions) {
 	var disposition string
 	var filename string
@@ -320,5 +347,5 @@ func (w *ResponseWriter) ServeFile(req *Request, path string, options *ServeFile
 	}
 
 	w.Header().Set("Content-Disposition", disposition+"; filename=\""+filepath.Base(filename)+"\"")
-	http.ServeFileFS(w.ResponseWriter, req.Request, assetsFS, path)
+	http.ServeFile(w.ResponseWriter, req.Request, path)
 }

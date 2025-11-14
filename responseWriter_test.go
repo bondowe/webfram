@@ -669,6 +669,7 @@ func TestResponseWriter_ServeFile(t *testing.T) {
 		options             *ServeFileOptions
 		expectedDisposition string
 		expectedFilename    string
+		checkContent        bool
 	}{
 		{
 			name:     "inline file",
@@ -678,6 +679,7 @@ func TestResponseWriter_ServeFile(t *testing.T) {
 			},
 			expectedDisposition: "inline",
 			expectedFilename:    "test.go.html",
+			checkContent:        true,
 		},
 		{
 			name:     "attachment file",
@@ -687,6 +689,7 @@ func TestResponseWriter_ServeFile(t *testing.T) {
 			},
 			expectedDisposition: "attachment",
 			expectedFilename:    "test.go.html",
+			checkContent:        true,
 		},
 		{
 			name:     "custom filename",
@@ -697,6 +700,7 @@ func TestResponseWriter_ServeFile(t *testing.T) {
 			},
 			expectedDisposition: "attachment",
 			expectedFilename:    "custom-name.html",
+			checkContent:        true,
 		},
 		{
 			name:                "nil options (default to attachment)",
@@ -704,6 +708,17 @@ func TestResponseWriter_ServeFile(t *testing.T) {
 			options:             nil,
 			expectedDisposition: "attachment",
 			expectedFilename:    "test.go.html",
+			checkContent:        true,
+		},
+		{
+			name:     "text file with inline",
+			filename: "testdata/templates/test.go.txt",
+			options: &ServeFileOptions{
+				Inline: true,
+			},
+			expectedDisposition: "inline",
+			expectedFilename:    "test.go.txt",
+			checkContent:        true,
 		},
 	}
 
@@ -726,6 +741,125 @@ func TestResponseWriter_ServeFile(t *testing.T) {
 			if !strings.Contains(disposition, tt.expectedFilename) {
 				t.Errorf("Expected Content-Disposition to contain filename %q, got %q",
 					tt.expectedFilename, disposition)
+			}
+
+			// Verify file content was served
+			if tt.checkContent && w.Body.Len() == 0 {
+				t.Error("Expected file content to be served, but body is empty")
+			}
+
+			// Verify Content-Type header was set
+			contentType := w.Header().Get("Content-Type")
+			if contentType == "" {
+				t.Error("Expected Content-Type header to be set")
+			}
+		})
+	}
+}
+
+func TestResponseWriter_ServeFileFS(t *testing.T) {
+	setupResponseWriterTests()
+
+	tests := []struct {
+		name                string
+		path                string
+		options             *ServeFileOptions
+		expectedDisposition string
+		expectedFilename    string
+		checkContent        bool
+	}{
+		{
+			name: "inline file from embedded FS",
+			path: "testdata/templates/test.go.html",
+			options: &ServeFileOptions{
+				Inline: true,
+			},
+			expectedDisposition: "inline",
+			expectedFilename:    "test.go.html",
+			checkContent:        true,
+		},
+		{
+			name: "attachment file from embedded FS",
+			path: "testdata/templates/test.go.html",
+			options: &ServeFileOptions{
+				Inline: false,
+			},
+			expectedDisposition: "attachment",
+			expectedFilename:    "test.go.html",
+			checkContent:        true,
+		},
+		{
+			name: "custom filename from embedded FS",
+			path: "testdata/templates/test.go.html",
+			options: &ServeFileOptions{
+				Inline:   false,
+				Filename: "custom-download.html",
+			},
+			expectedDisposition: "attachment",
+			expectedFilename:    "custom-download.html",
+			checkContent:        true,
+		},
+		{
+			name:                "nil options (default to attachment) from embedded FS",
+			path:                "testdata/templates/test.go.html",
+			options:             nil,
+			expectedDisposition: "attachment",
+			expectedFilename:    "test.go.html",
+			checkContent:        true,
+		},
+		{
+			name: "text file inline from embedded FS",
+			path: "testdata/templates/test.go.txt",
+			options: &ServeFileOptions{
+				Inline: true,
+			},
+			expectedDisposition: "inline",
+			expectedFilename:    "test.go.txt",
+			checkContent:        true,
+		},
+		{
+			name: "custom filename with inline from embedded FS",
+			path: "testdata/templates/test.go.txt",
+			options: &ServeFileOptions{
+				Inline:   true,
+				Filename: "display-name.txt",
+			},
+			expectedDisposition: "inline",
+			expectedFilename:    "display-name.txt",
+			checkContent:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			rw := ResponseWriter{ResponseWriter: w}
+
+			req := httptest.NewRequest(http.MethodGet, "/file", http.NoBody)
+			r := &Request{Request: req}
+
+			rw.ServeFileFS(r, testTemplatesFS, tt.path, tt.options)
+
+			disposition := w.Header().Get("Content-Disposition")
+			if !strings.HasPrefix(disposition, tt.expectedDisposition) {
+				t.Errorf("Expected Content-Disposition to start with %q, got %q",
+					tt.expectedDisposition, disposition)
+			}
+
+			if !strings.Contains(disposition, tt.expectedFilename) {
+				t.Errorf("Expected Content-Disposition to contain filename %q, got %q",
+					tt.expectedFilename, disposition)
+			}
+
+			// Verify file content was served
+			if tt.checkContent && w.Body.Len() == 0 {
+				t.Error("Expected file content to be served from embedded FS, but body is empty")
+			}
+
+			// Verify Content-Type header was set
+			contentType := w.Header().Get("Content-Type")
+			if contentType == "" {
+				t.Error("Expected Content-Type header to be set")
 			}
 		})
 	}

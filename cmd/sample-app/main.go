@@ -195,10 +195,17 @@ func main() {
 		w.JSON(r.Context(), map[string]string{"message": msg})
 	})
 
-	mux.HandleFunc("GET /file", func(w app.ResponseWriter, r *app.Request) {
-		w.ServeFile(r, "assets/public/sample.xml", &app.ServeFileOptions{
+	mux.HandleFunc("GET /xml", func(w app.ResponseWriter, r *app.Request) {
+		w.ServeFile(r, "public/sample.xml", &app.ServeFileOptions{
 			Inline:   false,
 			Filename: "custom-name.xml",
+		})
+	})
+
+	mux.HandleFunc("GET /js", func(w app.ResponseWriter, r *app.Request) {
+		w.ServeFileFS(r, assetsFS, "assets/js/main.js", &app.ServeFileOptions{
+			Inline:   true,
+			Filename: "main-01.js",
 		})
 	})
 
