@@ -21,33 +21,37 @@ Learn how to configure WebFram for your application needs.
 
 ## Basic Configuration
 
-WebFram can be configured with templates, i18n, JSONP, and OpenAPI settings:
+WebFram can be configured with templates, i18n, JSONP, and OpenAPI settings. All configuration is optional:
 
 ```go
 //go:embed all:assets
 var assetsFS embed.FS
 
 func main() {
+    // Option 1: Full configuration with embedded assets
     app.Configure(&app.Config{
         Assets: &app.Assets{
-            FS: assetsFS,
+            FS: assetsFS,  // Optional: defaults to working directory if omitted
             Templates: &app.Templates{
-                Dir:                   "assets/templates",
+                Dir:                   "assets/templates",  // Optional: defaults to "assets/templates"
                 LayoutBaseName:        "layout",
                 HTMLTemplateExtension: ".go.html",
                 TextTemplateExtension: ".go.txt",
             },
             I18nMessages: &app.I18nMessages{
-                Dir: "assets/locales",
+                Dir: "assets/locales",  // Optional: defaults to "assets/locales"
             },
         },
         JSONPCallbackParamName: "callback", // Enable JSONP
         OpenAPI: &app.OpenAPI{
-            EndpointEnabled: true,
-            URLPath:         "GET /openapi.json",
-            Config:          getOpenAPIConfig(),
+            Enabled: true,
+            URLPath: "GET /openapi.json",
+            Config:  getOpenAPIConfig(),
         },
     })
+
+    // Option 2: Minimal configuration (uses defaults)
+    // app.Configure(nil)  // Assets from working directory, default paths
 
     mux := app.NewServeMux()
     // ... register routes
@@ -60,12 +64,12 @@ func main() {
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `Assets.FS` | `nil` (required) | Embedded file system (e.g., `//go:embed assets`) |
-| `Assets.Templates.Dir` | `"assets/templates"` | Path to templates directory within the embedded FS |
+| `Assets.FS` | Working directory | File system for assets (use `//go:embed` for embedded FS, or omit for working directory) |
+| `Assets.Templates.Dir` | `"assets/templates"` | Path to templates directory (relative to Assets.FS or working directory) |
 | `Assets.Templates.LayoutBaseName` | `"layout"` | Base name for layout files |
 | `Assets.Templates.HTMLTemplateExtension` | `".go.html"` | Extension for HTML templates |
 | `Assets.Templates.TextTemplateExtension` | `".go.txt"` | Extension for text templates |
-| `Assets.I18nMessages.Dir` | `"assets/locales"` | Path to locales directory within the embedded FS |
+| `Assets.I18nMessages.Dir` | `"assets/locales"` | Path to locales directory (relative to Assets.FS or working directory) |
 | `JSONPCallbackParamName` | `""` (disabled) | Query parameter name for JSONP callbacks |
 | `OpenAPI.EndpointEnabled` | `false` | Enable/disable OpenAPI endpoint |
 | `OpenAPI.URLPath` | `"GET /openapi.json"` | Path for OpenAPI spec endpoint |
@@ -119,9 +123,9 @@ app.ListenAndServe(":8080", mux, serverCfg)
 
 ## Configuration Best Practices
 
-### 1. Use Embedded Filesystems
+### 1. Use Embedded Filesystems (Recommended for Production)
 
-Always use `//go:embed` for your assets directory:
+For production deployments, use `//go:embed` to bundle assets:
 
 ```go
 // Project structure:
@@ -145,6 +149,13 @@ app.Configure(&app.Config{
 ```
 
 **Important:** Use the `all:` prefix to include files starting with `_` (partials).
+
+**Alternative for Development:** Omit `Assets.FS` to load files from the working directory:
+
+```go
+// Assets loaded from ./assets/templates and ./assets/locales
+app.Configure(nil)  // Uses all defaults
+```
 
 ### 2. Environment-Specific Configuration
 

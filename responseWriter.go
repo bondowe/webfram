@@ -20,12 +20,19 @@ import (
 	yaml "sigs.k8s.io/yaml/goyaml.v2"
 )
 
-// ResponseWriter wraps http.ResponseWriter with additional functionality.
-type ResponseWriter struct {
-	http.ResponseWriter
+type (
+	// ResponseWriter wraps http.ResponseWriter with additional functionality.
+	ResponseWriter struct {
+		http.ResponseWriter
 
-	statusCode *int // Pointer to allow mutation across value copies
-}
+		statusCode *int // Pointer to allow mutation across value copies
+	}
+
+	ServeFileOptions struct {
+		Inline   bool   // If true, serves the file inline; otherwise as an attachment
+		Filename string // Optional filename for Content-Disposition header
+	}
+)
 
 func i18nPrinterFunc(messagePrinter *message.Printer) func(str string, args ...any) string {
 	return func(str string, args ...any) string {
@@ -293,22 +300,25 @@ func (w *ResponseWriter) Redirect(req *Request, urlStr string, code int) {
 }
 
 // ServeFile replies to the request with the contents of the named file.
-// The inline parameter controls the Content-Disposition header (inline or attachment).
-// The file is served from the configured template filesystem.
-func (w *ResponseWriter) ServeFile(req *Request, name string, inline bool) {
-	tmplConfig, ok := template.Configuration()
-	if !ok {
-		http.Error(w.ResponseWriter, "templates not configured", http.StatusInternalServerError)
-		return
-	}
-
+// Sets the Content-Disposition header based on the options provided.
+// If options is nil, defaults to serving the file as an attachment with the original filename.
+// Uses http.ServeFileFS to serve the file from the embedded assets filesystem, if provided, or the working directory.
+func (w *ResponseWriter) ServeFile(req *Request, path string, options *ServeFileOptions) {
 	var disposition string
-	if inline {
+	var filename string
+
+	if options != nil && options.Inline {
 		disposition = "inline"
 	} else {
 		disposition = "attachment"
 	}
 
-	w.Header().Set("Content-Disposition", disposition+"; filename=\""+filepath.Base(name)+"\"")
-	http.ServeFileFS(w.ResponseWriter, req.Request, tmplConfig.FS, name)
+	if options != nil && options.Filename != "" {
+		filename = options.Filename
+	} else {
+		filename = filepath.Base(path)
+	}
+
+	w.Header().Set("Content-Disposition", disposition+"; filename=\""+filepath.Base(filename)+"\"")
+	http.ServeFileFS(w.ResponseWriter, req.Request, assetsFS, path)
 }

@@ -21,7 +21,7 @@ WebFram provides a powerful template system with automatic caching, layout inher
 
 ## Configuration
 
-Templates must be provided via an embedded file system:
+Templates can be provided via an embedded file system or loaded from the working directory:
 
 ```go
 // Project structure:
@@ -33,18 +33,28 @@ Templates must be provided via an embedded file system:
 //go:embed all:assets
 var assetsFS embed.FS
 
+// Option 1: Embedded file system (recommended for production)
 app.Configure(&app.Config{
     Assets: &app.Assets{
         FS: assetsFS,
         Templates: &app.Templates{
-            Dir:                   "assets/templates",
+            Dir:                   "assets/templates",  // Optional: defaults to "assets/templates"
             LayoutBaseName:        "layout",
             HTMLTemplateExtension: ".go.html",
             TextTemplateExtension: ".go.txt",
         },
     },
 })
+
+// Option 2: Load from working directory (useful for development)
+app.Configure(nil)  // Templates loaded from ./assets/templates with default settings
 ```
+
+**Note:** All template configuration is optional. When omitted, defaults are:
+- `Dir`: `"assets/templates"`
+- `LayoutBaseName`: `"layout"`
+- `HTMLTemplateExtension`: `".go.html"`
+- `TextTemplateExtension`: `".go.txt"`
 
 ## Template Structure
 

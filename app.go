@@ -221,6 +221,7 @@ const (
 //nolint:gochecknoglobals // Package-level state for framework configuration and middleware
 var (
 	appConfigured            = false
+	assetsFS                 fs.FS
 	appMiddlewares           []AppMiddleware
 	telemetryConfig          *Telemetry
 	openAPIConfig            *OpenAPI
@@ -388,7 +389,6 @@ func configureOpenAPI(cfg *Config) {
 }
 
 func configureTemplate(cfg *Config) {
-	var assetsFS fs.FS
 	var dir string
 	var layoutBaseName string
 	var htmlTemplateExtension string
@@ -396,13 +396,11 @@ func configureTemplate(cfg *Config) {
 
 	// Set defaults if config is nil
 	if cfg == nil || cfg.Assets == nil {
-		assetsFS = os.DirFS(".")
 		dir = defaultTemplateDir
 		layoutBaseName = defaultLayoutBaseName
 		htmlTemplateExtension = defaultHTMLTemplateExtension
 		textTemplateExtension = defaultTextTemplateExtension
 	} else {
-		assetsFS = getAssetsFS(cfg)
 		dir, layoutBaseName, htmlTemplateExtension, textTemplateExtension = getTemplateConfig(cfg)
 	}
 
@@ -428,20 +426,17 @@ func configureTemplate(cfg *Config) {
 }
 
 func configureI18n(cfg *Config) {
-	var assetsFS fs.FS
 	var dir string
 	var supportedLanguages []language.Tag
 
 	// Set defaults if config is nil
 	if cfg == nil || cfg.Assets == nil {
-		assetsFS = os.DirFS(".")
 		dir = defaultI18nMessagesDir
 	} else {
-		assetsFS = getAssetsFS(cfg)
 		dir = getI18nMessagesDir(cfg)
 	}
 
-	supportedLanguages = getSupportedLanguages(cfg, assetsFS, dir)
+	supportedLanguages = getSupportedLanguages(cfg, dir)
 
 	stat, err := fs.Stat(assetsFS, dir)
 	if err != nil || !stat.IsDir() {
@@ -461,20 +456,7 @@ func configureI18n(cfg *Config) {
 	i18n.Configure(i18nConfig)
 }
 
-// Configure initializes the webfram application with the provided configuration.
-// It sets up templates, i18n messages, OpenAPI documentation, and JSONP callback handling.
-// This function must be called only once before using the framework. Calling it multiple times will panic.
-// Pass nil to use default configuration values.
-func Configure(cfg *Config) {
-	if appConfigured {
-		panic("app already configured")
-	}
-	appConfigured = true
-
-	configureTelemetry(cfg)
-	configureOpenAPI(cfg)
-	configureTemplate(cfg)
-	configureI18n(cfg)
+func configureJSONP(cfg *Config) {
 
 	if cfg != nil {
 		if cfg.JSONPCallbackParamName != "" {
@@ -488,6 +470,24 @@ func Configure(cfg *Config) {
 		}
 		jsonpCallbackParamName = cfg.JSONPCallbackParamName
 	}
+}
+
+// Configure initializes the webfram application with the provided configuration.
+// It sets up templates, i18n messages, OpenAPI documentation, and JSONP callback handling.
+// This function must be called only once before using the framework. Calling it multiple times will panic.
+// Pass nil to use default configuration values.
+func Configure(cfg *Config) {
+	if appConfigured {
+		panic("app already configured")
+	}
+	appConfigured = true
+	assetsFS = getAssetsFS(cfg)
+
+	configureTelemetry(cfg)
+	configureOpenAPI(cfg)
+	configureTemplate(cfg)
+	configureI18n(cfg)
+	configureJSONP(cfg)
 }
 
 // Use registers a global middleware that will be applied to all handlers.
@@ -754,7 +754,7 @@ func getValueOrDefault[T comparable](value, defaultValue T) T {
 }
 
 func getAssetsFS(cfg *Config) fs.FS {
-	if cfg.Assets.FS == nil {
+	if cfg == nil || cfg.Assets == nil || cfg.Assets.FS == nil {
 		return os.DirFS(".")
 	}
 	return cfg.Assets.FS
@@ -777,7 +777,7 @@ func getI18nMessagesDir(cfg *Config) string {
 	return getValueOrDefault(cfg.Assets.I18nMessages.Dir, defaultI18nMessagesDir)
 }
 
-func getSupportedLanguages(cfg *Config, assetsFS fs.FS, localesDir string) []language.Tag {
+func getSupportedLanguages(cfg *Config, localesDir string) []language.Tag {
 	var langs []string
 	// TODO: Consider refactoring to reduce complexity (currently ignored for clarity)
 	//nolint:nestif // Nested if-else structure is intentional for auto-detection logic

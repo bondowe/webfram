@@ -164,15 +164,34 @@ w.NoContent() // Returns 204 No Content
 w.Redirect(r.Request, "/login", http.StatusSeeOther)
 ```
 
-### File Download
+### Serve Static Files
+
+Serve files from the configured assets filesystem (or working directory if not configured):
 
 ```go
-// Inline display
-w.ServeFile(r.Request, "/path/to/file.pdf", true)
+// Serve file with default options (attachment download)
+w.ServeFile(r, "assets/public/document.pdf", nil)
 
-// Force download
-w.ServeFile(r.Request, "/path/to/file.pdf", false)
+// Serve file inline (display in browser)
+w.ServeFile(r, "assets/public/image.png", &app.ServeFileOptions{
+    Inline: true,
+})
+
+// Serve with custom filename
+w.ServeFile(r, "assets/public/report.pdf", &app.ServeFileOptions{
+    Inline:   false,
+    Filename: "monthly-report.pdf",
+})
 ```
+
+**File path resolution:**
+- If `Assets.FS` is configured (e.g., via `//go:embed`), files are served from the embedded filesystem
+- If `Assets.FS` is not configured, files are served relative to the application's working directory
+- Paths are relative to the filesystem root (embedded or working directory)
+
+**ServeFileOptions:**
+- `Inline`: If `true`, file is displayed in browser; if `false`, downloaded as attachment (default: `false`)
+- `Filename`: Custom filename for Content-Disposition header (default: uses original filename)
 
 ### Error Response
 

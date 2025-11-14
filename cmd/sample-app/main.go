@@ -195,6 +195,13 @@ func main() {
 		w.JSON(r.Context(), map[string]string{"message": msg})
 	})
 
+	mux.HandleFunc("GET /file", func(w app.ResponseWriter, r *app.Request) {
+		w.ServeFile(r, "assets/public/sample.xml", &app.ServeFileOptions{
+			Inline:   false,
+			Filename: "custom-name.xml",
+		})
+	})
+
 	// Start server
 	log.Println("Server starting on :8080")
 	log.Println("OpenAPI docs: http://localhost:8080/openapi.json")

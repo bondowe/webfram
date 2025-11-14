@@ -126,14 +126,19 @@ mux.HandleFunc("POST /users", func(w app.ResponseWriter, r *app.Request) {
 var assetsFS embed.FS
 
 func main() {
+    // Assets configuration is optional
+    // This example uses embedded FS (recommended for production)
     app.Configure(&app.Config{
         Assets: &app.Assets{
-            FS: assetsFS,
+            FS: assetsFS,  // Optional: omit to use working directory
             Templates: &app.Templates{
-                Dir: "assets/templates",
+                Dir: "assets/templates",  // Optional: defaults to "assets/templates"
             },
         },
     })
+
+    // Alternative: Use defaults (loads from ./assets/templates)
+    // app.Configure(nil)
 
     mux := app.NewServeMux()
     
@@ -142,7 +147,7 @@ func main() {
             "Title": "Welcome",
             "Message": "Hello from WebFram!",
         }
-        w.Render(r.Context(), "index", data)
+        w.HTML(r.Context(), "index", data)
     })
 
     app.ListenAndServe(":8080", mux, nil)

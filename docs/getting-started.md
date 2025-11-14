@@ -192,16 +192,20 @@ myapp/
 ├── main.go
 ├── go.mod
 ├── go.sum
-├── assets/
-│   ├── templates/
+├── assets/                    # Optional: can be embedded or in working directory
+│   ├── templates/            # Default: "assets/templates"
 │   │   ├── layout.go.html
 │   │   └── index.go.html
-│   └── locales/
-│       ├── messages.en.json
-│       └── messages.fr.json
+│   ├── locales/              # Default: "assets/locales"
+│   │   ├── messages.en.json
+│   │   └── messages.fr.json
+│   └── public/               # Static files (images, CSS, JS, etc.)
+│       └── style.css
 ├── handlers/
 │   ├── users.go
 │   └── health.go
 └── models/
     └── user.go
 ```
+
+**Note:** The `assets` directory and its subdirectories are optional. When not using embedded assets (`//go:embed`), files are loaded from these default paths relative to your application's working directory.
