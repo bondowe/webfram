@@ -457,7 +457,6 @@ func configureI18n(cfg *Config) {
 }
 
 func configureJSONP(cfg *Config) {
-
 	if cfg != nil {
 		if cfg.JSONPCallbackParamName != "" {
 			matched := jsonpCallbackNamePattern.MatchString(cfg.JSONPCallbackParamName)
