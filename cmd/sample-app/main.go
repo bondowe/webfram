@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,17 +13,23 @@ import (
 	"golang.org/x/text/language"
 )
 
+const (
+	sseUpdateInterval = 5 * time.Second
+	defaultClapCount  = 5
+)
+
 //go:generate go get -tool github.com/bondowe/webfram/cmd/webfram-i18n
 //go:generate go tool webfram-i18n -languages "en,fr,es" -templates assets/templates -locales assets/locales
 
 //go:embed all:assets
 var assetsFS embed.FS
 
+//nolint:golines // struct tags require specific formatting
 type User struct {
 	ID        uuid.UUID `json:"id" xml:"id" form:"id"`
-	Name      string    `json:"name" xml:"name" form:"name" validate:"required,minlength=3" errmsg:"required=Name is required;minlength=Name must be at least 3 characters"`
-	Email     string    `json:"email" xml:"email" form:"email" validate:"required,format=email" errmsg:"required=Email is required;format=Invalid email"`
-	Role      string    `json:"role" xml:"role" form:"role" validate:"enum=admin|user|guest" errmsg:"enum=Must be admin, user, or guest"`
+	Name      string    `json:"name" xml:"name" form:"name" validate:"required,minlength=3" errmsg:"required=Name is required;minlength=Name must be at least 3 characters"` //nolint:lll // struct tags must be on one line
+	Email     string    `json:"email" xml:"email" form:"email" validate:"required,format=email" errmsg:"required=Email is required;format=Invalid email"`                    //nolint:lll // struct tags must be on one line
+	Role      string    `json:"role" xml:"role" form:"role" validate:"enum=admin|user|guest" errmsg:"enum=Must be admin, user, or guest"`                                    //nolint:lll // struct tags must be on one line
 	Birthdate time.Time `form:"birthdate" validate:"required" format:"2006-01-02"`
 }
 
@@ -81,7 +88,9 @@ func main() {
 			{ID: uuid.New(), Name: "John Doe", Email: "john@example.com"},
 			{ID: uuid.New(), Name: "Jane Smith", Email: "jane@example.com"},
 		}
-		w.JSON(r.Context(), users)
+		if err := w.JSON(r.Context(), users); err != nil {
+			w.Error(http.StatusInternalServerError, err.Error())
+		}
 	}).WithAPIConfig(&app.APIConfig{
 		OperationID: "listUsers",
 		Summary:     "List all users",
@@ -107,13 +116,17 @@ func main() {
 
 		if valErrors.Any() {
 			w.WriteHeader(http.StatusBadRequest)
-			w.JSON(r.Context(), valErrors)
+			if jsonErr := w.JSON(r.Context(), valErrors); jsonErr != nil {
+				w.Error(http.StatusInternalServerError, jsonErr.Error())
+			}
 			return
 		}
 
 		user.ID = uuid.New()
 		w.WriteHeader(http.StatusCreated)
-		w.JSON(r.Context(), user)
+		if jsonErr := w.JSON(r.Context(), user); jsonErr != nil {
+			w.Error(http.StatusInternalServerError, jsonErr.Error())
+		}
 	}).WithAPIConfig(&app.APIConfig{
 		OperationID: "createUser",
 		Summary:     "Create a new user",
@@ -164,7 +177,7 @@ func main() {
 		// Apply JSON Patch with validation
 		valErrors, err := app.PatchJSON(r, &user, true)
 		if err != nil {
-			if err == app.ErrMethodNotAllowed {
+			if errors.Is(err, app.ErrMethodNotAllowed) {
 				w.Error(http.StatusMethodNotAllowed, err.Error())
 				return
 			}
@@ -174,11 +187,15 @@ func main() {
 
 		if len(valErrors) > 0 {
 			w.WriteHeader(http.StatusBadRequest)
-			w.JSON(r.Context(), app.ValidationErrors{Errors: valErrors})
+			if jsonErr := w.JSON(r.Context(), app.ValidationErrors{Errors: valErrors}); jsonErr != nil {
+				w.Error(http.StatusInternalServerError, jsonErr.Error())
+			}
 			return
 		}
 
-		w.JSON(r.Context(), user)
+		if jsonErr := w.JSON(r.Context(), user); jsonErr != nil {
+			w.Error(http.StatusInternalServerError, jsonErr.Error())
+		}
 	})
 
 	// SSE endpoint for real-time updates
@@ -197,15 +214,17 @@ func main() {
 		func(err error) {
 			log.Printf("SSE error: %v\n", err)
 		},
-		5*time.Second,
+		sseUpdateInterval,
 		nil,
 	))
 
 	// i18n example
 	mux.HandleFunc("GET /greeting", func(w app.ResponseWriter, r *app.Request) {
 		printer := app.GetI18nPrinter(language.Spanish)
-		msg := printer.Sprintf("Welcome to %s! Clap %d times.", "WebFram", 5)
-		w.JSON(r.Context(), map[string]string{"message": msg})
+		msg := printer.Sprintf("Welcome to %s! Clap %d times.", "WebFram", defaultClapCount)
+		if err := w.JSON(r.Context(), map[string]string{"message": msg}); err != nil {
+			w.Error(http.StatusInternalServerError, err.Error())
+		}
 	})
 
 	mux.HandleFunc("GET /xml", func(w app.ResponseWriter, r *app.Request) {

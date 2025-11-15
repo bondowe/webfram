@@ -192,7 +192,7 @@ type (
 		Enabled bool
 	}
 
-	/// Server represents an OpenAPI server definition.
+	// Tag represents an OpenAPI tag definition.
 	Tag struct {
 		// Name is the name of the tag.
 		Name string
@@ -208,7 +208,7 @@ type (
 		Kind string
 	}
 
-	// Server represents an OpenAPI server definition.
+	// Contact represents an OpenAPI contact definition.
 	Contact struct {
 		// Name is the name of the contact.
 		Name string
@@ -218,7 +218,7 @@ type (
 		Email string
 	}
 
-	/// License represents an OpenAPI license definition.
+	// License represents an OpenAPI license definition.
 	License struct {
 		// Name of the license.
 		Name string
@@ -228,7 +228,7 @@ type (
 		URL string
 	}
 
-	/// Info represents OpenAPI information.
+	// Info represents OpenAPI information.
 	Info struct {
 		// Title of the API.
 		Title string
@@ -246,7 +246,7 @@ type (
 		Version string
 	}
 
-	// Server represents an OpenAPI server definition.
+	// ExternalDocs represents OpenAPI external documentation.
 	ExternalDocs struct {
 		// Description provides a description of the external documentation.
 		Description string
@@ -254,7 +254,7 @@ type (
 		URL string
 	}
 
-	// OpenAPI represents the OpenAPI configuration.
+	// OpenAPIConfig represents the OpenAPI configuration.
 	OpenAPIConfig struct {
 		Info *Info
 		// Servers is a list of OpenAPI server definitions.
@@ -461,45 +461,55 @@ func configureOpenAPI(cfg *Config) {
 	if openAPIConfig.Config != nil {
 		openAPIConfig.internalConfig.Servers = mapServers(openAPIConfig.Config.Servers)
 		openAPIConfig.internalConfig.Tags = mapOpenAPITags(openAPIConfig.Config.Tags)
-
-		if openAPIConfig.Config.Info != nil {
-			openAPIConfig.internalConfig.Info = &openapi.Info{
-				Title:          openAPIConfig.Config.Info.Title,
-				Summary:        openAPIConfig.Config.Info.Summary,
-				Description:    openAPIConfig.Config.Info.Description,
-				TermsOfService: openAPIConfig.Config.Info.TermsOfService,
-				Version:        openAPIConfig.Config.Info.Version,
-			}
-
-			if openAPIConfig.Config.Info.Contact != nil {
-				openAPIConfig.internalConfig.Info.Contact = &openapi.Contact{
-					Name:  openAPIConfig.Config.Info.Contact.Name,
-					URL:   openAPIConfig.Config.Info.Contact.URL,
-					Email: openAPIConfig.Config.Info.Contact.Email,
-				}
-			}
-
-			if openAPIConfig.Config.Info.License != nil {
-				openAPIConfig.internalConfig.Info.License = &openapi.License{
-					Name:       openAPIConfig.Config.Info.License.Name,
-					Identifier: openAPIConfig.Config.Info.License.Identifier,
-					URL:        openAPIConfig.Config.Info.License.URL,
-				}
-			}
-		}
-
-		if openAPIConfig.Config.ExternalDocs != nil {
-			openAPIConfig.internalConfig.ExternalDocs = &openapi.ExternalDocs{
-				Description: openAPIConfig.Config.ExternalDocs.Description,
-				URL:         openAPIConfig.Config.ExternalDocs.URL,
-			}
-		}
+		mapOpenAPIInfo(openAPIConfig.Config)
+		mapOpenAPIExternalDocs(openAPIConfig.Config)
 	}
 
 	if openAPIConfig.URLPath == "" {
 		openAPIConfig.URLPath = defaultOpenAPIURLPath
 	} else if openAPIConfig.URLPath[0:4] != "GET " {
 		openAPIConfig.URLPath = "GET " + openAPIConfig.URLPath
+	}
+}
+
+func mapOpenAPIInfo(config *OpenAPIConfig) {
+	if config.Info == nil {
+		return
+	}
+
+	openAPIConfig.internalConfig.Info = &openapi.Info{
+		Title:          config.Info.Title,
+		Summary:        config.Info.Summary,
+		Description:    config.Info.Description,
+		TermsOfService: config.Info.TermsOfService,
+		Version:        config.Info.Version,
+	}
+
+	if config.Info.Contact != nil {
+		openAPIConfig.internalConfig.Info.Contact = &openapi.Contact{
+			Name:  config.Info.Contact.Name,
+			URL:   config.Info.Contact.URL,
+			Email: config.Info.Contact.Email,
+		}
+	}
+
+	if config.Info.License != nil {
+		openAPIConfig.internalConfig.Info.License = &openapi.License{
+			Name:       config.Info.License.Name,
+			Identifier: config.Info.License.Identifier,
+			URL:        config.Info.License.URL,
+		}
+	}
+}
+
+func mapOpenAPIExternalDocs(config *OpenAPIConfig) {
+	if config.ExternalDocs == nil {
+		return
+	}
+
+	openAPIConfig.internalConfig.ExternalDocs = &openapi.ExternalDocs{
+		Description: config.ExternalDocs.Description,
+		URL:         config.ExternalDocs.URL,
 	}
 }
 
