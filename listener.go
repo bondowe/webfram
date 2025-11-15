@@ -60,10 +60,9 @@ func setupOpenAPIEndpoints(mux *ServeMux) {
 		panic(err)
 	}
 	mux.HandleFunc(openAPIConfig.URLPath, func(w ResponseWriter, _ *Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		_ = w.Bytes(doc, "application/json")
+		if jsonErr := w.Bytes(doc, "application/json"); jsonErr != nil {
+			w.Error(http.StatusInternalServerError, jsonErr.Error())
+		}
 	})
 
 	openAPIDocumentPath := strings.TrimPrefix(openAPIConfig.URLPath, "GET ")

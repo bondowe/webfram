@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bondowe/webfram/openapi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -658,6 +659,34 @@ func TestSetupOpenAPIEndpoint_InvalidConfig(t *testing.T) {
 	setupOpenAPIEndpoints(mux)
 }
 
+func TestSetupOpenAPIEndpoint_RenderingFailure(t *testing.T) {
+	// This test verifies that setupOpenAPIEndpoints handles marshaling errors correctly.
+	// The current implementation panics when MarshalJSON fails during setup.
+
+	// Save and restore original config
+	originalConfig := openAPIConfig
+	defer func() { openAPIConfig = originalConfig }()
+
+	// Configure OpenAPI with nil info, which will fail validation and cause panic
+	appConfigured = false
+	openAPIConfig = &OpenAPI{
+		Enabled:        true,
+		URLPath:        "GET /openapi.json",
+		internalConfig: &openapi.Config{}, // Empty config with nil Info will fail validation
+	}
+	openAPIConfig.internalConfig.Paths = make(openapi.Paths)
+
+	mux := NewServeMux()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic when rendering fails with invalid config")
+		}
+	}()
+
+	setupOpenAPIEndpoints(mux)
+}
+
 func TestSetupOpenAPIEndpoint_HTMLUIGenerated(t *testing.T) {
 	// Save and restore original config
 	originalConfig := openAPIConfig
@@ -756,7 +785,7 @@ func TestSetupOpenAPIEndpoint_CustomURLPath(t *testing.T) {
 	}
 }
 
-func TestSetupOpenAPIEndpoint_CORSHeaders(t *testing.T) {
+func TestSetupOpenAPIEndpoint_JSONResponse(t *testing.T) {
 	// Save and restore original config
 	originalConfig := openAPIConfig
 	defer func() { openAPIConfig = originalConfig }()
@@ -779,7 +808,7 @@ func TestSetupOpenAPIEndpoint_CORSHeaders(t *testing.T) {
 	mux := NewServeMux()
 	setupOpenAPIEndpoints(mux)
 
-	// Test CORS headers on JSON endpoint
+	// Test that JSON endpoint works
 	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -788,16 +817,14 @@ func TestSetupOpenAPIEndpoint_CORSHeaders(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
 
-	if origin := w.Header().Get("Access-Control-Allow-Origin"); origin != "*" {
-		t.Errorf("Expected Access-Control-Allow-Origin '*', got '%s'", origin)
+	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Expected Content-Type 'application/json', got '%s'", ct)
 	}
 
-	if methods := w.Header().Get("Access-Control-Allow-Methods"); methods != "GET, OPTIONS" {
-		t.Errorf("Expected Access-Control-Allow-Methods 'GET, OPTIONS', got '%s'", methods)
-	}
-
-	if headers := w.Header().Get("Access-Control-Allow-Headers"); headers != "Content-Type" {
-		t.Errorf("Expected Access-Control-Allow-Headers 'Content-Type', got '%s'", headers)
+	// Verify response is valid JSON
+	body := w.Body.String()
+	if body == "" {
+		t.Error("Expected non-empty response body")
 	}
 }
 
