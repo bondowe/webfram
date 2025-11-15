@@ -64,6 +64,47 @@ func getOpenAPIConfig() *app.OpenAPIConfig {
 
 Access your OpenAPI spec at: `http://localhost:8080/openapi.json`
 
+## Built-in OpenAPI UI
+
+WebFram automatically generates an interactive API documentation UI using [Scalar](https://github.com/scalar/scalar). When you enable OpenAPI, an HTML page is automatically created alongside your JSON spec.
+
+For example, if your OpenAPI spec is at `/openapi.json`, the UI will be available at `/openapi.html`:
+
+```bash
+# View the JSON specification
+curl http://localhost:8080/openapi.json
+
+# Open the interactive UI in your browser
+open http://localhost:8080/openapi.html
+```
+
+The UI provides:
+
+- **Interactive API testing** - Try out API endpoints directly from the browser
+- **Request/response examples** - See sample requests and responses
+- **Schema visualization** - Browse data models and their properties
+- **Authentication support** - Test authenticated endpoints
+- **Dark/light mode** - Comfortable viewing in any environment
+
+### Custom URL Paths
+
+The UI automatically adapts to your custom OpenAPI paths:
+
+```go
+app.Configure(&app.Config{
+    OpenAPI: &app.OpenAPI{
+        Enabled: true,
+        URLPath: "GET /api/v1/docs.json",
+        Config:  getOpenAPIConfig(),
+    },
+})
+```
+
+With the above configuration:
+
+- JSON spec: `http://localhost:8080/api/v1/docs.json`
+- Interactive UI: `http://localhost:8080/api/v1/docs.html`
+
 ## Documenting Routes
 
 Use `WithAPIConfig()` to add OpenAPI documentation:
@@ -240,15 +281,19 @@ mux.HandleFunc("POST /users", createUser).WithAPIConfig(&app.APIConfig{
 
 ## Viewing Documentation
 
-After starting your server:
+WebFram provides a built-in interactive UI at the `.html` endpoint (e.g., `http://localhost:8080/openapi.html`).
+
+You can also access the raw JSON specification:
 
 ```bash
 curl http://localhost:8080/openapi.json
 ```
 
-## Visualization Tools
+### Alternative Visualization Tools
 
-### Swagger UI
+If you prefer other API documentation tools, you can use them with the JSON spec:
+
+#### Swagger UI
 
 ```html
 <!DOCTYPE html>
@@ -269,7 +314,7 @@ curl http://localhost:8080/openapi.json
 </html>
 ```
 
-### Redoc
+#### Redoc
 
 ```html
 <!DOCTYPE html>

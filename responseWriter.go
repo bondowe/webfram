@@ -29,6 +29,7 @@ type (
 		statusCode *int // Pointer to allow mutation across value copies
 	}
 
+	// ServeFileOptions configures how files are served to clients.
 	ServeFileOptions struct {
 		Inline   bool   // If true, serves the file inline; otherwise as an attachment
 		Filename string // Optional filename for Content-Disposition header

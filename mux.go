@@ -88,6 +88,7 @@ type (
 	}
 	// TypeInfo provides type information for OpenAPI content types.
 	TypeInfo struct {
+		// TypeHint provides a hint about the data type.
 		TypeHint any
 		Example  any
 		Examples map[string]Example

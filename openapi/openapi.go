@@ -14,24 +14,24 @@ const (
 
 type (
 	Config struct {
-		Version           string `json:"openapi" yaml:"openapi"`
-		Self              string `json:"$self,omitempty" yaml:"$self,omitempty"`
-		Info              *Info
-		JSONSchemaDialect string `json:"jsonSchemaDialect,omitempty" yaml:"jsonSchemaDialect,omitempty"`
-		Servers           []Server
+		Version           string        `json:"openapi" yaml:"openapi"`
+		Self              string        `json:"$self,omitempty" yaml:"$self,omitempty"`
+		Info              *Info         `json:"info" yaml:"info"`
+		JSONSchemaDialect string        `json:"jsonSchemaDialect,omitempty" yaml:"jsonSchemaDialect,omitempty"`
+		Servers           []Server      `json:"servers,omitempty" yaml:"servers,omitempty"`
 		Tags              []Tag         `json:"tags,omitempty" yaml:"tags,omitempty"`
 		ExternalDocs      *ExternalDocs `json:"externalDocs,omitempty" yaml:"externalDocs,omitempty"`
 		Paths             Paths         `json:"paths" yaml:"paths"`
 		Components        *Components   `json:"components,omitempty" yaml:"components,omitempty"`
 	}
 	Info struct {
-		Title          string `json:"title" yaml:"title"`
-		Summary        string `json:"summary,omitempty" yaml:"summary,omitempty"`
-		Description    string `json:"description,omitempty" yaml:"description,omitempty"`
-		TermsOfService string `json:"termsOfService,omitempty" yaml:"termsOfService,omitempty"`
-		Contact        *Contact
-		License        *License
-		Version        string `json:"version" yaml:"version"`
+		Title          string   `json:"title" yaml:"title"`
+		Summary        string   `json:"summary,omitempty" yaml:"summary,omitempty"`
+		Description    string   `json:"description,omitempty" yaml:"description,omitempty"`
+		TermsOfService string   `json:"termsOfService,omitempty" yaml:"termsOfService,omitempty"`
+		Contact        *Contact `json:"contact,omitempty" yaml:"contact,omitempty"`
+		License        *License `json:"license,omitempty" yaml:"license,omitempty"`
+		Version        string   `json:"version" yaml:"version"`
 	}
 	Contact struct {
 		Name  string `json:"name,omitempty" yaml:"name,omitempty"`

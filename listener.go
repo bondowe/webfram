@@ -3,17 +3,22 @@ package webfram
 import (
 	"context"
 	"crypto/tls"
+	_ "embed"
 	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/bondowe/webfram/internal/telemetry"
 )
+
+//go:embed openapi.go.html
+var openapiTemplate string
 
 // ServerConfig configures HTTP server settings.
 type ServerConfig struct {
@@ -41,8 +46,8 @@ const (
 	maxHeaderBytes    = http.DefaultMaxHeaderBytes
 )
 
-// setupOpenAPIEndpoint configures the OpenAPI endpoint if enabled.
-func setupOpenAPIEndpoint(mux *ServeMux) {
+// setupOpenAPIEndpoints configures the OpenAPI endpoints if enabled.
+func setupOpenAPIEndpoints(mux *ServeMux) {
 	if openAPIConfig == nil || !openAPIConfig.Enabled {
 		return
 	}
@@ -55,8 +60,34 @@ func setupOpenAPIEndpoint(mux *ServeMux) {
 		panic(err)
 	}
 	mux.HandleFunc(openAPIConfig.URLPath, func(w ResponseWriter, _ *Request) {
-		_ = w.Bytes(doc, "application/openapi+json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		_ = w.Bytes(doc, "application/json")
 	})
+
+	openAPIDocumentPath := strings.TrimPrefix(openAPIConfig.URLPath, "GET ")
+
+	pageURL := strings.TrimSuffix(openAPIConfig.URLPath, "/")
+	pageURL = strings.TrimSuffix(pageURL, ".json")
+	pageURL += ".html"
+
+	openapiTemplateData := struct {
+		OpenAPIDocumentPath string
+	}{
+		OpenAPIDocumentPath: openAPIDocumentPath,
+	}
+
+	mux.HandleFunc(pageURL, func(w ResponseWriter, _ *Request) {
+		if htmlErr := w.HTMLString(openapiTemplate, openapiTemplateData); htmlErr != nil {
+			w.Error(http.StatusInternalServerError, htmlErr.Error())
+		}
+	})
+
+	if os.Getenv("WEBFRAM_SILENT") == "" {
+		slog.Info("OpenAPI docs: " + openAPIConfig.URLPath) //nolint:sloglint // Startup logging is acceptable
+		slog.Info("OpenAPI UI: " + pageURL)                 //nolint:sloglint // Startup logging is acceptable
+	}
 }
 
 // setupTelemetry configures telemetry endpoints and returns a telemetry server if configured separately.
@@ -174,7 +205,7 @@ func shutdownServers(mainServer *http.Server, telemetryServer *http.Server, hasS
 // If telemetry is configured with a separate address, starts an additional server for metrics.
 // Blocks until the server is shut down. Panics if server startup or shutdown fails.
 func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
-	setupOpenAPIEndpoint(mux)
+	setupOpenAPIEndpoints(mux)
 	telemetryServer, hasSeparateTelemetry := setupTelemetry(addr, mux)
 	mainServer := createHTTPServer(addr, mux, cfg)
 

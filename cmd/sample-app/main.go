@@ -243,7 +243,6 @@ func main() {
 
 	// Start server
 	log.Println("Server starting on :8080")
-	log.Println("OpenAPI docs: http://localhost:8080/openapi.json")
 	app.ListenAndServe(":8080", mux, nil)
 }
 

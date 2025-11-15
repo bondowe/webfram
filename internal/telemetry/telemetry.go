@@ -1,3 +1,4 @@
+// Package telemetry provides Prometheus-based metrics collection and HTTP handler support for the framework.
 package telemetry
 
 import (
@@ -39,6 +40,8 @@ var (
 	)
 )
 
+// ConfigureTelemetry initializes the telemetry registry and registers the provided collectors.
+// If useDefaultRegistry is true, uses the default Prometheus registry; otherwise creates a new one.
 func ConfigureTelemetry(useDefaultRegistry bool, collectors ...prometheus.Collector) {
 	if useDefaultRegistry {
 		var ok bool

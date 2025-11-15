@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -612,7 +614,7 @@ func TestSetupOpenAPIEndpoint_Enabled(t *testing.T) {
 	})
 
 	mux := NewServeMux()
-	setupOpenAPIEndpoint(mux)
+	setupOpenAPIEndpoints(mux)
 
 	// The endpoint should exist (won't panic)
 	defer func() {
@@ -629,7 +631,7 @@ func TestSetupOpenAPIEndpoint_Disabled(_ *testing.T) {
 	openAPIConfig = nil
 
 	mux := NewServeMux()
-	setupOpenAPIEndpoint(mux)
+	setupOpenAPIEndpoints(mux)
 
 	// Should not panic when config is nil
 }
@@ -653,7 +655,150 @@ func TestSetupOpenAPIEndpoint_InvalidConfig(t *testing.T) {
 		}
 	}()
 
-	setupOpenAPIEndpoint(mux)
+	setupOpenAPIEndpoints(mux)
+}
+
+func TestSetupOpenAPIEndpoint_HTMLUIGenerated(t *testing.T) {
+	// Save and restore original config
+	originalConfig := openAPIConfig
+	defer func() { openAPIConfig = originalConfig }()
+
+	// Configure OpenAPI
+	appConfigured = false
+	Configure(&Config{
+		OpenAPI: &OpenAPI{
+			Enabled: true,
+			URLPath: "GET /openapi.json",
+			Config: &OpenAPIConfig{
+				Info: &Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+			},
+		},
+	})
+
+	mux := NewServeMux()
+	setupOpenAPIEndpoints(mux)
+
+	// Test the HTML UI endpoint
+	req := httptest.NewRequest(http.MethodGet, "/openapi.html", nil)
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "Scalar API Reference") {
+		t.Error("Expected HTML to contain 'Scalar API Reference'")
+	}
+
+	if !strings.Contains(body, "/openapi.json") {
+		t.Error("Expected HTML to reference the OpenAPI JSON endpoint")
+	}
+
+	if !strings.Contains(body, "Scalar.createApiReference") {
+		t.Error("Expected HTML to contain Scalar API reference initialization")
+	}
+}
+
+func TestSetupOpenAPIEndpoint_CustomURLPath(t *testing.T) {
+	// Save and restore original config
+	originalConfig := openAPIConfig
+	defer func() { openAPIConfig = originalConfig }()
+
+	// Configure OpenAPI with custom path
+	appConfigured = false
+	Configure(&Config{
+		OpenAPI: &OpenAPI{
+			Enabled: true,
+			URLPath: "GET /api/v1/docs.json",
+			Config: &OpenAPIConfig{
+				Info: &Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+			},
+		},
+	})
+
+	mux := NewServeMux()
+	setupOpenAPIEndpoints(mux)
+
+	// Test the JSON endpoint
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/docs.json", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for JSON endpoint, got %d", w.Code)
+	}
+
+	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Expected Content-Type 'application/json', got '%s'", ct)
+	}
+
+	// Test the HTML UI endpoint (should be at /api/v1/docs.html)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/docs.html", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for HTML endpoint, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "docs.json") {
+		t.Errorf("Expected HTML to reference the custom OpenAPI JSON endpoint path, got body: %s", body)
+	}
+}
+
+func TestSetupOpenAPIEndpoint_CORSHeaders(t *testing.T) {
+	// Save and restore original config
+	originalConfig := openAPIConfig
+	defer func() { openAPIConfig = originalConfig }()
+
+	// Configure OpenAPI
+	appConfigured = false
+	Configure(&Config{
+		OpenAPI: &OpenAPI{
+			Enabled: true,
+			URLPath: "GET /openapi.json",
+			Config: &OpenAPIConfig{
+				Info: &Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+			},
+		},
+	})
+
+	mux := NewServeMux()
+	setupOpenAPIEndpoints(mux)
+
+	// Test CORS headers on JSON endpoint
+	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	if origin := w.Header().Get("Access-Control-Allow-Origin"); origin != "*" {
+		t.Errorf("Expected Access-Control-Allow-Origin '*', got '%s'", origin)
+	}
+
+	if methods := w.Header().Get("Access-Control-Allow-Methods"); methods != "GET, OPTIONS" {
+		t.Errorf("Expected Access-Control-Allow-Methods 'GET, OPTIONS', got '%s'", methods)
+	}
+
+	if headers := w.Header().Get("Access-Control-Allow-Headers"); headers != "Content-Type" {
+		t.Errorf("Expected Access-Control-Allow-Headers 'Content-Type', got '%s'", headers)
+	}
 }
 
 func TestSetupTelemetry_Disabled(t *testing.T) {
