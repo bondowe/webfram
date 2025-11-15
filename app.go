@@ -183,12 +183,86 @@ type (
 
 	// OpenAPI configures OpenAPI documentation settings.
 	OpenAPI struct {
+		internalConfig *openapi.Config
 		// Config is the OpenAPI configuration.
-		Config *openapi.Config
+		Config *OpenAPIConfig
 		// URLPath is the HTTP path for the OpenAPI JSON endpoint (e.g., "GET /openapi.json").
 		URLPath string
 		// Enabled indicates whether OpenAPI documentation is enabled.
 		Enabled bool
+	}
+
+	/// Server represents an OpenAPI server definition.
+	Tag struct {
+		// Name is the name of the tag.
+		Name string
+		// Summary provides a brief summary of the tag.
+		Summary string
+		// Description provides a detailed description of the tag.
+		Description string
+		// ExternalDocs provides external documentation for the tag.
+		ExternalDocs *ExternalDocs
+		// Parent is the name of the parent tag, if any.
+		Parent string
+		// Kind represents the kind of the tag.
+		Kind string
+	}
+
+	// Server represents an OpenAPI server definition.
+	Contact struct {
+		// Name is the name of the contact.
+		Name string
+		// URL is the URL of the contact.
+		URL string
+		// Email is the email address of the contact.
+		Email string
+	}
+
+	/// License represents an OpenAPI license definition.
+	License struct {
+		// Name of the license.
+		Name string
+		// Identifier is the SPDX identifier of the license.
+		Identifier string
+		// URL is the URL of the license.
+		URL string
+	}
+
+	/// Info represents OpenAPI information.
+	Info struct {
+		// Title of the API.
+		Title string
+		// Summary provides a brief summary of the API.
+		Summary string
+		// Description provides a detailed description of the API.
+		Description string
+		// TermsOfService is the URL to the terms of service for the API.
+		TermsOfService string
+		// Contact information for the API.
+		Contact *Contact
+		// License information for the API.
+		License *License
+		// Version of the API.
+		Version string
+	}
+
+	// Server represents an OpenAPI server definition.
+	ExternalDocs struct {
+		// Description provides a description of the external documentation.
+		Description string
+		// URL is the URL of the external documentation.
+		URL string
+	}
+
+	// OpenAPI represents the OpenAPI configuration.
+	OpenAPIConfig struct {
+		Info *Info
+		// Servers is a list of OpenAPI server definitions.
+		Servers []Server
+		// Tags is a list of OpenAPI tags.
+		Tags []Tag
+		// ExternalDocs provides external documentation for the OpenAPI document.
+		ExternalDocs *ExternalDocs
 	}
 
 	// Config represents the framework configuration.
@@ -380,12 +454,78 @@ func configureOpenAPI(cfg *Config) {
 	}
 	openAPIConfig = cfg.OpenAPI
 
-	openAPIConfig.Config.Components = &openapi.Components{}
+	openAPIConfig.internalConfig = &openapi.Config{
+		Components: &openapi.Components{},
+	}
+
+	if openAPIConfig.Config != nil {
+		openAPIConfig.internalConfig.Servers = mapServers(openAPIConfig.Config.Servers)
+		openAPIConfig.internalConfig.Tags = mapOpenAPITags(openAPIConfig.Config.Tags)
+
+		if openAPIConfig.Config.Info != nil {
+			openAPIConfig.internalConfig.Info = &openapi.Info{
+				Title:          openAPIConfig.Config.Info.Title,
+				Summary:        openAPIConfig.Config.Info.Summary,
+				Description:    openAPIConfig.Config.Info.Description,
+				TermsOfService: openAPIConfig.Config.Info.TermsOfService,
+				Version:        openAPIConfig.Config.Info.Version,
+			}
+
+			if openAPIConfig.Config.Info.Contact != nil {
+				openAPIConfig.internalConfig.Info.Contact = &openapi.Contact{
+					Name:  openAPIConfig.Config.Info.Contact.Name,
+					URL:   openAPIConfig.Config.Info.Contact.URL,
+					Email: openAPIConfig.Config.Info.Contact.Email,
+				}
+			}
+
+			if openAPIConfig.Config.Info.License != nil {
+				openAPIConfig.internalConfig.Info.License = &openapi.License{
+					Name:       openAPIConfig.Config.Info.License.Name,
+					Identifier: openAPIConfig.Config.Info.License.Identifier,
+					URL:        openAPIConfig.Config.Info.License.URL,
+				}
+			}
+		}
+
+		if openAPIConfig.Config.ExternalDocs != nil {
+			openAPIConfig.internalConfig.ExternalDocs = &openapi.ExternalDocs{
+				Description: openAPIConfig.Config.ExternalDocs.Description,
+				URL:         openAPIConfig.Config.ExternalDocs.URL,
+			}
+		}
+	}
+
 	if openAPIConfig.URLPath == "" {
 		openAPIConfig.URLPath = defaultOpenAPIURLPath
 	} else if openAPIConfig.URLPath[0:4] != "GET " {
 		openAPIConfig.URLPath = "GET " + openAPIConfig.URLPath
 	}
+}
+
+func mapOpenAPITags(ts []Tag) []openapi.Tag {
+	var tags []openapi.Tag
+
+	for _, t := range ts {
+		tag := openapi.Tag{
+			Name:        t.Name,
+			Summary:     t.Summary,
+			Description: t.Description,
+			Parent:      t.Parent,
+			Kind:        t.Kind,
+		}
+
+		if t.ExternalDocs != nil {
+			tag.ExternalDocs = &openapi.ExternalDocs{
+				Description: t.ExternalDocs.Description,
+				URL:         t.ExternalDocs.URL,
+			}
+		}
+
+		tags = append(tags, tag)
+	}
+
+	return tags
 }
 
 func configureTemplate(cfg *Config) {

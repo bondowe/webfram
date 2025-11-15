@@ -46,7 +46,11 @@ func setupOpenAPIEndpoint(mux *ServeMux) {
 	if openAPIConfig == nil || !openAPIConfig.Enabled {
 		return
 	}
-	doc, err := openAPIConfig.Config.MarshalJSON()
+
+	openAPIConfig.internalConfig.Self = openAPIConfig.URLPath
+
+	doc, err := openAPIConfig.internalConfig.MarshalJSON()
+
 	if err != nil {
 		panic(err)
 	}

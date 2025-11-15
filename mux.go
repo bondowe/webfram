@@ -89,6 +89,7 @@ type (
 	// TypeInfo provides type information for OpenAPI content types.
 	TypeInfo struct {
 		TypeHint any
+		Example  any
 		Examples map[string]Example
 	}
 	// Example represents an OpenAPI example value.
@@ -172,7 +173,7 @@ func SetOpenAPIPathInfo(path string, info *PathInfo) {
 	parameters := mapParameters(info.Parameters)
 	servers := mapServers(info.Servers)
 
-	openAPIConfig.Config.Paths.SetPathInfo(path, info.Summary, info.Description, parameters, servers)
+	openAPIConfig.internalConfig.Paths.SetPathInfo(path, info.Summary, info.Description, parameters, servers)
 }
 
 // WithAPIConfig attaches OpenAPI configuration to a handler.
@@ -225,7 +226,7 @@ func (c *HandlerConfig) WithAPIConfig(apiConfig *APIConfig) {
 	method := strings.ToLower(parts[0])
 	path := parts[1]
 
-	openAPIConfig.Config.Paths.AddOperation(path, method, openapi.Operation{
+	openAPIConfig.internalConfig.Paths.AddOperation(path, method, openapi.Operation{
 		Summary:     c.APIConfig.Summary,
 		Description: c.APIConfig.Description,
 		OperationID: c.APIConfig.OperationID,
@@ -265,10 +266,11 @@ func mapContent(typeInfos map[string]TypeInfo) map[string]openapi.MediaType {
 	content := make(map[string]openapi.MediaType)
 	for mediaType, info := range typeInfos {
 		for _, mt := range strings.Split(mediaType, ",") {
-			schemaOrRef := bind.GenerateJSONSchema(info.TypeHint, openAPIConfig.Config.Components)
+			schemaOrRef := bind.GenerateJSONSchema(info.TypeHint, openAPIConfig.internalConfig.Components)
 
 			mediaType := openapi.MediaType{
 				Schema:   schemaOrRef,
+				Example:  info.Example,
 				Examples: mapExampleOrRefs(info.Examples),
 			}
 
@@ -293,7 +295,7 @@ func mapHeaders(header map[string]Header) map[string]openapi.HeaderOrRef {
 			content = make(map[string]openapi.MediaTypeOrRef)
 			for mediaType, model := range v.Content {
 				for _, mt := range strings.Split(mediaType, ",") {
-					schema := bind.GenerateJSONSchema(model, openAPIConfig.Config.Components)
+					schema := bind.GenerateJSONSchema(model, openAPIConfig.internalConfig.Components)
 					content[mt] = openapi.MediaTypeOrRef{
 						MediaType: &openapi.MediaType{
 							Schema: schema,
@@ -305,7 +307,7 @@ func mapHeaders(header map[string]Header) map[string]openapi.HeaderOrRef {
 			if v.TypeHint == nil {
 				v.TypeHint = ""
 			}
-			schemaOrRef = bind.GenerateJSONSchema(v.TypeHint, openAPIConfig.Config.Components)
+			schemaOrRef = bind.GenerateJSONSchema(v.TypeHint, openAPIConfig.internalConfig.Components)
 
 			if schemaOrRef.Ref == "" && schemaOrRef.Schema != nil {
 				schema := schemaOrRef.Schema
@@ -367,7 +369,7 @@ func buildParameterContent(content map[string]any) map[string]openapi.MediaType 
 	result := make(map[string]openapi.MediaType)
 	for mediaType, model := range content {
 		for _, mt := range strings.Split(mediaType, ",") {
-			schema := bind.GenerateJSONSchema(model, openAPIConfig.Config.Components)
+			schema := bind.GenerateJSONSchema(model, openAPIConfig.internalConfig.Components)
 			result[mt] = openapi.MediaType{
 				Schema: schema,
 			}
@@ -380,7 +382,7 @@ func buildParameterSchema(param *Parameter) *openapi.SchemaOrRef {
 	if param.TypeHint == nil {
 		param.TypeHint = ""
 	}
-	schemaOrRef := bind.GenerateJSONSchema(param.TypeHint, openAPIConfig.Config.Components)
+	schemaOrRef := bind.GenerateJSONSchema(param.TypeHint, openAPIConfig.internalConfig.Components)
 
 	if schemaOrRef.Ref == "" && schemaOrRef.Schema != nil {
 		applySchemaConstraints(schemaOrRef.Schema, param)

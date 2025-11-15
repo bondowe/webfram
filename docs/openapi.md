@@ -5,8 +5,6 @@ nav_order: 10
 description: "Automatic API documentation generation"
 ---
 
-# OpenAPI Documentation
-
 WebFram automatically generates OpenAPI 3.2.0 documentation from your route definitions, validation tags, and API configurations.
 
 ## Enabling OpenAPI
@@ -16,32 +14,32 @@ Configure OpenAPI in your application:
 ```go
 app.Configure(&app.Config{
     OpenAPI: &app.OpenAPI{
-        EndpointEnabled: true,
-        URLPath:         "GET /openapi.json", // Optional, defaults to GET /openapi.json
-        Config:          getOpenAPIConfig(),
+        Enabled: true,
+        URLPath: "GET /openapi.json", // Optional, defaults to GET /openapi.json
+        Config:  getOpenAPIConfig(),
     },
 })
 
-func getOpenAPIConfig() *openapi.Config {
-    return &openapi.Config{
-        Info: &openapi.Info{
+func getOpenAPIConfig() *app.OpenAPIConfig {
+    return &app.OpenAPIConfig{
+        Info: &app.Info{
             Title:          "My API",
             Summary:        "API for my awesome application",
             Description:    "This API provides endpoints for managing users and products.",
             TermsOfService: "https://example.com/terms/",
-            Contact: &openapi.Contact{
+            Contact: &app.Contact{
                 Name:  "API Support",
                 URL:   "https://example.com/support",
                 Email: "support@example.com",
             },
-            License: &openapi.License{
+            License: &app.License{
                 Name:       "MIT",
                 Identifier: "MIT",
                 URL:        "https://opensource.org/licenses/MIT",
             },
             Version: "1.0.0",
         },
-        Servers: []openapi.Server{
+        Servers: []app.Server{
             {
                 URL:         "http://localhost:8080",
                 Description: "Local development server",
@@ -51,6 +49,13 @@ func getOpenAPIConfig() *openapi.Config {
                 URL:         "https://api.example.com",
                 Description: "Production server",
                 Name:        "production",
+            },
+        },
+        Tags: []app.Tag{
+            {
+                Name:        "Users",
+                Summary:     "User management",
+                Description: "Operations for managing users",
             },
         },
     }

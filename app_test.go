@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bondowe/webfram/openapi"
 	"golang.org/x/text/language"
 )
 
@@ -238,7 +237,7 @@ func TestConfigureOpenAPI_DisabledEndpoint(t *testing.T) {
 	cfg := &Config{
 		OpenAPI: &OpenAPI{
 			Enabled: false,
-			Config:  &openapi.Config{},
+			Config:  &OpenAPIConfig{},
 		},
 	}
 	configureOpenAPI(cfg)
@@ -257,8 +256,8 @@ func TestConfigureOpenAPI_WithDefaultURL(t *testing.T) {
 	cfg := &Config{
 		OpenAPI: &OpenAPI{
 			Enabled: true,
-			Config: &openapi.Config{
-				Info: &openapi.Info{
+			Config: &OpenAPIConfig{
+				Info: &Info{
 					Title:   "Test API",
 					Version: "1.0.0",
 				},
@@ -275,7 +274,7 @@ func TestConfigureOpenAPI_WithDefaultURL(t *testing.T) {
 		t.Errorf("Expected URLPath %q, got %q", defaultOpenAPIURLPath, openAPIConfig.URLPath)
 	}
 
-	if openAPIConfig.Config.Components == nil {
+	if openAPIConfig.internalConfig.Components == nil {
 		t.Error("Expected Components to be initialized")
 	}
 }
@@ -287,7 +286,7 @@ func TestConfigureOpenAPI_WithCustomURL(t *testing.T) {
 		OpenAPI: &OpenAPI{
 			Enabled: true,
 			URLPath: "/api/spec.json",
-			Config:  &openapi.Config{},
+			Config:  &OpenAPIConfig{},
 		},
 	}
 	configureOpenAPI(cfg)
@@ -305,7 +304,7 @@ func TestConfigureOpenAPI_URLWithExistingGETPrefix(t *testing.T) {
 		OpenAPI: &OpenAPI{
 			Enabled: true,
 			URLPath: "GET /custom.json",
-			Config:  &openapi.Config{},
+			Config:  &OpenAPIConfig{},
 		},
 	}
 	configureOpenAPI(cfg)

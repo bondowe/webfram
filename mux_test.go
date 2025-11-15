@@ -11,7 +11,6 @@ import (
 
 	"github.com/bondowe/webfram/internal/i18n"
 	"github.com/bondowe/webfram/internal/telemetry"
-	"github.com/bondowe/webfram/openapi"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"golang.org/x/text/language"
 )
@@ -46,8 +45,8 @@ func setupMuxTestWithOpenAPI() {
 	Configure(&Config{
 		OpenAPI: &OpenAPI{
 			Enabled: true,
-			Config: &openapi.Config{
-				Info: &openapi.Info{
+			Config: &OpenAPIConfig{
+				Info: &Info{
 					Title:   "Test API",
 					Version: "1.0.0",
 				},

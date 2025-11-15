@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bondowe/webfram/openapi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -275,8 +274,8 @@ func TestListenAndServe_WithOpenAPIEndpoint(t *testing.T) {
 		OpenAPI: &OpenAPI{
 			Enabled: true,
 			URLPath: "GET /openapi.json",
-			Config: &openapi.Config{
-				Info: &openapi.Info{
+			Config: &OpenAPIConfig{
+				Info: &Info{
 					Title:   "Test API",
 					Version: "1.0.0",
 				},
@@ -597,16 +596,20 @@ func TestSetupOpenAPIEndpoint_Enabled(t *testing.T) {
 	originalConfig := openAPIConfig
 	defer func() { openAPIConfig = originalConfig }()
 
-	openAPIConfig = &OpenAPI{
-		Enabled: true,
-		URLPath: "GET /api-docs",
-		Config: &openapi.Config{
-			Info: &openapi.Info{
-				Title:   "Test API",
-				Version: "1.0.0",
+	// Use Configure to properly initialize the OpenAPI config
+	appConfigured = false
+	Configure(&Config{
+		OpenAPI: &OpenAPI{
+			Enabled: true,
+			URLPath: "GET /api-docs",
+			Config: &OpenAPIConfig{
+				Info: &Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
 			},
 		},
-	}
+	})
 
 	mux := NewServeMux()
 	setupOpenAPIEndpoint(mux)
