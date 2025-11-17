@@ -546,6 +546,18 @@ const (
 	defaultTextTemplateExtension string     = ".go.txt"
 	defaultI18nMessagesDir       string     = "assets/locales"
 	defaultI18nFuncName          string     = "T"
+
+	// Security scheme types.
+	securitySchemeTypeHTTP          = "http"
+	securitySchemeTypeAPIKey        = "apiKey"
+	securitySchemeTypeMutualTLS     = "mutualTLS"
+	securitySchemeTypeOpenIdConnect = "openIdConnect" //nolint:revive,staticcheck // OpenId naming per OpenAPI spec
+	securitySchemeTypeOAuth2        = "oauth2"
+
+	// HTTP authentication schemes.
+	httpAuthSchemeBearer = "bearer"
+	httpAuthSchemeBasic  = "basic"
+	httpAuthSchemeDigest = "digest"
 )
 
 //nolint:gochecknoglobals // Package-level state for framework configuration and middleware
@@ -572,8 +584,8 @@ func (_ httpBearerSecurityScheme) isSecurityScheme() bool {
 func NewHTTPBearerSecurityScheme(options *HTTPBearerSecuritySchemeOptions) *httpBearerSecurityScheme {
 	ss := &httpBearerSecurityScheme{}
 
-	ss.Type = "http"     //nolint:goconst
-	ss.Scheme = "bearer" //nolint:goconst
+	ss.Type = securitySchemeTypeHTTP
+	ss.Scheme = httpAuthSchemeBearer
 
 	if options != nil {
 		ss.Description = options.Description
@@ -593,8 +605,8 @@ func (_ httpBasicSecurityScheme) isSecurityScheme() bool {
 func NewHTTPBasicSecurityScheme(options *HTTPBasicSecuritySchemeOptions) *httpBasicSecurityScheme {
 	ss := &httpBasicSecurityScheme{}
 
-	ss.Type = "http"    //nolint:goconst
-	ss.Scheme = "basic" //nolint:goconst
+	ss.Type = securitySchemeTypeHTTP
+	ss.Scheme = httpAuthSchemeBasic
 
 	if options != nil {
 		ss.Description = options.Description
@@ -613,8 +625,8 @@ func (_ httpDigestSecurityScheme) isSecurityScheme() bool {
 func NewHTTPDigestSecurityScheme(options *HTTPDigestSecuritySchemeOptions) *httpDigestSecurityScheme {
 	ss := &httpDigestSecurityScheme{}
 
-	ss.Type = "http"     //nolint:goconst
-	ss.Scheme = "digest" //nolint:goconst
+	ss.Type = securitySchemeTypeHTTP
+	ss.Scheme = httpAuthSchemeDigest
 
 	if options != nil {
 		ss.Description = options.Description
@@ -633,7 +645,7 @@ func (_ apiKeySecurityScheme) isSecurityScheme() bool {
 func NewAPIKeySecurityScheme(options *APIKeySecuritySchemeOptions) *apiKeySecurityScheme {
 	ss := &apiKeySecurityScheme{}
 
-	ss.Type = "apiKey" //nolint:goconst
+	ss.Type = securitySchemeTypeAPIKey
 
 	if options != nil {
 		ss.Name = options.Name
@@ -654,7 +666,7 @@ func (_ mutualTLSSecurityScheme) isSecurityScheme() bool {
 func NewMutualTLSSecurityScheme(options *MutualTLSSecuritySchemeOptions) *mutualTLSSecurityScheme {
 	ss := &mutualTLSSecurityScheme{}
 
-	ss.Type = "mutualTLS" //nolint:goconst
+	ss.Type = securitySchemeTypeMutualTLS
 
 	if options != nil {
 		ss.Description = options.Description
@@ -673,7 +685,7 @@ func (_ openIdConnectSecurityScheme) isSecurityScheme() bool {
 func NewOpenIdConnectSecurityScheme(options *OpenIdConnectSecuritySchemeOptions) *openIdConnectSecurityScheme {
 	ss := &openIdConnectSecurityScheme{}
 
-	ss.Type = "openIdConnect" //nolint:goconst
+	ss.Type = securitySchemeTypeOpenIdConnect
 
 	if options != nil {
 		ss.OpenIdConnectURL = options.OpenIdConnectURL
@@ -697,7 +709,7 @@ func NewOAuth2SecurityScheme(options *OAuth2SecuritySchemeOptions) *oAuth2Securi
 
 	ss := &oAuth2SecurityScheme{}
 
-	ss.Type = "oauth2" //nolint:goconst
+	ss.Type = securitySchemeTypeOAuth2
 	ss.Description = options.Description
 	ss.Extensions = options.Extensions
 	ss.Deprecated = options.Deprecated
