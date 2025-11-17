@@ -515,6 +515,8 @@ type (
 		Servers []Server
 		// Tags is a list of OpenAPI tags.
 		Tags []Tag
+		// Security is a list of security requirements for the OpenAPI document.
+		Security []map[string][]string
 		// ExternalDocs provides external documentation for the OpenAPI document.
 		ExternalDocs *ExternalDocs
 		// Components holds various schema components.
@@ -966,6 +968,8 @@ func configureOpenAPI(cfg *Config) {
 	if openAPIConfig.Config != nil {
 		openAPIConfig.internalConfig.Servers = mapServers(openAPIConfig.Config.Servers)
 		openAPIConfig.internalConfig.Tags = mapOpenAPITags(openAPIConfig.Config.Tags)
+
+		openAPIConfig.internalConfig.Security = openAPIConfig.Config.Security
 
 		//nolint:golines // line length is acceptable for readability
 		if openAPIConfig.Config.Components != nil && len(openAPIConfig.Config.Components.SecuritySchemes) > 0 {

@@ -314,6 +314,105 @@ func TestConfigureOpenAPI_URLWithExistingGETPrefix(t *testing.T) {
 	}
 }
 
+func TestConfigureOpenAPI_WithGlobalSecurity(t *testing.T) {
+	resetAppConfig()
+	openAPIConfig = &OpenAPI{Enabled: true}
+
+	cfg := &Config{
+		OpenAPI: &OpenAPI{
+			Enabled: true,
+			Config: &OpenAPIConfig{
+				Info: &Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+				Security: []map[string][]string{
+					{"BasicAuth": {}},
+					{"ApiKeyAuth": {"read", "write"}},
+				},
+			},
+		},
+	}
+
+	configureOpenAPI(cfg)
+
+	if openAPIConfig.internalConfig.Security == nil {
+		t.Fatal("Expected Security to be initialized")
+	}
+
+	if len(openAPIConfig.internalConfig.Security) != 2 {
+		t.Errorf("Expected 2 security requirements, got %d", len(openAPIConfig.internalConfig.Security))
+	}
+
+	// Verify BasicAuth requirement
+	if _, ok := openAPIConfig.internalConfig.Security[0]["BasicAuth"]; !ok {
+		t.Error("Expected BasicAuth security requirement")
+	}
+
+	// Verify ApiKeyAuth requirement with scopes
+	if scopes, ok := openAPIConfig.internalConfig.Security[1]["ApiKeyAuth"]; !ok {
+		t.Error("Expected ApiKeyAuth security requirement")
+	} else if len(scopes) != 2 {
+		t.Errorf("Expected 2 scopes for ApiKeyAuth, got %d", len(scopes))
+	} else if scopes[0] != "read" || scopes[1] != "write" {
+		t.Errorf("Expected scopes [read, write], got %v", scopes)
+	}
+}
+
+func TestConfigureOpenAPI_WithNilSecurity(t *testing.T) {
+	resetAppConfig()
+	openAPIConfig = &OpenAPI{Enabled: true}
+
+	cfg := &Config{
+		OpenAPI: &OpenAPI{
+			Enabled: true,
+			Config: &OpenAPIConfig{
+				Info: &Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+				Security: nil,
+			},
+		},
+	}
+
+	configureOpenAPI(cfg)
+
+	// Nil Security should remain nil in internal config
+	if openAPIConfig.internalConfig.Security != nil {
+		t.Error("Expected Security to remain nil when not specified")
+	}
+}
+
+func TestConfigureOpenAPI_WithEmptySecurity(t *testing.T) {
+	resetAppConfig()
+	openAPIConfig = &OpenAPI{Enabled: true}
+
+	cfg := &Config{
+		OpenAPI: &OpenAPI{
+			Enabled: true,
+			Config: &OpenAPIConfig{
+				Info: &Info{
+					Title:   "Test API",
+					Version: "1.0.0",
+				},
+				Security: []map[string][]string{},
+			},
+		},
+	}
+
+	configureOpenAPI(cfg)
+
+	// Empty Security should be mapped to internal config
+	if openAPIConfig.internalConfig.Security == nil {
+		t.Error("Expected Security to be initialized even when empty")
+	}
+
+	if len(openAPIConfig.internalConfig.Security) != 0 {
+		t.Errorf("Expected 0 security requirements, got %d", len(openAPIConfig.internalConfig.Security))
+	}
+}
+
 // =============================================================================
 // configureTemplate Tests
 // =============================================================================

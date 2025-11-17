@@ -1469,7 +1469,7 @@ func TestGetHandlerMiddlewares_PanicsOnUnsupportedType(t *testing.T) {
 // OpenAPI Integration Tests
 // =============================================================================
 
-func TestHandlerConfig_WithAPIConfig_Success(t *testing.T) {
+func TestHandlerConfig_WithOperationConfig_Success(t *testing.T) {
 	setupMuxTestWithOpenAPI()
 
 	mux := NewServeMux()
@@ -1480,25 +1480,25 @@ func TestHandlerConfig_WithAPIConfig_Success(t *testing.T) {
 
 	config := mux.HandleFunc("GET /api/users", handler)
 
-	apiConfig := &APIConfig{
+	apiConfig := &OperationConfig{
 		OperationID: "getUsers",
 		Summary:     "Get all users",
 		Description: "Retrieves a list of all users",
 		Tags:        []string{"users"},
 	}
 
-	config.WithAPIConfig(apiConfig)
+	config.WithOperationConfig(apiConfig)
 
-	if config.APIConfig == nil {
-		t.Error("APIConfig was not set")
+	if config.OperationConfig == nil {
+		t.Error("OperationConfig was not set")
 	}
 
-	if config.APIConfig.OperationID != "getUsers" {
-		t.Errorf("Expected OperationID 'getUsers', got %q", config.APIConfig.OperationID)
+	if config.OperationConfig.OperationID != "getUsers" {
+		t.Errorf("Expected OperationID 'getUsers', got %q", config.OperationConfig.OperationID)
 	}
 }
 
-func TestHandlerConfig_WithAPIConfig_NilConfig(t *testing.T) {
+func TestHandlerConfig_WithOperationConfig_NilConfig(t *testing.T) {
 	setupMuxTestWithOpenAPI()
 
 	mux := NewServeMux()
@@ -1510,14 +1510,14 @@ func TestHandlerConfig_WithAPIConfig_NilConfig(t *testing.T) {
 	config := mux.HandleFunc("GET /api/test", handler)
 
 	// Should not panic with nil config
-	config.WithAPIConfig(nil)
+	config.WithOperationConfig(nil)
 
-	if config.APIConfig != nil {
-		t.Error("APIConfig should remain nil")
+	if config.OperationConfig != nil {
+		t.Error("OperationConfig should remain nil")
 	}
 }
 
-func TestHandlerConfig_WithAPIConfig_OpenAPIDisabled(_ *testing.T) {
+func TestHandlerConfig_WithOperationConfig_OpenAPIDisabled(_ *testing.T) {
 	setupMuxTest() // Sets up without OpenAPI
 
 	mux := NewServeMux()
@@ -1528,16 +1528,16 @@ func TestHandlerConfig_WithAPIConfig_OpenAPIDisabled(_ *testing.T) {
 
 	config := mux.HandleFunc("GET /api/test", handler)
 
-	apiConfig := &APIConfig{
+	apiConfig := &OperationConfig{
 		OperationID: "testOp",
 		Summary:     "Test",
 	}
 
 	// Should not panic even if OpenAPI is disabled
-	config.WithAPIConfig(apiConfig)
+	config.WithOperationConfig(apiConfig)
 }
 
-func TestHandlerConfig_WithAPIConfig_InvalidPathPattern(t *testing.T) {
+func TestHandlerConfig_WithOperationConfig_InvalidPathPattern(t *testing.T) {
 	setupMuxTestWithOpenAPI()
 
 	config := &HandlerConfig{
@@ -1550,12 +1550,12 @@ func TestHandlerConfig_WithAPIConfig_InvalidPathPattern(t *testing.T) {
 		}
 	}()
 
-	config.WithAPIConfig(&APIConfig{
+	config.WithOperationConfig(&OperationConfig{
 		OperationID: "testOp",
 	})
 }
 
-func TestHandlerConfig_WithAPIConfig_WithRequestBody(t *testing.T) {
+func TestHandlerConfig_WithOperationConfig_WithRequestBody(t *testing.T) {
 	setupMuxTestWithOpenAPI()
 
 	mux := NewServeMux()
@@ -1571,7 +1571,7 @@ func TestHandlerConfig_WithAPIConfig_WithRequestBody(t *testing.T) {
 		Email string `json:"email"`
 	}
 
-	apiConfig := &APIConfig{
+	apiConfig := &OperationConfig{
 		OperationID: "createUser",
 		Summary:     "Create user",
 		RequestBody: &RequestBody{
@@ -1585,14 +1585,14 @@ func TestHandlerConfig_WithAPIConfig_WithRequestBody(t *testing.T) {
 		},
 	}
 
-	config.WithAPIConfig(apiConfig)
+	config.WithOperationConfig(apiConfig)
 
-	if config.APIConfig.RequestBody == nil {
+	if config.OperationConfig.RequestBody == nil {
 		t.Error("RequestBody was not set")
 	}
 }
 
-func TestHandlerConfig_WithAPIConfig_WithResponses(t *testing.T) {
+func TestHandlerConfig_WithOperationConfig_WithResponses(t *testing.T) {
 	setupMuxTestWithOpenAPI()
 
 	mux := NewServeMux()
@@ -1608,7 +1608,7 @@ func TestHandlerConfig_WithAPIConfig_WithResponses(t *testing.T) {
 		ID   int    `json:"id"`
 	}
 
-	apiConfig := &APIConfig{
+	apiConfig := &OperationConfig{
 		OperationID: "getUserById",
 		Summary:     "Get user by ID",
 		Responses: map[string]Response{
@@ -1626,14 +1626,111 @@ func TestHandlerConfig_WithAPIConfig_WithResponses(t *testing.T) {
 		},
 	}
 
-	config.WithAPIConfig(apiConfig)
+	config.WithOperationConfig(apiConfig)
 
-	if config.APIConfig.Responses == nil {
+	if config.OperationConfig.Responses == nil {
 		t.Error("Responses were not set")
 	}
 
-	if len(config.APIConfig.Responses) != 2 {
-		t.Errorf("Expected 2 responses, got %d", len(config.APIConfig.Responses))
+	if len(config.OperationConfig.Responses) != 2 {
+		t.Errorf("Expected 2 responses, got %d", len(config.OperationConfig.Responses))
+	}
+}
+
+func TestHandlerConfig_WithOperationConfig_WithSecurity(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, _ *Request) {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	config := mux.HandleFunc("GET /api/secure", handler)
+
+	operationConfig := &OperationConfig{
+		OperationID: "secureOperation",
+		Summary:     "Secure endpoint",
+		Security: []map[string][]string{
+			{"BearerAuth": {}},
+			{"ApiKeyAuth": {"read", "write"}},
+		},
+	}
+
+	config.WithOperationConfig(operationConfig)
+
+	if config.OperationConfig.Security == nil {
+		t.Fatal("Expected Security to be set")
+	}
+
+	if len(config.OperationConfig.Security) != 2 {
+		t.Errorf("Expected 2 security requirements, got %d", len(config.OperationConfig.Security))
+	}
+
+	// Verify BearerAuth requirement
+	if _, ok := config.OperationConfig.Security[0]["BearerAuth"]; !ok {
+		t.Error("Expected BearerAuth security requirement")
+	}
+
+	// Verify ApiKeyAuth requirement with scopes
+	if scopes, ok := config.OperationConfig.Security[1]["ApiKeyAuth"]; !ok {
+		t.Error("Expected ApiKeyAuth security requirement")
+	} else if len(scopes) != 2 {
+		t.Errorf("Expected 2 scopes for ApiKeyAuth, got %d", len(scopes))
+	}
+}
+
+func TestHandlerConfig_WithOperationConfig_WithEmptySecurity(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, _ *Request) {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	config := mux.HandleFunc("GET /api/public", handler)
+
+	operationConfig := &OperationConfig{
+		OperationID: "publicOperation",
+		Summary:     "Public endpoint (no security)",
+		Security:    []map[string][]string{},
+	}
+
+	config.WithOperationConfig(operationConfig)
+
+	// Empty security array means no authentication required
+	if config.OperationConfig.Security == nil {
+		t.Error("Expected Security to be initialized even when empty")
+	}
+
+	if len(config.OperationConfig.Security) != 0 {
+		t.Errorf("Expected 0 security requirements, got %d", len(config.OperationConfig.Security))
+	}
+}
+
+func TestHandlerConfig_WithOperationConfig_WithNilSecurity(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	mux := NewServeMux()
+
+	handler := func(w ResponseWriter, _ *Request) {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	config := mux.HandleFunc("GET /api/default", handler)
+
+	operationConfig := &OperationConfig{
+		OperationID: "defaultSecurityOperation",
+		Summary:     "Endpoint with default security",
+		Security:    nil,
+	}
+
+	config.WithOperationConfig(operationConfig)
+
+	// Nil security means use global security requirements
+	if config.OperationConfig.Security != nil {
+		t.Error("Expected Security to remain nil when not specified")
 	}
 }
 

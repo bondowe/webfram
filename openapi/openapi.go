@@ -14,15 +14,16 @@ const (
 
 type (
 	Config struct {
-		Version           string        `json:"openapi" yaml:"openapi"`
-		Self              string        `json:"$self,omitempty" yaml:"$self,omitempty"`
-		Info              *Info         `json:"info" yaml:"info"`
-		JSONSchemaDialect string        `json:"jsonSchemaDialect,omitempty" yaml:"jsonSchemaDialect,omitempty"`
-		Servers           []Server      `json:"servers,omitempty" yaml:"servers,omitempty"`
-		Tags              []Tag         `json:"tags,omitempty" yaml:"tags,omitempty"`
-		ExternalDocs      *ExternalDocs `json:"externalDocs,omitempty" yaml:"externalDocs,omitempty"`
-		Paths             Paths         `json:"paths" yaml:"paths"`
-		Components        *Components   `json:"components,omitempty" yaml:"components,omitempty"`
+		Version           string                `json:"openapi" yaml:"openapi"`
+		Self              string                `json:"$self,omitempty" yaml:"$self,omitempty"`
+		Info              *Info                 `json:"info" yaml:"info"`
+		JSONSchemaDialect string                `json:"jsonSchemaDialect,omitempty" yaml:"jsonSchemaDialect,omitempty"`
+		Servers           []Server              `json:"servers,omitempty" yaml:"servers,omitempty"`
+		Tags              []Tag                 `json:"tags,omitempty" yaml:"tags,omitempty"`
+		Security          []map[string][]string `json:"security,omitempty" yaml:"security,omitempty"`
+		ExternalDocs      *ExternalDocs         `json:"externalDocs,omitempty" yaml:"externalDocs,omitempty"`
+		Paths             Paths                 `json:"paths" yaml:"paths"`
+		Components        *Components           `json:"components,omitempty" yaml:"components,omitempty"`
 	}
 	Info struct {
 		Title          string   `json:"title" yaml:"title"`

@@ -91,7 +91,7 @@ func main() {
 		if err := w.JSON(r.Context(), users); err != nil {
 			w.Error(http.StatusInternalServerError, err.Error())
 		}
-	}).WithAPIConfig(&app.APIConfig{
+	}).WithOperationConfig(&app.OperationConfig{
 		OperationID: "listUsers",
 		Summary:     "List all users",
 		Tags:        []string{"User Service"},
@@ -130,7 +130,7 @@ func main() {
 		if jsonErr := w.JSON(r.Context(), user); jsonErr != nil {
 			w.Error(http.StatusInternalServerError, jsonErr.Error())
 		}
-	}).WithAPIConfig(&app.APIConfig{
+	}).WithOperationConfig(&app.OperationConfig{
 		OperationID: "createUser",
 		Summary:     "Create a new user",
 		Tags:        []string{"User Service"},
@@ -275,6 +275,11 @@ func getOpenAPIConfig() *app.OpenAPIConfig {
 				Name:        "ProductService",
 				Summary:     "Product Service",
 				Description: "Operations related to products",
+			},
+		},
+		Security: []map[string][]string{
+			{
+				"BasicAuth": {},
 			},
 		},
 		Components: &app.Components{

@@ -35,8 +35,8 @@ type (
 	// HandlerFunc is a function that serves HTTP requests.
 	HandlerFunc func(ResponseWriter, *Request)
 
-	// APIConfig configures OpenAPI documentation for a route.
-	APIConfig struct {
+	// OperationConfig configures OpenAPI documentation for a route.
+	OperationConfig struct {
 		Method      string
 		Summary     string
 		Description string
@@ -155,8 +155,8 @@ type (
 	}
 	// HandlerConfig provides configuration for registered handlers, particularly for OpenAPI documentation.
 	HandlerConfig struct {
-		APIConfig   *APIConfig
-		pathPattern string
+		OperationConfig *OperationConfig
+		pathPattern     string
 	}
 )
 
@@ -178,33 +178,33 @@ func SetOpenAPIPathInfo(path string, info *PathInfo) {
 	openAPIConfig.internalConfig.Paths.SetPathInfo(path, info.Summary, info.Description, parameters, servers)
 }
 
-// WithAPIConfig attaches OpenAPI configuration to a handler.
+// WithOperationConfig attaches OpenAPI configuration to a handler.
 // This generates OpenAPI documentation for the endpoint with request/response schemas, parameters, etc.
 // Only works if OpenAPI endpoint is enabled in configuration.
-func (c *HandlerConfig) WithAPIConfig(apiConfig *APIConfig) {
-	if apiConfig == nil || openAPIConfig == nil || !openAPIConfig.Enabled {
+func (c *HandlerConfig) WithOperationConfig(operationConfig *OperationConfig) {
+	if operationConfig == nil || openAPIConfig == nil || !openAPIConfig.Enabled {
 		return
 	}
 
-	c.APIConfig = apiConfig
+	c.OperationConfig = operationConfig
 
 	var requestBody *openapi.RequestBodyOrRef
 
-	if c.APIConfig.RequestBody != nil {
+	if c.OperationConfig.RequestBody != nil {
 		requestBody = &openapi.RequestBodyOrRef{
 			RequestBody: &openapi.RequestBody{
-				Description: c.APIConfig.RequestBody.Description,
-				Required:    c.APIConfig.RequestBody.Required,
-				Content:     mapContent(c.APIConfig.RequestBody.Content),
+				Description: c.OperationConfig.RequestBody.Description,
+				Required:    c.OperationConfig.RequestBody.Required,
+				Content:     mapContent(c.OperationConfig.RequestBody.Content),
 			},
 		}
 	}
 
 	var responses map[string]openapi.ResponseOrRef
 
-	if len(c.APIConfig.Responses) > 0 {
-		responses = make(map[string]openapi.ResponseOrRef, len(c.APIConfig.Responses))
-		for statusCode, resp := range c.APIConfig.Responses {
+	if len(c.OperationConfig.Responses) > 0 {
+		responses = make(map[string]openapi.ResponseOrRef, len(c.OperationConfig.Responses))
+		for statusCode, resp := range c.OperationConfig.Responses {
 			responses[statusCode] = openapi.ResponseOrRef{
 				Response: &openapi.Response{
 					Summary:     resp.Summary,
@@ -217,7 +217,7 @@ func (c *HandlerConfig) WithAPIConfig(apiConfig *APIConfig) {
 		}
 	}
 
-	parameters := mapParameters(c.APIConfig.Parameters)
+	parameters := mapParameters(c.OperationConfig.Parameters)
 
 	parts := strings.Fields(c.pathPattern)
 
@@ -229,14 +229,14 @@ func (c *HandlerConfig) WithAPIConfig(apiConfig *APIConfig) {
 	path := parts[1]
 
 	openAPIConfig.internalConfig.Paths.AddOperation(path, method, openapi.Operation{
-		Summary:     c.APIConfig.Summary,
-		Description: c.APIConfig.Description,
-		OperationID: c.APIConfig.OperationID,
-		Tags:        c.APIConfig.Tags,
-		Security:    c.APIConfig.Security,
+		Summary:     c.OperationConfig.Summary,
+		Description: c.OperationConfig.Description,
+		OperationID: c.OperationConfig.OperationID,
+		Tags:        c.OperationConfig.Tags,
+		Security:    c.OperationConfig.Security,
 		RequestBody: requestBody,
 		Parameters:  parameters,
-		Servers:     mapServers(c.APIConfig.Servers),
+		Servers:     mapServers(c.OperationConfig.Servers),
 		Responses:   responses,
 	})
 }
