@@ -23,6 +23,7 @@ type ValidationError struct {
 const (
 	// Validation rule names.
 	ruleRequired          = "required"
+	ruleEquals            = "equals"
 	ruleMin               = "min"
 	ruleMax               = "max"
 	ruleMultipleOf        = "multipleOf"
@@ -38,6 +39,7 @@ const (
 
 	// Format types.
 	formatEmail = "email"
+	formatURL   = "url"
 )
 
 var (
@@ -47,6 +49,7 @@ var (
 			`^[\p{L}\p{N}.!#$%&'*+/=?^_` + "`" + `{|}~-]+@[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?` +
 			`(?:\.[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?)*$`,
 	)
+	urlRegex = regexp.MustCompile(`^https?://[^\s/$.?#].[^\s]*$`)
 )
 
 // isValidationRuleValidForType checks if a validation rule is applicable to the given field type.
@@ -81,6 +84,9 @@ func isValidationRuleValidForType(rule string, kind reflect.Kind, fieldType refl
 
 	case ruleEnum:
 		return validateEnumRule(kind, typeInfo)
+
+	case ruleEquals:
+		return validateEqualsRule(kind)
 
 	default:
 		return fmt.Errorf("unknown validation rule '%s'", ruleName)
@@ -184,6 +190,16 @@ func validateEnumRule(kind reflect.Kind, info fieldTypeInfo) error {
 	return nil
 }
 
+func validateEqualsRule(kind reflect.Kind) error {
+	if kind != reflect.String && !IsIntType(kind) && !IsFloatType(kind) {
+		return fmt.Errorf(
+			"validation rule 'equals' can only be applied to string, integer, or float types, but field is %s",
+			kind,
+		)
+	}
+	return nil
+}
+
 func validateFieldTypeRules(field *reflect.StructField, kind reflect.Kind, fieldType reflect.Type) {
 	validateTag := field.Tag.Get("validate")
 	if validateTag == "" {
@@ -204,6 +220,7 @@ func validateFieldTypeRules(field *reflect.StructField, kind reflect.Kind, field
 	}
 }
 
+//nolint:gocognit,gocyclo,cyclop,funlen // high complexity inherent to validation
 func bindValidateRecursive(val reflect.Value, prefix string, errors *[]ValidationError) {
 	typ := val.Type()
 
@@ -245,6 +262,13 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
+			case strings.HasPrefix(rule, ruleEquals+"=") && IsIntType(kind):
+				val, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleEquals+"="))
+				if getIntValue(field) != int64(val) {
+					msg := getErrorMessage(&fieldType, ruleEquals, fmt.Sprintf("must be %d", val))
+					*errors = append(*errors, ValidationError{Field: key, Error: msg})
+				}
+
 			case strings.HasPrefix(rule, ruleMin+"=") && IsIntType(kind):
 				minVal, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMin+"="))
 				if getIntValue(field) < int64(minVal) {
@@ -256,6 +280,13 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 				maxVal, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleMax+"="))
 				if getIntValue(field) > int64(maxVal) {
 					msg := getErrorMessage(&fieldType, ruleMax, fmt.Sprintf("must be ≤ %d", maxVal))
+					*errors = append(*errors, ValidationError{Field: key, Error: msg})
+				}
+
+			case strings.HasPrefix(rule, ruleEquals+"=") && IsFloatType(kind):
+				val, _ := strconv.ParseFloat(strings.TrimPrefix(rule, ruleEquals+"="), 64)
+				if field.Float() != val {
+					msg := getErrorMessage(&fieldType, ruleEquals, fmt.Sprintf("must be %f", val))
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
@@ -293,6 +324,13 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 						ruleMultipleOf,
 						fmt.Sprintf("must be a multiple of %f", multVal),
 					)
+					*errors = append(*errors, ValidationError{Field: key, Error: msg})
+				}
+
+			case strings.HasPrefix(rule, ruleEquals+"=") && kind == reflect.String:
+				val := strings.TrimPrefix(rule, ruleEquals+"=")
+				if field.String() != val {
+					msg := getErrorMessage(&fieldType, ruleEquals, fmt.Sprintf("must be %s", val))
 					*errors = append(*errors, ValidationError{Field: key, Error: msg})
 				}
 
@@ -356,7 +394,14 @@ func bindValidateRecursive(val reflect.Value, prefix string, errors *[]Validatio
 
 			case strings.HasPrefix(rule, ruleFormat+"=") && kind == reflect.String:
 				format := strings.TrimPrefix(rule, ruleFormat+"=")
-				if format == formatEmail {
+				switch format {
+				case formatURL:
+					if !urlRegex.MatchString(field.String()) {
+						msg := getErrorMessage(&fieldType, ruleFormat, "is not a valid URL")
+						*errors = append(*errors, ValidationError{Field: key, Error: msg})
+					}
+
+				case formatEmail:
 					matched := idnEmailRegex.MatchString(field.String())
 					if !matched {
 						msg := getErrorMessage(

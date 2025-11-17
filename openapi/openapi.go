@@ -286,16 +286,17 @@ type (
 		ItemEncoding *Encoding              `json:"itemEncoding,omitempty" yaml:"itemEncoding,omitempty"`
 	}
 	SecurityScheme struct {
-		Type              string     `json:"type" yaml:"type"` // "apiKey", "http", "oauth2", "openIdConnect"
-		Description       string     `json:"description,omitempty" yaml:"description,omitempty"`
-		Name              string     `json:"name" yaml:"name"`
-		In                string     `json:"in" yaml:"in"` // "query", "header", "cookie"
-		Scheme            string     `json:"scheme" yaml:"scheme"`
-		BearerFormat      string     `json:"bearerFormat,omitempty" yaml:"bearerFormat,omitempty"`
-		Flows             OAuthFlows `json:"flows" yaml:"flows"`
-		OpenIdConnectURL  string     `json:"openIdConnectUrl" yaml:"openIdConnectUrl"`
-		OAuth2MetadataUrl string     `json:"oauth2MetadataUrl,omitempty" yaml:"oauth2MetadataUrl,omitempty"`
-		Deprecated        bool       `json:"deprecated,omitempty" yaml:"deprecated,omitempty"`
+		Type              string         `json:"type" yaml:"type"` // "apiKey", "http", "oauth2", "openIdConnect"
+		Description       string         `json:"description,omitempty" yaml:"description,omitempty"`
+		Name              string         `json:"name,omitempty" yaml:"name,omitempty"`
+		In                string         `json:"in,omitempty" yaml:"in,omitempty"` // "query", "header", "cookie"
+		Scheme            string         `json:"scheme,omitempty" yaml:"scheme,omitempty"`
+		BearerFormat      string         `json:"bearerFormat,omitempty" yaml:"bearerFormat,omitempty"`
+		Flows             *OAuthFlows    `json:"flows,omitempty" yaml:"flows,omitempty"`
+		OpenIdConnectURL  string         `json:"openIdConnectUrl,omitempty" yaml:"openIdConnectUrl,omitempty"`
+		OAuth2MetadataUrl string         `json:"oauth2MetadataUrl,omitempty" yaml:"oauth2MetadataUrl,omitempty"`
+		Extensions        map[string]any `json:"extensions,omitempty" yaml:"extensions,omitempty"`
+		Deprecated        bool           `json:"deprecated,omitempty" yaml:"deprecated,omitempty"`
 	}
 	OAuthFlows struct {
 		Implicit            *OAuthFlow `json:"implicit,omitempty" yaml:"implicit,omitempty"`
@@ -305,11 +306,12 @@ type (
 		DeviceAuthorization *OAuthFlow `json:"deviceAuthorization,omitempty" yaml:"deviceAuthorization,omitempty"`
 	}
 	OAuthFlow struct {
-		AuthorizationURL       string            `json:"authorizationUrl" yaml:"authorizationUrl"`
-		DeviceAuthorizationURL string            `json:"deviceAuthorizationUrl" yaml:"deviceAuthorizationUrl"`
-		TokenURL               string            `json:"tokenUrl" yaml:"tokenUrl"`
-		RefreshURL             string            `json:"refreshUrl,omitempty" yaml:"refreshUrl,omitempty"`
-		Scopes                 map[string]string `json:"scopes" yaml:"scopes"`
+		AuthorizationURL       string                 `json:"authorizationUrl,omitempty" yaml:"authorizationUrl,omitempty"`
+		DeviceAuthorizationURL string                 `json:"deviceAuthorizationUrl,omitempty" yaml:"deviceAuthorizationUrl,omitempty"`
+		TokenURL               string                 `json:"tokenUrl,omitempty" yaml:"tokenUrl,omitempty"`
+		RefreshURL             string                 `json:"refreshUrl,omitempty" yaml:"refreshUrl,omitempty"`
+		Scopes                 map[string]string      `json:"scopes" yaml:"scopes"`
+		Extensions             map[string]interface{} `json:"extensions,omitempty" yaml:"extensions,omitempty"`
 	}
 )
 

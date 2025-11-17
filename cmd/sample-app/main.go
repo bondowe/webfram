@@ -94,7 +94,7 @@ func main() {
 	}).WithAPIConfig(&app.APIConfig{
 		OperationID: "listUsers",
 		Summary:     "List all users",
-		Tags:        []string{"UserService"},
+		Tags:        []string{"User Service"},
 		Responses: map[string]app.Response{
 			"200": {
 				Description: "List of users",
@@ -130,7 +130,7 @@ func main() {
 	}).WithAPIConfig(&app.APIConfig{
 		OperationID: "createUser",
 		Summary:     "Create a new user",
-		Tags:        []string{"UserService"},
+		Tags:        []string{"User Service"},
 		RequestBody: &app.RequestBody{
 			Required: true,
 			Content: map[string]app.TypeInfo{
@@ -242,7 +242,6 @@ func main() {
 	})
 
 	// Start server
-	log.Println("Server starting on :8080")
 	app.ListenAndServe(":8080", mux, nil)
 }
 
@@ -265,7 +264,7 @@ func getOpenAPIConfig() *app.OpenAPIConfig {
 		},
 		Tags: []app.Tag{
 			{
-				Name:        "UserService",
+				Name:        "User Service",
 				Summary:     "User Service",
 				Description: "Operations related to users",
 			},
@@ -275,10 +274,73 @@ func getOpenAPIConfig() *app.OpenAPIConfig {
 				Description: "Operations related to products",
 			},
 		},
+		Components: &app.Components{
+			SecuritySchemes: map[string]app.SecurityScheme{
+				"BasicAuth": app.NewHTTPBasicSecurityScheme(&app.HTTPBasicSecuritySchemeOptions{
+					Description: "HTTP Basic Authentication",
+				}),
+				"DigestAuth": app.NewHTTPDigestSecurityScheme(&app.HTTPDigestSecuritySchemeOptions{
+					Description: "HTTP Digest Authentication",
+				}),
+				"ApiKeyAuth": app.NewAPIKeySecurityScheme(&app.APIKeySecuritySchemeOptions{
+					Name:        "X-API-Key",
+					In:          "header",
+					Description: "API Key Authentication",
+				}),
+				"BearerAuth": app.NewHTTPBearerSecurityScheme(&app.HTTPBearerSecuritySchemeOptions{
+					Description:  "HTTP Bearer Authentication",
+					BearerFormat: "JWT",
+				}),
+				"OAuth2Auth": app.NewOAuth2SecurityScheme(&app.OAuth2SecuritySchemeOptions{
+					Description: "OAuth2 Authentication",
+					Flows: []app.OAuthFlow{
+						app.NewAuthorizationCodeOAuthFlow(&app.AuthorizationCodeOAuthFlowOptions{
+							AuthorizationURL: "https://example.com/oauth/authorize",
+							TokenURL:         "https://example.com/oauth/token",
+							RefreshURL:       "https://example.com/oauth/refresh",
+							Scopes: map[string]string{
+								"read":  "Read access",
+								"write": "Write access",
+							},
+						}),
+						app.NewClientCredentialsOAuthFlow(&app.ClientCredentialsOAuthFlowOptions{
+							TokenURL:   "https://example.com/oauth/token",
+							RefreshURL: "https://example.com/oauth/refresh",
+							Scopes: map[string]string{
+								"admin": "Admin access",
+							},
+						}),
+						app.NewImplicitOAuthFlow(&app.ImplicitOAuthFlowOptions{
+							AuthorizationURL: "https://example.com/oauth/authorize",
+							RefreshURL:       "https://example.com/oauth/refresh",
+							Scopes: map[string]string{
+								"public": "Public access",
+							},
+						}),
+						app.NewDeviceAuthorizationOAuthFlow(&app.DeviceAuthorizationOAuthFlowOptions{
+							DeviceAuthorizationURL: "https://example.com/oauth/device_authorize",
+							TokenURL:               "https://example.com/oauth/token",
+							RefreshURL:             "https://example.com/oauth/refresh",
+							Scopes: map[string]string{
+								"device": "Device access",
+							},
+						}),
+					},
+				}),
+				"OpenIDConnect": app.NewOpenIdConnectSecurityScheme(&app.OpenIdConnectSecuritySchemeOptions{
+					Description:      "OpenID Connect Authentication",
+					OpenIdConnectURL: "https://example.com/.well-known/openid-configuration",
+				}),
+			},
+		},
 		Servers: []app.Server{
 			{
 				URL:         "http://localhost:8080",
 				Description: "Local development server",
+			},
+			{
+				URL:         "http://prod-site.com/api/v1",
+				Description: "Production server",
 			},
 		},
 	}

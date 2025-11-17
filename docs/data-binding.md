@@ -148,6 +148,7 @@ WebFram supports 20+ validation tags:
 | Tag | Applies To | Description | Example |
 |-----|------------|-------------|---------|
 | `required` | All types | Field must be present and non-empty | `validate:"required"` |
+| `equals=VALUE` | string, int, uint, float | Value must exactly equal specified value | `validate:"equals=active"` |
 | `min=N` | int, uint, float | Minimum value (inclusive) | `validate:"min=18"` |
 | `max=N` | int, uint, float | Maximum value (inclusive) | `validate:"max=120"` |
 | `multipleOf=N` | int, float | Value must be multiple of N | `validate:"multipleOf=5"` |
@@ -159,8 +160,9 @@ WebFram supports 20+ validation tags:
 | `emptyItemsAllowed` | slice | Allow empty items in slice | `validate:"emptyItemsAllowed"` |
 | `regexp=PATTERN` | string | Must match regular expression | `validate:"regexp=^\\w+@\\w+\\.com$"` |
 | `pattern=PATTERN` | string | Alias for regexp | `validate:"pattern=^[A-Z]{3}-\\d{4}$"` |
-| `enum=val1\|val2` | string | Must be one of specified values | `validate:"enum=admin\|user\|guest"` |
-| `format=email` | string (form) | Must be valid email (IDN supported) | `validate:"format=email"` |
+| `enum=val1\|val2` | string, int, float | Must be one of specified values | `validate:"enum=admin\|user\|guest"` |
+| `format=email` | string | Must be valid email (IDN supported) | `validate:"format=email"` |
+| `format=url` | string | Must be valid HTTP/HTTPS URL | `validate:"format=url"` |
 | `format=LAYOUT` | time.Time | Time parsing layout | `format:"2006-01-02"` |
 
 **Combine multiple rules:**
@@ -173,6 +175,95 @@ type Product struct {
     Tags  []string `json:"tags" validate:"minItems=1,maxItems=20,uniqueItems"`
 }
 ```
+
+### Equals Validation
+
+The `equals` rule validates that a field value exactly matches a specified value:
+
+```go
+type Configuration struct {
+    Environment string  `json:"environment" validate:"equals=production"`
+    Version     string  `json:"version" validate:"equals=2.0.0"`
+    Port        int     `json:"port" validate:"equals=8080"`
+    Threshold   float64 `json:"threshold" validate:"equals=0.95"`
+}
+```
+
+**Use cases:**
+
+- Enforce specific configuration values
+- Validate expected constants
+- Check for exact status codes or states
+
+**Examples:**
+
+```go
+// String equality
+Status string `validate:"equals=active"` // Must be exactly "active"
+
+// Integer equality  
+Count int `validate:"equals=42"` // Must be exactly 42
+
+// Float equality
+Rate float64 `validate:"equals=1.5"` // Must be exactly 1.5
+
+// Combined with other rules
+State string `validate:"required,equals=confirmed"` // Required and must equal "confirmed"
+```
+
+### URL Format Validation
+
+The `format=url` rule validates that a string is a valid HTTP or HTTPS URL:
+
+```go
+type WebResource struct {
+    Website    string `json:"website" validate:"format=url"`
+    APIBaseURL string `json:"api_base_url" validate:"required,format=url"`
+    Callback   string `json:"callback" validate:"format=url"`
+}
+```
+
+**Valid URLs:**
+
+- `http://example.com`
+- `https://example.com`
+- `https://example.com/path/to/resource`
+- `https://api.example.com:8080/v1/users?page=1`
+- `http://subdomain.example.com#section`
+
+**Invalid URLs:**
+
+- `example.com` (missing protocol)
+- `ftp://example.com` (only http/https allowed)
+- `http://exa mple.com` (contains spaces)
+- `not a url` (malformed)
+
+**Examples:**
+
+```go
+type APIConfig struct {
+    // Simple URL validation
+    Endpoint string `json:"endpoint" validate:"format=url"`
+    
+    // Required URL
+    CallbackURL string `json:"callback_url" validate:"required,format=url"`
+    
+    // Optional URL
+    AvatarURL string `json:"avatar_url,omitempty" validate:"format=url"`
+    
+    // With custom error message
+    RedirectURL string `json:"redirect_url" validate:"format=url" errmsg:"format=Please provide a valid HTTP/HTTPS URL"`
+}
+```
+
+**Pattern used:** `^https?://[^\s/$.?#].[^\s]*$`
+
+This pattern ensures:
+
+- URL starts with `http://` or `https://`
+- Contains valid domain/host
+- No spaces in the URL
+- Supports paths, query parameters, and fragments
 
 ## Custom Error Messages
 

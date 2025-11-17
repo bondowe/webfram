@@ -1974,6 +1974,375 @@ func TestBindForm_ValidationErrors_ReturnsValidationErrorsStruct(t *testing.T) {
 }
 
 // =============================================================================
+// Security Scheme Tests
+// =============================================================================
+
+func TestNewHTTPBearerSecurityScheme_WithOptions(t *testing.T) {
+	options := &HTTPBearerSecuritySchemeOptions{
+		Description:  "JWT Bearer Authentication",
+		BearerFormat: "JWT",
+		Extensions: map[string]interface{}{
+			"x-custom": "value",
+		},
+		Deprecated: true,
+	}
+
+	scheme := NewHTTPBearerSecurityScheme(options)
+
+	if scheme.Type != "http" {
+		t.Errorf("Expected Type 'http', got %q", scheme.Type)
+	}
+	if scheme.Scheme != "bearer" {
+		t.Errorf("Expected Scheme 'bearer', got %q", scheme.Scheme)
+	}
+	if scheme.BearerFormat != "JWT" {
+		t.Errorf("Expected BearerFormat 'JWT', got %q", scheme.BearerFormat)
+	}
+	if scheme.Description != "JWT Bearer Authentication" {
+		t.Errorf("Expected Description 'JWT Bearer Authentication', got %q", scheme.Description)
+	}
+	if !scheme.Deprecated {
+		t.Error("Expected Deprecated to be true")
+	}
+	if scheme.Extensions["x-custom"] != "value" {
+		t.Error("Expected custom extension to be set")
+	}
+}
+
+func TestNewHTTPBearerSecurityScheme_NilOptions(t *testing.T) {
+	scheme := NewHTTPBearerSecurityScheme(nil)
+
+	if scheme.Type != "http" {
+		t.Errorf("Expected Type 'http', got %q", scheme.Type)
+	}
+	if scheme.Scheme != "bearer" {
+		t.Errorf("Expected Scheme 'bearer', got %q", scheme.Scheme)
+	}
+	if scheme.BearerFormat != "" {
+		t.Errorf("Expected empty BearerFormat, got %q", scheme.BearerFormat)
+	}
+}
+
+func TestNewHTTPBasicSecurityScheme_WithOptions(t *testing.T) {
+	options := &HTTPBasicSecuritySchemeOptions{
+		Description: "Basic Authentication",
+		Deprecated:  true,
+	}
+
+	scheme := NewHTTPBasicSecurityScheme(options)
+
+	if scheme.Type != "http" {
+		t.Errorf("Expected Type 'http', got %q", scheme.Type)
+	}
+	if scheme.Scheme != "basic" {
+		t.Errorf("Expected Scheme 'basic', got %q", scheme.Scheme)
+	}
+	if scheme.Description != "Basic Authentication" {
+		t.Errorf("Expected Description 'Basic Authentication', got %q", scheme.Description)
+	}
+	if !scheme.Deprecated {
+		t.Error("Expected Deprecated to be true")
+	}
+}
+
+func TestNewHTTPBasicSecurityScheme_NilOptions(t *testing.T) {
+	scheme := NewHTTPBasicSecurityScheme(nil)
+
+	if scheme.Type != "http" {
+		t.Errorf("Expected Type 'http', got %q", scheme.Type)
+	}
+	if scheme.Scheme != "basic" {
+		t.Errorf("Expected Scheme 'basic', got %q", scheme.Scheme)
+	}
+}
+
+func TestNewHTTPDigestSecurityScheme_WithOptions(t *testing.T) {
+	options := &HTTPDigestSecuritySchemeOptions{
+		Description: "Digest Authentication",
+		Deprecated:  false,
+	}
+
+	scheme := NewHTTPDigestSecurityScheme(options)
+
+	if scheme.Type != "http" {
+		t.Errorf("Expected Type 'http', got %q", scheme.Type)
+	}
+	if scheme.Scheme != "digest" {
+		t.Errorf("Expected Scheme 'digest', got %q", scheme.Scheme)
+	}
+	if scheme.Description != "Digest Authentication" {
+		t.Errorf("Expected Description 'Digest Authentication', got %q", scheme.Description)
+	}
+}
+
+func TestNewAPIKeySecurityScheme_HeaderLocation(t *testing.T) {
+	options := &APIKeySecuritySchemeOptions{
+		Name:        "X-API-Key",
+		In:          "header",
+		Description: "API Key in header",
+	}
+
+	scheme := NewAPIKeySecurityScheme(options)
+
+	if scheme.Type != "apiKey" {
+		t.Errorf("Expected Type 'apiKey', got %q", scheme.Type)
+	}
+	if scheme.Name != "X-API-Key" {
+		t.Errorf("Expected Name 'X-API-Key', got %q", scheme.Name)
+	}
+	if scheme.In != "header" {
+		t.Errorf("Expected In 'header', got %q", scheme.In)
+	}
+}
+
+func TestNewAPIKeySecurityScheme_QueryLocation(t *testing.T) {
+	options := &APIKeySecuritySchemeOptions{
+		Name: "api_key",
+		In:   "query",
+	}
+
+	scheme := NewAPIKeySecurityScheme(options)
+
+	if scheme.In != "query" {
+		t.Errorf("Expected In 'query', got %q", scheme.In)
+	}
+}
+
+func TestNewAPIKeySecurityScheme_CookieLocation(t *testing.T) {
+	options := &APIKeySecuritySchemeOptions{
+		Name: "session",
+		In:   "cookie",
+	}
+
+	scheme := NewAPIKeySecurityScheme(options)
+
+	if scheme.In != "cookie" {
+		t.Errorf("Expected In 'cookie', got %q", scheme.In)
+	}
+}
+
+func TestNewMutualTLSSecurityScheme_WithOptions(t *testing.T) {
+	options := &MutualTLSSecuritySchemeOptions{
+		Description: "Mutual TLS Authentication",
+	}
+
+	scheme := NewMutualTLSSecurityScheme(options)
+
+	if scheme.Type != "mutualTLS" {
+		t.Errorf("Expected Type 'mutualTLS', got %q", scheme.Type)
+	}
+	if scheme.Description != "Mutual TLS Authentication" {
+		t.Errorf("Expected Description 'Mutual TLS Authentication', got %q", scheme.Description)
+	}
+}
+
+func TestNewOpenIdConnectSecurityScheme_WithOptions(t *testing.T) {
+	options := &OpenIdConnectSecuritySchemeOptions{
+		OpenIdConnectURL: "https://example.com/.well-known/openid-configuration",
+		Description:      "OpenID Connect",
+	}
+
+	scheme := NewOpenIdConnectSecurityScheme(options)
+
+	if scheme.Type != "openIdConnect" {
+		t.Errorf("Expected Type 'openIdConnect', got %q", scheme.Type)
+	}
+	if scheme.OpenIdConnectURL != "https://example.com/.well-known/openid-configuration" {
+		t.Errorf("Expected OpenIdConnectURL, got %q", scheme.OpenIdConnectURL)
+	}
+}
+
+func TestNewOAuth2SecurityScheme_WithFlows(t *testing.T) {
+	options := &OAuth2SecuritySchemeOptions{
+		Description: "OAuth2 Authentication",
+		Flows: []OAuthFlow{
+			NewAuthorizationCodeOAuthFlow(&AuthorizationCodeOAuthFlowOptions{
+				AuthorizationURL: "https://example.com/oauth/authorize",
+				TokenURL:         "https://example.com/oauth/token",
+				Scopes: map[string]string{
+					"read":  "Read access",
+					"write": "Write access",
+				},
+			}),
+		},
+	}
+
+	scheme := NewOAuth2SecurityScheme(options)
+
+	if scheme.Type != "oauth2" {
+		t.Errorf("Expected Type 'oauth2', got %q", scheme.Type)
+	}
+	if len(scheme.Flows) != 1 {
+		t.Errorf("Expected 1 flow, got %d", len(scheme.Flows))
+	}
+}
+
+func TestNewOAuth2SecurityScheme_PanicsOnNilOptions(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic for nil options")
+		}
+	}()
+
+	NewOAuth2SecurityScheme(nil)
+}
+
+func TestNewOAuth2SecurityScheme_PanicsOnEmptyFlows(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic for empty flows")
+		}
+	}()
+
+	NewOAuth2SecurityScheme(&OAuth2SecuritySchemeOptions{
+		Flows: []OAuthFlow{},
+	})
+}
+
+func TestNewImplicitOAuthFlow_WithOptions(t *testing.T) {
+	options := &ImplicitOAuthFlowOptions{
+		AuthorizationURL: "https://example.com/oauth/authorize",
+		Scopes: map[string]string{
+			"read": "Read access",
+		},
+		RefreshURL: "https://example.com/oauth/refresh",
+	}
+
+	flow := NewImplicitOAuthFlow(options)
+
+	if flow.AuthorizationURL != "https://example.com/oauth/authorize" {
+		t.Errorf("Expected AuthorizationURL, got %q", flow.AuthorizationURL)
+	}
+	if len(flow.Scopes) != 1 {
+		t.Errorf("Expected 1 scope, got %d", len(flow.Scopes))
+	}
+	if flow.RefreshURL != "https://example.com/oauth/refresh" {
+		t.Errorf("Expected RefreshURL, got %q", flow.RefreshURL)
+	}
+}
+
+func TestNewClientCredentialsOAuthFlow_WithOptions(t *testing.T) {
+	options := &ClientCredentialsOAuthFlowOptions{
+		TokenURL: "https://example.com/oauth/token",
+		Scopes: map[string]string{
+			"admin": "Admin access",
+		},
+	}
+
+	flow := NewClientCredentialsOAuthFlow(options)
+
+	if flow.TokenURL != "https://example.com/oauth/token" {
+		t.Errorf("Expected TokenURL, got %q", flow.TokenURL)
+	}
+	if len(flow.Scopes) != 1 {
+		t.Errorf("Expected 1 scope, got %d", len(flow.Scopes))
+	}
+}
+
+func TestNewAuthorizationCodeOAuthFlow_WithOptions(t *testing.T) {
+	options := &AuthorizationCodeOAuthFlowOptions{
+		AuthorizationURL: "https://example.com/oauth/authorize",
+		TokenURL:         "https://example.com/oauth/token",
+		Scopes: map[string]string{
+			"read":  "Read access",
+			"write": "Write access",
+		},
+	}
+
+	flow := NewAuthorizationCodeOAuthFlow(options)
+
+	if flow.AuthorizationURL != "https://example.com/oauth/authorize" {
+		t.Errorf("Expected AuthorizationURL, got %q", flow.AuthorizationURL)
+	}
+	if flow.TokenURL != "https://example.com/oauth/token" {
+		t.Errorf("Expected TokenURL, got %q", flow.TokenURL)
+	}
+	if len(flow.Scopes) != 2 {
+		t.Errorf("Expected 2 scopes, got %d", len(flow.Scopes))
+	}
+}
+
+func TestNewDeviceAuthorizationOAuthFlow_WithOptions(t *testing.T) {
+	options := &DeviceAuthorizationOAuthFlowOptions{
+		DeviceAuthorizationURL: "https://example.com/oauth/device_authorize",
+		TokenURL:               "https://example.com/oauth/token",
+		Scopes: map[string]string{
+			"device": "Device access",
+		},
+	}
+
+	flow := NewDeviceAuthorizationOAuthFlow(options)
+
+	if flow.DeviceAuthorizationURL != "https://example.com/oauth/device_authorize" {
+		t.Errorf("Expected DeviceAuthorizationURL, got %q", flow.DeviceAuthorizationURL)
+	}
+	if flow.TokenURL != "https://example.com/oauth/token" {
+		t.Errorf("Expected TokenURL, got %q", flow.TokenURL)
+	}
+	if len(flow.Scopes) != 1 {
+		t.Errorf("Expected 1 scope, got %d", len(flow.Scopes))
+	}
+}
+
+func TestSecurityScheme_Interfaces(t *testing.T) {
+	// Test that all security scheme types implement SecurityScheme interface
+	schemes := []SecurityScheme{
+		NewHTTPBearerSecurityScheme(nil),
+		NewHTTPBasicSecurityScheme(nil),
+		NewHTTPDigestSecurityScheme(nil),
+		NewAPIKeySecurityScheme(&APIKeySecuritySchemeOptions{Name: "key", In: "header"}),
+		NewMutualTLSSecurityScheme(nil),
+		NewOpenIdConnectSecurityScheme(&OpenIdConnectSecuritySchemeOptions{
+			OpenIdConnectURL: "https://example.com/.well-known/openid-configuration",
+		}),
+		NewOAuth2SecurityScheme(&OAuth2SecuritySchemeOptions{
+			Flows: []OAuthFlow{
+				NewImplicitOAuthFlow(&ImplicitOAuthFlowOptions{
+					AuthorizationURL: "https://example.com/oauth/authorize",
+					Scopes:           map[string]string{"read": "Read"},
+				}),
+			},
+		}),
+	}
+
+	for i, scheme := range schemes {
+		if !scheme.isSecurityScheme() {
+			t.Errorf("Security scheme at index %d does not implement interface correctly", i)
+		}
+	}
+}
+
+func TestOAuthFlow_Interfaces(t *testing.T) {
+	// Test that all OAuth flow types implement OAuthFlow interface
+	flows := []OAuthFlow{
+		NewImplicitOAuthFlow(&ImplicitOAuthFlowOptions{
+			AuthorizationURL: "https://example.com/oauth/authorize",
+			Scopes:           map[string]string{"read": "Read"},
+		}),
+		NewClientCredentialsOAuthFlow(&ClientCredentialsOAuthFlowOptions{
+			TokenURL: "https://example.com/oauth/token",
+			Scopes:   map[string]string{"admin": "Admin"},
+		}),
+		NewAuthorizationCodeOAuthFlow(&AuthorizationCodeOAuthFlowOptions{
+			AuthorizationURL: "https://example.com/oauth/authorize",
+			TokenURL:         "https://example.com/oauth/token",
+			Scopes:           map[string]string{"read": "Read"},
+		}),
+		NewDeviceAuthorizationOAuthFlow(&DeviceAuthorizationOAuthFlowOptions{
+			DeviceAuthorizationURL: "https://example.com/oauth/device_authorize",
+			TokenURL:               "https://example.com/oauth/token",
+			Scopes:                 map[string]string{"device": "Device"},
+		}),
+	}
+
+	for i, flow := range flows {
+		if !flow.isOAuthFlow() {
+			t.Errorf("OAuth flow at index %d does not implement interface correctly", i)
+		}
+	}
+}
+
+// =============================================================================
 // PatchJSON Tests
 // =============================================================================
 

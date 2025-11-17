@@ -326,6 +326,284 @@ If you prefer other API documentation tools, you can use them with the JSON spec
 </html>
 ```
 
+## Security Schemes
+
+WebFram supports all OpenAPI 3.2.0 security scheme types. Define security schemes in your configuration, then reference them in your route documentation.
+
+### Configuring Security Schemes
+
+Add security schemes to your OpenAPI configuration:
+
+```go
+func getOpenAPIConfig() *app.OpenAPIConfig {
+    return &app.OpenAPIConfig{
+        Info: &app.Info{
+            Title:   "Secure API",
+            Version: "1.0.0",
+        },
+        Components: &app.Components{
+            SecuritySchemes: map[string]app.SecurityScheme{
+                "BasicAuth": app.NewHTTPBasicSecurityScheme(&app.HTTPBasicSecuritySchemeOptions{
+                    Description: "HTTP Basic Authentication",
+                }),
+                "BearerAuth": app.NewHTTPBearerSecurityScheme(&app.HTTPBearerSecuritySchemeOptions{
+                    Description:  "JWT Bearer Token",
+                    BearerFormat: "JWT",
+                }),
+                "ApiKeyAuth": app.NewAPIKeySecurityScheme(&app.APIKeySecuritySchemeOptions{
+                    Name:        "X-API-Key",
+                    In:          "header",
+                    Description: "API Key in header",
+                }),
+                "OAuth2Auth": app.NewOAuth2SecurityScheme(&app.OAuth2SecuritySchemeOptions{
+                    Description: "OAuth 2.0 Authentication",
+                    Flows: []app.OAuthFlow{
+                        app.NewAuthorizationCodeOAuthFlow(&app.AuthorizationCodeOAuthFlowOptions{
+                            AuthorizationURL: "https://example.com/oauth/authorize",
+                            TokenURL:         "https://example.com/oauth/token",
+                            Scopes: map[string]string{
+                                "read":  "Read access",
+                                "write": "Write access",
+                            },
+                        }),
+                    },
+                }),
+            },
+        },
+    }
+}
+```
+
+### HTTP Authentication Schemes
+
+#### Basic Authentication
+
+```go
+"BasicAuth": app.NewHTTPBasicSecurityScheme(&app.HTTPBasicSecuritySchemeOptions{
+    Description: "HTTP Basic Authentication using username and password",
+})
+```
+
+#### Digest Authentication
+
+```go
+"DigestAuth": app.NewHTTPDigestSecurityScheme(&app.HTTPDigestSecuritySchemeOptions{
+    Description: "HTTP Digest Authentication",
+})
+```
+
+#### Bearer Token (JWT)
+
+```go
+"BearerAuth": app.NewHTTPBearerSecurityScheme(&app.HTTPBearerSecuritySchemeOptions{
+    Description:  "JWT Bearer Token Authentication",
+    BearerFormat: "JWT",
+    Extensions: map[string]interface{}{
+        "x-example": "Bearer eyJhbGciOiJIUzI1NiIs...",
+    },
+})
+```
+
+### API Key Authentication
+
+API keys can be sent in headers, query parameters, or cookies:
+
+```go
+// Header-based API Key
+"ApiKeyAuth": app.NewAPIKeySecurityScheme(&app.APIKeySecuritySchemeOptions{
+    Name:        "X-API-Key",
+    In:          "header",
+    Description: "API Key in custom header",
+})
+
+// Query parameter API Key
+"ApiKeyQuery": app.NewAPIKeySecurityScheme(&app.APIKeySecuritySchemeOptions{
+    Name:        "api_key",
+    In:          "query",
+    Description: "API Key in query parameter",
+})
+
+// Cookie-based API Key
+"ApiKeyCookie": app.NewAPIKeySecurityScheme(&app.APIKeySecuritySchemeOptions{
+    Name:        "session",
+    In:          "cookie",
+    Description: "Session cookie",
+})
+```
+
+### OAuth 2.0 Flows
+
+WebFram supports all OAuth 2.0 flows:
+
+#### Authorization Code Flow
+
+```go
+app.NewOAuth2SecurityScheme(&app.OAuth2SecuritySchemeOptions{
+    Description: "OAuth 2.0 Authorization Code Flow",
+    Flows: []app.OAuthFlow{
+        app.NewAuthorizationCodeOAuthFlow(&app.AuthorizationCodeOAuthFlowOptions{
+            AuthorizationURL: "https://example.com/oauth/authorize",
+            TokenURL:         "https://example.com/oauth/token",
+            RefreshURL:       "https://example.com/oauth/refresh",
+            Scopes: map[string]string{
+                "read":  "Read access to protected resources",
+                "write": "Write access to protected resources",
+                "admin": "Admin access",
+            },
+        }),
+    },
+})
+```
+
+#### Implicit Flow
+
+```go
+app.NewImplicitOAuthFlow(&app.ImplicitOAuthFlowOptions{
+    AuthorizationURL: "https://example.com/oauth/authorize",
+    Scopes: map[string]string{
+        "public": "Public access",
+    },
+})
+```
+
+#### Client Credentials Flow
+
+```go
+app.NewClientCredentialsOAuthFlow(&app.ClientCredentialsOAuthFlowOptions{
+    TokenURL: "https://example.com/oauth/token",
+    Scopes: map[string]string{
+        "machine": "Machine-to-machine access",
+    },
+})
+```
+
+#### Device Authorization Flow
+
+```go
+app.NewDeviceAuthorizationOAuthFlow(&app.DeviceAuthorizationOAuthFlowOptions{
+    DeviceAuthorizationURL: "https://example.com/oauth/device_authorize",
+    TokenURL:               "https://example.com/oauth/token",
+    Scopes: map[string]string{
+        "device": "Device access",
+    },
+})
+```
+
+#### Multiple OAuth Flows
+
+You can configure multiple OAuth flows for the same security scheme:
+
+```go
+"OAuth2Auth": app.NewOAuth2SecurityScheme(&app.OAuth2SecuritySchemeOptions{
+    Description: "OAuth 2.0 with multiple flows",
+    Flows: []app.OAuthFlow{
+        app.NewAuthorizationCodeOAuthFlow(&app.AuthorizationCodeOAuthFlowOptions{
+            AuthorizationURL: "https://example.com/oauth/authorize",
+            TokenURL:         "https://example.com/oauth/token",
+            Scopes: map[string]string{
+                "read":  "Read access",
+                "write": "Write access",
+            },
+        }),
+        app.NewClientCredentialsOAuthFlow(&app.ClientCredentialsOAuthFlowOptions{
+            TokenURL: "https://example.com/oauth/token",
+            Scopes: map[string]string{
+                "admin": "Admin access",
+            },
+        }),
+        app.NewImplicitOAuthFlow(&app.ImplicitOAuthFlowOptions{
+            AuthorizationURL: "https://example.com/oauth/authorize",
+            Scopes: map[string]string{
+                "public": "Public access",
+            },
+        }),
+    },
+})
+```
+
+### OpenID Connect
+
+```go
+"OpenIDConnect": app.NewOpenIdConnectSecurityScheme(&app.OpenIdConnectSecuritySchemeOptions{
+    OpenIdConnectURL: "https://example.com/.well-known/openid-configuration",
+    Description:      "OpenID Connect Authentication",
+})
+```
+
+### Mutual TLS (mTLS)
+
+```go
+"MutualTLS": app.NewMutualTLSSecurityScheme(&app.MutualTLSSecuritySchemeOptions{
+    Description: "Mutual TLS client certificate authentication",
+})
+```
+
+### Deprecated Security Schemes
+
+Mark security schemes as deprecated when transitioning to newer auth methods:
+
+```go
+"OldApiKey": app.NewAPIKeySecurityScheme(&app.APIKeySecuritySchemeOptions{
+    Name:        "X-Old-API-Key",
+    In:          "header",
+    Description: "Deprecated API Key (use BearerAuth instead)",
+    Deprecated:  true,
+})
+```
+
+### Complete Security Example
+
+```go
+app.Configure(&app.Config{
+    OpenAPI: &app.OpenAPI{
+        Enabled: true,
+        Config: &app.OpenAPIConfig{
+            Info: &app.Info{
+                Title:   "Secure API",
+                Version: "2.0.0",
+            },
+            Components: &app.Components{
+                SecuritySchemes: map[string]app.SecurityScheme{
+                    "BasicAuth": app.NewHTTPBasicSecurityScheme(&app.HTTPBasicSecuritySchemeOptions{
+                        Description: "Basic Authentication for development",
+                    }),
+                    "BearerAuth": app.NewHTTPBearerSecurityScheme(&app.HTTPBearerSecuritySchemeOptions{
+                        Description:  "JWT Bearer Token (production)",
+                        BearerFormat: "JWT",
+                    }),
+                    "ApiKeyAuth": app.NewAPIKeySecurityScheme(&app.APIKeySecuritySchemeOptions{
+                        Name:        "X-API-Key",
+                        In:          "header",
+                        Description: "API Key for external integrations",
+                    }),
+                    "OAuth2Auth": app.NewOAuth2SecurityScheme(&app.OAuth2SecuritySchemeOptions{
+                        Description: "OAuth 2.0 for third-party applications",
+                        Flows: []app.OAuthFlow{
+                            app.NewAuthorizationCodeOAuthFlow(&app.AuthorizationCodeOAuthFlowOptions{
+                                AuthorizationURL: "https://api.example.com/oauth/authorize",
+                                TokenURL:         "https://api.example.com/oauth/token",
+                                Scopes: map[string]string{
+                                    "users:read":  "Read user information",
+                                    "users:write": "Modify user information",
+                                },
+                            }),
+                        },
+                    }),
+                    "OpenIDConnect": app.NewOpenIdConnectSecurityScheme(&app.OpenIdConnectSecuritySchemeOptions{
+                        OpenIdConnectURL: "https://accounts.example.com/.well-known/openid-configuration",
+                        Description:      "OpenID Connect for SSO",
+                    }),
+                },
+            },
+            Tags: []app.Tag{
+                {Name: "Users", Description: "User management operations"},
+                {Name: "Admin", Description: "Administrative operations"},
+            },
+        },
+    },
+})
+```
+
 ## Best Practices
 
 1. **Use meaningful operation IDs** - Helps with code generation
@@ -334,7 +612,9 @@ If you prefer other API documentation tools, you can use them with the JSON spec
 4. **Use tags** - Organize endpoints logically
 5. **Version your API** - Include version in info
 6. **Add descriptions** - Explain complex endpoints
-7. **Security schemes** - Document authentication requirements
+7. **Security schemes** - Document authentication requirements and choose appropriate security schemes
+8. **OAuth scopes** - Clearly describe what each scope allows
+9. **Deprecation** - Mark old security schemes as deprecated when migrating
 
 ## See Also
 

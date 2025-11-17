@@ -721,16 +721,20 @@ func TestSetupOpenAPIEndpoint_HTMLUIGenerated(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if !strings.Contains(body, "Scalar API Reference") {
-		t.Error("Expected HTML to contain 'Scalar API Reference'")
+	if !strings.Contains(body, "Elements in HTML") {
+		t.Error("Expected HTML to contain 'Elements in HTML'")
 	}
 
 	if !strings.Contains(body, "/openapi.json") {
 		t.Error("Expected HTML to reference the OpenAPI JSON endpoint")
 	}
 
-	if !strings.Contains(body, "Scalar.createApiReference") {
-		t.Error("Expected HTML to contain Scalar API reference initialization")
+	if !strings.Contains(body, "elements-api") {
+		t.Error("Expected HTML to contain elements-api web component")
+	}
+
+	if !strings.Contains(body, "@stoplight/elements") {
+		t.Error("Expected HTML to load Stoplight Elements library")
 	}
 }
 

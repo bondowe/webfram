@@ -366,6 +366,18 @@ func validateField(field *reflect.StructField, value string, kind reflect.Kind) 
 			msg := getErrorMessage(field, "required", "is required")
 			return &ValidationError{Field: field.Name, Error: msg}
 
+		case strings.HasPrefix(rule, ruleEquals+"=") && IsIntType(kind):
+			expected, _ := strconv.Atoi(strings.TrimPrefix(rule, ruleEquals+"="))
+			val, err := strconv.Atoi(value)
+			if err != nil || val != expected {
+				msg := getErrorMessage(
+					field,
+					ruleEquals,
+					fmt.Sprintf("must be equal to %d", expected),
+				)
+				return &ValidationError{Field: field.Name, Error: msg}
+			}
+
 		case strings.HasPrefix(rule, "min=") && IsIntType(kind):
 			minVal, _ := strconv.Atoi(strings.TrimPrefix(rule, "min="))
 			val, err := strconv.Atoi(value)
@@ -379,6 +391,18 @@ func validateField(field *reflect.StructField, value string, kind reflect.Kind) 
 			val, err := strconv.Atoi(value)
 			if err != nil || val > maxVal {
 				msg := getErrorMessage(field, "max", fmt.Sprintf("must be at most %d", maxVal))
+				return &ValidationError{Field: field.Name, Error: msg}
+			}
+
+		case strings.HasPrefix(rule, ruleEquals+"=") && IsFloatType(kind):
+			expected, _ := strconv.ParseFloat(strings.TrimPrefix(rule, ruleEquals+"="), 64)
+			val, err := strconv.ParseFloat(value, 64)
+			if err != nil || val != expected {
+				msg := getErrorMessage(
+					field,
+					ruleEquals,
+					fmt.Sprintf("must be equal to %f", expected),
+				)
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
@@ -423,6 +447,17 @@ func validateField(field *reflect.StructField, value string, kind reflect.Kind) 
 				return &ValidationError{Field: field.Name, Error: msg}
 			}
 
+		case strings.HasPrefix(rule, ruleEquals+"=") && kind == reflect.String:
+			expected := strings.TrimPrefix(rule, ruleEquals+"=")
+			if value != expected {
+				msg := getErrorMessage(
+					field,
+					ruleEquals,
+					fmt.Sprintf("must be equal to '%s'", expected),
+				)
+				return &ValidationError{Field: field.Name, Error: msg}
+			}
+
 		case strings.HasPrefix(rule, "minlength=") && kind == reflect.String:
 			minLen, _ := strconv.Atoi(strings.TrimPrefix(rule, "minlength="))
 			if len(value) < minLen {
@@ -455,7 +490,13 @@ func validateField(field *reflect.StructField, value string, kind reflect.Kind) 
 
 		case strings.HasPrefix(rule, "format=") && kind == reflect.String:
 			format := strings.TrimPrefix(rule, "format=")
-			if format == "email" {
+			switch format {
+			case formatURL:
+				if !urlRegex.MatchString(value) {
+					msg := getErrorMessage(field, ruleFormat, "is not a valid URL")
+					return &ValidationError{Field: field.Name, Error: msg}
+				}
+			case formatEmail:
 				matched := idnEmailRegex.MatchString(value)
 				if !matched {
 					msg := getErrorMessage(field, "format", "is not a valid email address")

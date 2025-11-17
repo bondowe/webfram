@@ -400,3 +400,176 @@ func TestGetErrorMessage(t *testing.T) {
 		t.Errorf("expected 'default message', got '%s'", msg)
 	}
 }
+
+// TestEqualsValidation_String tests equals validation for string fields.
+func TestEqualsValidation_String(t *testing.T) {
+	type StringStruct struct {
+		Status string `json:"status" validate:"equals=active" errmsg:"equals=Status must be active"`
+	}
+
+	// Valid case
+	valid := StringStruct{Status: "active"}
+	errs := runValidate(valid)
+	if len(errs) > 0 {
+		t.Errorf("expected no errors for valid equals string, got: %+v", errs)
+	}
+
+	// Invalid case
+	invalid := StringStruct{Status: "inactive"}
+	errs = runValidate(invalid)
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error, got %d: %+v", len(errs), errs)
+	}
+	if e := findByField(errs, "status"); e == nil {
+		t.Error("expected error for status field")
+	} else if e.Error != "Status must be active" {
+		t.Errorf("unexpected error message: %s", e.Error)
+	}
+}
+
+// TestEqualsValidation_Int tests equals validation for integer fields.
+func TestEqualsValidation_Int(t *testing.T) {
+	type IntStruct struct {
+		Count int `json:"count" validate:"equals=42" errmsg:"equals=Count must be 42"`
+	}
+
+	// Valid case
+	valid := IntStruct{Count: 42}
+	errs := runValidate(valid)
+	if len(errs) > 0 {
+		t.Errorf("expected no errors for valid equals int, got: %+v", errs)
+	}
+
+	// Invalid case
+	invalid := IntStruct{Count: 41}
+	errs = runValidate(invalid)
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error, got %d: %+v", len(errs), errs)
+	}
+	if e := findByField(errs, "count"); e == nil {
+		t.Error("expected error for count field")
+	} else if e.Error != "Count must be 42" {
+		t.Errorf("unexpected error message: %s", e.Error)
+	}
+}
+
+// TestEqualsValidation_Float tests equals validation for float fields.
+func TestEqualsValidation_Float(t *testing.T) {
+	type FloatStruct struct {
+		Price float64 `json:"price" validate:"equals=19.99" errmsg:"equals=Price must be 19.99"`
+	}
+
+	// Valid case
+	valid := FloatStruct{Price: 19.99}
+	errs := runValidate(valid)
+	if len(errs) > 0 {
+		t.Errorf("expected no errors for valid equals float, got: %+v", errs)
+	}
+
+	// Invalid case
+	invalid := FloatStruct{Price: 20.00}
+	errs = runValidate(invalid)
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error, got %d: %+v", len(errs), errs)
+	}
+	if e := findByField(errs, "price"); e == nil {
+		t.Error("expected error for price field")
+	} else if e.Error != "Price must be 19.99" {
+		t.Errorf("unexpected error message: %s", e.Error)
+	}
+}
+
+// TestURLFormatValidation tests URL format validation.
+func TestURLFormatValidation(t *testing.T) {
+	type URLStruct struct {
+		Website string `json:"website" validate:"format=url" errmsg:"format=Invalid URL"`
+	}
+
+	tests := []struct {
+		name      string
+		url       string
+		expectErr bool
+	}{
+		{"valid_http", "http://example.com", false},
+		{"valid_https", "https://example.com", false},
+		{"valid_with_path", "https://example.com/path/to/page", false},
+		{"valid_with_query", "https://example.com?query=param", false},
+		{"valid_with_port", "https://example.com:8080", false},
+		{"invalid_no_protocol", "example.com", true},
+		{"invalid_ftp", "ftp://example.com", true},
+		{"invalid_empty", "", true},
+		{"invalid_malformed", "not a url", true},
+		{"invalid_spaces", "http://exa mple.com", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := URLStruct{Website: tt.url}
+			errs := runValidate(s)
+
+			if tt.expectErr && len(errs) == 0 {
+				t.Errorf("expected validation error for %q but got none", tt.url)
+			}
+			if !tt.expectErr && len(errs) > 0 {
+				t.Errorf("expected no errors for %q, got: %+v", tt.url, errs)
+			}
+			if tt.expectErr && len(errs) > 0 {
+				if e := findByField(errs, "website"); e == nil {
+					t.Error("expected error for website field")
+				} else if e.Error != "Invalid URL" {
+					t.Errorf("unexpected error message: %s", e.Error)
+				}
+			}
+		})
+	}
+}
+
+// TestEqualsValidation_WithOtherRules tests equals combined with other validation rules.
+func TestEqualsValidation_WithOtherRules(t *testing.T) {
+	type CombinedStruct struct {
+		Code string `json:"code" validate:"required,equals=VALID" errmsg:"required=Code required;equals=Must be VALID"`
+	}
+
+	// Missing required field (will also fail equals check since "" != "VALID")
+	empty := CombinedStruct{Code: ""}
+	errs := runValidate(empty)
+	if len(errs) != 2 {
+		t.Fatalf("expected 2 errors for empty required field (required + equals), got %d: %+v", len(errs), errs)
+	}
+	// Verify both errors are present
+	hasRequired := false
+	hasEquals := false
+	for _, err := range errs {
+		if err.Error == "Code required" {
+			hasRequired = true
+		}
+		if err.Error == "Must be VALID" {
+			hasEquals = true
+		}
+	}
+	if !hasRequired {
+		t.Error("expected 'Code required' error")
+	}
+	if !hasEquals {
+		t.Error("expected 'Must be VALID' error")
+	}
+
+	// Wrong value
+	wrong := CombinedStruct{Code: "INVALID"}
+	errs = runValidate(wrong)
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error for wrong equals value, got %d: %+v", len(errs), errs)
+	}
+	if e := findByField(errs, "code"); e == nil {
+		t.Error("expected error for code field")
+	} else if e.Error != "Must be VALID" {
+		t.Errorf("unexpected error message: %s", e.Error)
+	}
+
+	// Valid value
+	valid := CombinedStruct{Code: "VALID"}
+	errs = runValidate(valid)
+	if len(errs) > 0 {
+		t.Errorf("expected no errors for valid combined validation, got: %+v", errs)
+	}
+}

@@ -1,19 +1,19 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
-    <title>Scalar API Reference</title>
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Elements in HTML</title>
+  
+    <script src="https://unpkg.com/@stoplight/elements/web-components.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@stoplight/elements/styles.min.css">
   </head>
   <body>
-    <div id="app"></div>
-    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
-    <script>
-      Scalar.createApiReference('#app', {
-        url: '{{.OpenAPIDocumentPath}}',
-      })
-    </script>
+
+    <elements-api
+      apiDescriptionUrl="{{.OpenAPIDocumentPath}}"
+      router="hash"
+    />
+
   </body>
 </html>

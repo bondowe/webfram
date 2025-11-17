@@ -254,6 +254,260 @@ type (
 		URL string
 	}
 
+	securityScheme struct {
+		// Type of the security scheme.
+		// Type must be one of "apiKey", "http", "oauth2", "openIdConnect", or "mutualTLS".
+		Type string `validate:"required, enum=apiKey|http|oauth2|openIdConnect|mutualTLS"`
+		// Description provides a description of the security scheme.
+		Description string
+		// Extensions are custom extensions for the security scheme.
+		Extensions map[string]interface{}
+		//nolint:gocritic // this is a field comment, not a deprecation notice
+		// Deprecated indicates whether the security scheme is deprecated.
+		Deprecated bool
+	}
+
+	httpBearerSecurityScheme struct {
+		securityScheme
+
+		// Scheme must be "" or "bearer"
+		Scheme string `validate:"required, enum=|bearer"`
+		// BearerFormat is an optional hint to the client to identify how the bearer token is formatted.
+		// e.g., "JWT"
+		BearerFormat string
+	}
+
+	HTTPBearerSecuritySchemeOptions struct {
+		// Description provides a description of the HTTP Bearer security scheme.
+		Description string
+		// BearerFormat is an optional hint to the client to identify how the bearer token is formatted.
+		// e.g., "JWT"
+		BearerFormat string
+		// Extensions are custom extensions for the HTTP Bearer security scheme.
+		Extensions map[string]interface{}
+		//nolint:gocritic // this is a field comment, not a deprecation notice
+		// Deprecated indicates whether the HTTP Bearer security scheme is deprecated.
+		Deprecated bool
+	}
+
+	httpBasicSecurityScheme struct {
+		securityScheme
+
+		// Scheme must be "" or "basic"
+		Scheme string `validate:"required, enum=|basic"`
+	}
+
+	HTTPBasicSecuritySchemeOptions struct {
+		// Description provides a description of the HTTP Basic security scheme.
+		Description string
+		// Extensions are custom extensions for the HTTP Basic security scheme.
+		Extensions map[string]interface{}
+		//nolint:gocritic // this is a field comment, not a deprecation notice
+		// Deprecated indicates whether the HTTP Basic security scheme is deprecated.
+		Deprecated bool
+	}
+
+	httpDigestSecurityScheme struct {
+		securityScheme
+
+		// Scheme must be "" or "digest"
+		Scheme string `validate:"required, enum=|digest"`
+	}
+
+	HTTPDigestSecuritySchemeOptions struct {
+		// Description provides a description of the HTTP Digest security scheme.
+		Description string
+		// Extensions are custom extensions for the HTTP Digest security scheme.
+		Extensions map[string]interface{}
+		//nolint:gocritic // this is a field comment, not a deprecation notice
+		// Deprecated indicates whether the HTTP Digest security scheme is deprecated.
+		Deprecated bool
+	}
+
+	apiKeySecurityScheme struct {
+		securityScheme
+
+		// Name of the header, query, or cookie parameter to be used.
+		Name string `validate:"required"`
+		// In specifies the location of the API key.
+		// Must be one of "query", "header", or "cookie".
+		In string `validate:"required, enum=query|header|cookie"`
+	}
+
+	APIKeySecuritySchemeOptions struct {
+		// Name of the header, query, or cookie parameter to be used.
+		Name string
+		// Description provides a description of the API Key security scheme.
+		Description string
+		// In specifies the location of the API key.
+		In string
+		// Extensions are custom extensions for the API Key security scheme.
+		Extensions map[string]interface{}
+		//nolint:gocritic // this is a field comment, not a deprecation notice
+		// Deprecated indicates whether the API Key security scheme is deprecated.
+		Deprecated bool
+	}
+
+	mutualTLSSecurityScheme struct {
+		securityScheme
+	}
+
+	MutualTLSSecuritySchemeOptions struct {
+		// Description provides a description of the Mutual TLS security scheme.
+		Description string
+		// Extensions are custom extensions for the Mutual TLS security scheme.
+		Extensions map[string]interface{}
+		//nolint:gocritic // this is a field comment, not a deprecation notice
+		// Deprecated indicates whether the Mutual TLS security scheme is deprecated.
+		Deprecated bool
+	}
+
+	//nolint:revive,staticcheck // OpenId naming follows OpenAPI specification convention
+	openIdConnectSecurityScheme struct {
+		securityScheme
+
+		//nolint:revive,staticcheck // OpenId naming follows OpenAPI specification convention
+		// OpenIdConnectURL is the OpenID Connect URL to discover OAuth2 configuration values.
+		OpenIdConnectURL string `validate:"required,format=url"`
+	}
+
+	//nolint:revive,staticcheck // OpenId naming follows OpenAPI specification convention
+	OpenIdConnectSecuritySchemeOptions struct {
+		//nolint:revive,staticcheck // OpenId naming follows OpenAPI specification convention
+		// OpenIdConnectURL is the OpenID Connect URL to discover OAuth2 configuration values.
+		OpenIdConnectURL string
+		// Description provides a description of the OpenID Connect security scheme.
+		Description string
+		// Extensions are custom extensions for the OpenID Connect security scheme.
+		Extensions map[string]interface{}
+		//nolint:gocritic // this is a field comment, not a deprecation notice
+		// Deprecated indicates whether the OpenID Connect security scheme is deprecated.
+		Deprecated bool
+	}
+
+	oAuth2SecurityScheme struct {
+		securityScheme
+
+		// Flows is a map of OAuth2 flows.
+		Flows []OAuthFlow `validate:"required"`
+		// MetadataURL is the URL to obtain OAuth2 metadata.
+		MetadataURL string `validate:"format=url"`
+	}
+
+	OAuth2SecuritySchemeOptions struct {
+		// Flows is a map of OAuth2 flows.
+		Flows []OAuthFlow
+		// Description provides a description of the OAuth2 security scheme.
+		Description string
+		// Extensions are custom extensions for the OAuth2 security scheme.
+		Extensions map[string]interface{}
+		//nolint:gocritic // this is a field comment, not a deprecation notice
+		// Deprecated indicates whether the OAuth2 security scheme is deprecated.
+		Deprecated bool
+	}
+
+	oAuthFlow struct {
+		// Scopes is a map of scope names to descriptions.
+		Scopes map[string]string `validate:"required"`
+		// RefreshURL is the URL to obtain authorization.
+		RefreshURL string `validate:"format=url"`
+		// Allows extensions to the OpenAPI Schema.
+		Extensions map[string]interface{}
+	}
+
+	implicitOAuthFlow struct {
+		oAuthFlow
+
+		// AuthorizationURL is the URL to obtain authorization.
+		AuthorizationURL string `validate:"required,format=url"`
+	}
+
+	ImplicitOAuthFlowOptions struct {
+		// AuthorizationURL is the URL to obtain authorization.
+		AuthorizationURL string
+		// Scopes is a map of scope names to descriptions.
+		Scopes map[string]string
+		// RefreshURL is the URL to obtain authorization.
+		RefreshURL string
+		// Extensions are custom extensions for the Implicit OAuth2 flow.
+		Extensions map[string]interface{}
+	}
+
+	clientCredentialsOAuthFlow struct {
+		oAuthFlow
+
+		// TokenURL is the URL to obtain tokens.
+		TokenURL string `validate:"required,format=url"`
+	}
+
+	ClientCredentialsOAuthFlowOptions struct {
+		// TokenURL is the URL to obtain tokens.
+		TokenURL string
+		// Scopes is a map of scope names to descriptions.
+		Scopes map[string]string
+		// RefreshURL is the URL to obtain authorization.
+		RefreshURL string
+		// Extensions are custom extensions for the Client Credentials OAuth2 flow.
+		Extensions map[string]interface{}
+	}
+
+	authorizationCodeOAuthFlow struct {
+		oAuthFlow
+
+		// AuthorizationURL is the URL to obtain authorization.
+		AuthorizationURL string `validate:"required,format=url"`
+		// TokenURL is the URL to obtain tokens.
+		TokenURL string `validate:"required,format=url"`
+	}
+
+	AuthorizationCodeOAuthFlowOptions struct {
+		// AuthorizationURL is the URL to obtain authorization.
+		AuthorizationURL string
+		// TokenURL is the URL to obtain tokens.
+		TokenURL string
+		// Scopes is a map of scope names to descriptions.
+		Scopes map[string]string
+		// RefreshURL is the URL to obtain authorization.
+		RefreshURL string
+		// Extensions are custom extensions for the Authorization Code OAuth2 flow.
+		Extensions map[string]interface{}
+	}
+
+	deviceAuthorizationOAuthFlow struct {
+		oAuthFlow
+
+		// DeviceAuthorizationURL is the URL to obtain device codes.
+		DeviceAuthorizationURL string `validate:"required,format=url"`
+		// TokenURL is the URL to obtain tokens.
+		TokenURL string `validate:"required,format=url"`
+	}
+
+	DeviceAuthorizationOAuthFlowOptions struct {
+		// DeviceAuthorizationURL is the URL to obtain device codes.
+		DeviceAuthorizationURL string
+		// TokenURL is the URL to obtain tokens.
+		TokenURL string
+		// Scopes is a map of scope names to descriptions.
+		Scopes map[string]string
+		// RefreshURL is the URL to obtain authorization.
+		RefreshURL string
+		// Extensions are custom extensions for the Device Authorization OAuth2 flow.
+		Extensions map[string]interface{}
+	}
+
+	SecurityScheme interface {
+		isSecurityScheme() bool
+	}
+
+	OAuthFlow interface {
+		isOAuthFlow() bool
+	}
+
+	Components struct {
+		// SecuritySchemes is a map of security scheme names to definitions.
+		SecuritySchemes map[string]SecurityScheme
+	}
+
 	// OpenAPIConfig represents the OpenAPI configuration.
 	OpenAPIConfig struct {
 		Info *Info
@@ -263,6 +517,8 @@ type (
 		Tags []Tag
 		// ExternalDocs provides external documentation for the OpenAPI document.
 		ExternalDocs *ExternalDocs
+		// Components holds various schema components.
+		Components *Components
 	}
 
 	// Config represents the framework configuration.
@@ -306,6 +562,243 @@ var (
 	// ErrMethodNotAllowed is returned when an HTTP method is not allowed for a route.
 	ErrMethodNotAllowed = errors.New("method not allowed")
 )
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ httpBearerSecurityScheme) isSecurityScheme() bool {
+	return true
+}
+
+//nolint:revive,funcorder // intentional design choices
+func NewHTTPBearerSecurityScheme(options *HTTPBearerSecuritySchemeOptions) *httpBearerSecurityScheme {
+	ss := &httpBearerSecurityScheme{}
+
+	ss.Type = "http"     //nolint:goconst // string literal is clear in context
+	ss.Scheme = "bearer" //nolint:goconst // string literal is clear in context
+
+	if options != nil {
+		ss.Description = options.Description
+		ss.BearerFormat = options.BearerFormat
+		ss.Extensions = options.Extensions
+		ss.Deprecated = options.Deprecated
+	}
+	return ss
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ httpBasicSecurityScheme) isSecurityScheme() bool {
+	return true
+}
+
+//nolint:revive,funcorder // intentional design choices
+func NewHTTPBasicSecurityScheme(options *HTTPBasicSecuritySchemeOptions) *httpBasicSecurityScheme {
+	ss := &httpBasicSecurityScheme{}
+
+	ss.Type = "http"
+	ss.Scheme = "basic" //nolint:goconst
+
+	if options != nil {
+		ss.Description = options.Description
+		ss.Extensions = options.Extensions
+		ss.Deprecated = options.Deprecated
+	}
+	return ss
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ httpDigestSecurityScheme) isSecurityScheme() bool {
+	return true
+}
+
+//nolint:revive,funcorder // intentional design choices
+func NewHTTPDigestSecurityScheme(options *HTTPDigestSecuritySchemeOptions) *httpDigestSecurityScheme {
+	ss := &httpDigestSecurityScheme{}
+
+	ss.Type = "http"
+	ss.Scheme = "digest" //nolint:goconst
+
+	if options != nil {
+		ss.Description = options.Description
+		ss.Extensions = options.Extensions
+		ss.Deprecated = options.Deprecated
+	}
+	return ss
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ apiKeySecurityScheme) isSecurityScheme() bool {
+	return true
+}
+
+//nolint:revive,funcorder // intentional design choices
+func NewAPIKeySecurityScheme(options *APIKeySecuritySchemeOptions) *apiKeySecurityScheme {
+	ss := &apiKeySecurityScheme{}
+
+	ss.Type = "apiKey" //nolint:goconst // string literal is clear in context
+
+	if options != nil {
+		ss.Name = options.Name
+		ss.In = options.In
+		ss.Description = options.Description
+		ss.Extensions = options.Extensions
+		ss.Deprecated = options.Deprecated
+	}
+	return ss
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ mutualTLSSecurityScheme) isSecurityScheme() bool {
+	return true
+}
+
+//nolint:revive,funcorder // intentional design choices
+func NewMutualTLSSecurityScheme(options *MutualTLSSecuritySchemeOptions) *mutualTLSSecurityScheme {
+	ss := &mutualTLSSecurityScheme{}
+
+	ss.Type = "mutualTLS" //nolint:goconst // string literal is clear in context
+
+	if options != nil {
+		ss.Description = options.Description
+		ss.Extensions = options.Extensions
+		ss.Deprecated = options.Deprecated
+	}
+	return ss
+}
+
+//nolint:revive,staticcheck // receiver underscore intentional, OpenId naming per OpenAPI spec
+func (_ openIdConnectSecurityScheme) isSecurityScheme() bool {
+	return true
+}
+
+//nolint:revive,funcorder,staticcheck // intentional design, OpenId naming per spec
+func NewOpenIdConnectSecurityScheme(options *OpenIdConnectSecuritySchemeOptions) *openIdConnectSecurityScheme {
+	ss := &openIdConnectSecurityScheme{}
+
+	ss.Type = "openIdConnect" //nolint:goconst // string literal is clear in context
+
+	if options != nil {
+		ss.OpenIdConnectURL = options.OpenIdConnectURL
+		ss.Description = options.Description
+		ss.Extensions = options.Extensions
+		ss.Deprecated = options.Deprecated
+	}
+	return ss
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ oAuth2SecurityScheme) isSecurityScheme() bool {
+	return true
+}
+
+//nolint:revive,funcorder // intentional design choices
+func NewOAuth2SecurityScheme(options *OAuth2SecuritySchemeOptions) *oAuth2SecurityScheme {
+	if options == nil || len(options.Flows) == 0 {
+		panic("OAuth2SecuritySchemeOptions.Flows is required")
+	}
+
+	ss := &oAuth2SecurityScheme{}
+
+	ss.Type = "oauth2" //nolint:goconst // string literal is clear in context
+	ss.Description = options.Description
+	ss.Extensions = options.Extensions
+	ss.Deprecated = options.Deprecated
+	ss.Flows = options.Flows
+
+	return ss
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ implicitOAuthFlow) isSecurityScheme() bool {
+	return true
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ implicitOAuthFlow) isOAuthFlow() bool {
+	return true
+}
+
+//nolint:revive,funcorder // intentional design choices
+func NewImplicitOAuthFlow(options *ImplicitOAuthFlowOptions) *implicitOAuthFlow {
+	flow := &implicitOAuthFlow{}
+
+	if options != nil {
+		flow.AuthorizationURL = options.AuthorizationURL
+		flow.Scopes = options.Scopes
+		flow.RefreshURL = options.RefreshURL
+		flow.Extensions = options.Extensions
+	}
+	return flow
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ clientCredentialsOAuthFlow) isSecurityScheme() bool {
+	return true
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ clientCredentialsOAuthFlow) isOAuthFlow() bool {
+	return true
+}
+
+//nolint:revive,funcorder // intentional design choices
+func NewClientCredentialsOAuthFlow(options *ClientCredentialsOAuthFlowOptions) *clientCredentialsOAuthFlow {
+	flow := &clientCredentialsOAuthFlow{}
+
+	if options != nil {
+		flow.TokenURL = options.TokenURL
+		flow.Scopes = options.Scopes
+		flow.RefreshURL = options.RefreshURL
+		flow.Extensions = options.Extensions
+	}
+	return flow
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ authorizationCodeOAuthFlow) isSecurityScheme() bool {
+	return true
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ authorizationCodeOAuthFlow) isOAuthFlow() bool {
+	return true
+}
+
+//nolint:revive,funcorder // intentional design choices
+func NewAuthorizationCodeOAuthFlow(options *AuthorizationCodeOAuthFlowOptions) *authorizationCodeOAuthFlow {
+	flow := &authorizationCodeOAuthFlow{}
+
+	if options != nil {
+		flow.AuthorizationURL = options.AuthorizationURL
+		flow.TokenURL = options.TokenURL
+		flow.Scopes = options.Scopes
+		flow.RefreshURL = options.RefreshURL
+		flow.Extensions = options.Extensions
+	}
+	return flow
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ deviceAuthorizationOAuthFlow) isSecurityScheme() bool {
+	return true
+}
+
+//nolint:revive,staticcheck // receiver underscore is intentional for interface
+func (_ deviceAuthorizationOAuthFlow) isOAuthFlow() bool {
+	return true
+}
+
+//nolint:revive,funcorder // intentional design choices
+func NewDeviceAuthorizationOAuthFlow(options *DeviceAuthorizationOAuthFlowOptions) *deviceAuthorizationOAuthFlow {
+	flow := &deviceAuthorizationOAuthFlow{}
+
+	if options != nil {
+		flow.DeviceAuthorizationURL = options.DeviceAuthorizationURL
+		flow.TokenURL = options.TokenURL
+		flow.Scopes = options.Scopes
+		flow.RefreshURL = options.RefreshURL
+		flow.Extensions = options.Extensions
+	}
+	return flow
+}
 
 func (w *defaultSSEWriter) Flush() error {
 	return w.rc.Flush()
@@ -461,6 +954,18 @@ func configureOpenAPI(cfg *Config) {
 	if openAPIConfig.Config != nil {
 		openAPIConfig.internalConfig.Servers = mapServers(openAPIConfig.Config.Servers)
 		openAPIConfig.internalConfig.Tags = mapOpenAPITags(openAPIConfig.Config.Tags)
+
+		//nolint:golines // line length is acceptable for readability
+		if openAPIConfig.Config.Components != nil && len(openAPIConfig.Config.Components.SecuritySchemes) > 0 {
+			openAPIConfig.internalConfig.Components.SecuritySchemes = make(map[string]openapi.SecuritySchemeOrRef, len(openAPIConfig.Config.Components.SecuritySchemes))
+
+			for key, scheme := range openAPIConfig.Config.Components.SecuritySchemes {
+				openAPIConfig.internalConfig.Components.SecuritySchemes[key] = openapi.SecuritySchemeOrRef{
+					SecurityScheme: mapSecurityScheme(scheme),
+				}
+			}
+		}
+
 		mapOpenAPIInfo(openAPIConfig.Config)
 		mapOpenAPIExternalDocs(openAPIConfig.Config)
 	}
@@ -470,6 +975,120 @@ func configureOpenAPI(cfg *Config) {
 	} else if openAPIConfig.URLPath[0:4] != "GET " {
 		openAPIConfig.URLPath = "GET " + openAPIConfig.URLPath
 	}
+}
+
+func mapSecurityScheme(scheme SecurityScheme) *openapi.SecurityScheme {
+	switch v := scheme.(type) {
+	case *httpBearerSecurityScheme:
+		return &openapi.SecurityScheme{
+			Type:        v.Type,
+			Description: v.Description,
+			Scheme:      v.Scheme,
+			BearerFormat: func() string {
+				if v.BearerFormat != "" {
+					return v.BearerFormat
+				}
+				return ""
+			}(),
+			Extensions: v.Extensions,
+			Deprecated: v.Deprecated,
+		}
+	case *httpBasicSecurityScheme:
+		return &openapi.SecurityScheme{
+			Type:        v.Type,
+			Description: v.Description,
+			Scheme:      v.Scheme,
+			Extensions:  v.Extensions,
+			Deprecated:  v.Deprecated,
+		}
+	case *httpDigestSecurityScheme:
+		return &openapi.SecurityScheme{
+			Type:        v.Type,
+			Description: v.Description,
+			Scheme:      v.Scheme,
+			Extensions:  v.Extensions,
+			Deprecated:  v.Deprecated,
+		}
+	case *apiKeySecurityScheme:
+		return &openapi.SecurityScheme{
+			Type:        v.Type,
+			Description: v.Description,
+			Name:        v.Name,
+			In:          v.In,
+			Extensions:  v.Extensions,
+			Deprecated:  v.Deprecated,
+		}
+	case *mutualTLSSecurityScheme:
+		return &openapi.SecurityScheme{
+			Type:        v.Type,
+			Description: v.Description,
+			Extensions:  v.Extensions,
+			Deprecated:  v.Deprecated,
+		}
+	case *openIdConnectSecurityScheme:
+		return &openapi.SecurityScheme{
+			Type:             v.Type,
+			Description:      v.Description,
+			OpenIdConnectURL: v.OpenIdConnectURL,
+			Extensions:       v.Extensions,
+			Deprecated:       v.Deprecated,
+		}
+	case *oAuth2SecurityScheme:
+		return &openapi.SecurityScheme{
+			Type:              v.Type,
+			Description:       v.Description,
+			Flows:             mapOAuthFlows(v.Flows),
+			Extensions:        v.Extensions,
+			Deprecated:        v.Deprecated,
+			OAuth2MetadataUrl: v.MetadataURL,
+		}
+	default:
+		return &openapi.SecurityScheme{}
+	}
+}
+
+func mapOAuthFlows(flows []OAuthFlow) *openapi.OAuthFlows {
+	if len(flows) == 0 {
+		return nil
+	}
+
+	mappedFlows := openapi.OAuthFlows{}
+
+	for _, flow := range flows {
+		switch v := flow.(type) {
+		case *implicitOAuthFlow:
+			mappedFlows.Implicit = &openapi.OAuthFlow{
+				AuthorizationURL: v.AuthorizationURL,
+				RefreshURL:       v.RefreshURL,
+				Extensions:       v.Extensions,
+				Scopes:           v.Scopes,
+			}
+		case *clientCredentialsOAuthFlow:
+			mappedFlows.ClientCredentials = &openapi.OAuthFlow{
+				TokenURL:   v.TokenURL,
+				RefreshURL: v.RefreshURL,
+				Extensions: v.Extensions,
+				Scopes:     v.Scopes,
+			}
+		case *authorizationCodeOAuthFlow:
+			mappedFlows.AuthorizationCode = &openapi.OAuthFlow{
+				AuthorizationURL: v.AuthorizationURL,
+				TokenURL:         v.TokenURL,
+				RefreshURL:       v.RefreshURL,
+				Extensions:       v.Extensions,
+				Scopes:           v.Scopes,
+			}
+		case *deviceAuthorizationOAuthFlow:
+			mappedFlows.DeviceAuthorization = &openapi.OAuthFlow{
+				DeviceAuthorizationURL: v.DeviceAuthorizationURL,
+				TokenURL:               v.TokenURL,
+				RefreshURL:             v.RefreshURL,
+				Extensions:             v.Extensions,
+				Scopes:                 v.Scopes,
+			}
+		}
+	}
+	return &mappedFlows
 }
 
 func mapOpenAPIInfo(config *OpenAPIConfig) {
