@@ -95,6 +95,9 @@ func main() {
 		OperationID: "listUsers",
 		Summary:     "List all users",
 		Tags:        []string{"User Service"},
+		Security: []map[string][]string{
+			{"ApiKeyAuth": {}},
+		},
 		Responses: map[string]app.Response{
 			"200": {
 				Description: "List of users",

@@ -43,6 +43,7 @@ type (
 		OperationID string
 		Tags        []string
 		Parameters  []Parameter
+		Security    []map[string][]string
 		RequestBody *RequestBody
 		Responses   map[string]Response
 		Servers     []Server
@@ -232,6 +233,7 @@ func (c *HandlerConfig) WithAPIConfig(apiConfig *APIConfig) {
 		Description: c.APIConfig.Description,
 		OperationID: c.APIConfig.OperationID,
 		Tags:        c.APIConfig.Tags,
+		Security:    c.APIConfig.Security,
 		RequestBody: requestBody,
 		Parameters:  parameters,
 		Servers:     mapServers(c.APIConfig.Servers),
