@@ -107,10 +107,10 @@ With the above configuration:
 
 ## Documenting Routes
 
-Use `WithAPIConfig()` to add OpenAPI documentation:
+Use `WithOperationConfig()` to add OpenAPI documentation:
 
 ```go
-mux.HandleFunc("POST /users", createUserHandler).WithAPIConfig(&app.APIConfig{
+mux.HandleFunc("POST /users", createUserHandler).WithOperationConfig(&app.OperationConfig{
     OperationID: "createUser",
     Summary:     "Create a new user",
     Description: "Creates a new user account with the provided information.",
@@ -216,7 +216,7 @@ type User struct {
 }
 
 // List users
-mux.HandleFunc("GET /users", listUsers).WithAPIConfig(&app.APIConfig{
+mux.HandleFunc("GET /users", listUsers).WithOperationConfig(&app.OperationConfig{
     OperationID: "listUsers",
     Summary:     "List all users",
     Tags:        []string{"Users"},
@@ -231,7 +231,7 @@ mux.HandleFunc("GET /users", listUsers).WithAPIConfig(&app.APIConfig{
 })
 
 // Get single user
-mux.HandleFunc("GET /users/{id}", getUser).WithAPIConfig(&app.APIConfig{
+mux.HandleFunc("GET /users/{id}", getUser).WithOperationConfig(&app.OperationConfig{
     OperationID: "getUser",
     Summary:     "Get user by ID",
     Tags:        []string{"Users"},
@@ -256,7 +256,7 @@ mux.HandleFunc("GET /users/{id}", getUser).WithAPIConfig(&app.APIConfig{
 })
 
 // Create user
-mux.HandleFunc("POST /users", createUser).WithAPIConfig(&app.APIConfig{
+mux.HandleFunc("POST /users", createUser).WithOperationConfig(&app.OperationConfig{
     OperationID: "createUser",
     Summary:     "Create a new user",
     Tags:        []string{"Users"},
@@ -326,9 +326,85 @@ If you prefer other API documentation tools, you can use them with the JSON spec
 </html>
 ```
 
+## Security Requirements
+
+WebFram supports security requirements at both the global API level and individual operation level.
+
+### Global Security Requirements
+
+Define default security requirements that apply to all operations:
+
+```go
+func getOpenAPIConfig() *app.OpenAPIConfig {
+    return &app.OpenAPIConfig{
+        Info: &app.Info{
+            Title:   "Secure API",
+            Version: "1.0.0",
+        },
+        // Global security - applies to all operations by default
+        Security: []map[string][]string{
+            {"BearerAuth": {}}, // All operations require Bearer token
+        },
+        Components: &app.Components{
+            SecuritySchemes: map[string]app.SecurityScheme{
+                "BearerAuth": app.NewHTTPBearerSecurityScheme(&app.HTTPBearerSecuritySchemeOptions{
+                    Description: "JWT Bearer Token",
+                }),
+            },
+        },
+    }
+}
+```
+
+### Operation-Level Security
+
+Override global security requirements for specific operations:
+
+```go
+// Public endpoint - no authentication required
+mux.HandleFunc("GET /health", healthCheck).WithOperationConfig(&app.OperationConfig{
+    OperationID: "healthCheck",
+    Summary:     "Health check endpoint",
+    Security:    []map[string][]string{}, // Empty array = no auth required
+})
+
+// Endpoint requiring multiple auth options (OR)
+mux.HandleFunc("GET /users", listUsers).WithOperationConfig(&app.OperationConfig{
+    OperationID: "listUsers",
+    Summary:     "List users",
+    Security: []map[string][]string{
+        {"BearerAuth": {}},      // Accept Bearer token OR
+        {"ApiKeyAuth": {}},       // Accept API key
+    },
+})
+
+// Endpoint requiring specific OAuth scopes
+mux.HandleFunc("DELETE /users/{id}", deleteUser).WithOperationConfig(&app.OperationConfig{
+    OperationID: "deleteUser",
+    Summary:     "Delete user",
+    Security: []map[string][]string{
+        {"OAuth2Auth": {"users:write", "users:delete"}}, // Requires specific scopes
+    },
+})
+
+// Use global security (omit Security field or set to nil)
+mux.HandleFunc("GET /profile", getProfile).WithOperationConfig(&app.OperationConfig{
+    OperationID: "getProfile",
+    Summary:     "Get user profile",
+    // No Security field = uses global security
+})
+```
+
+#### Security Requirement Behavior
+
+- **`nil` (omitted)**: Operation uses global security requirements
+- **Empty array `[]`**: No authentication required (public endpoint)
+- **Multiple requirements**: Client can satisfy ANY of the requirements (OR logic)
+- **Scopes in requirement**: Client must have ALL specified scopes (AND logic)
+
 ## Security Schemes
 
-WebFram supports all OpenAPI 3.2.0 security scheme types. Define security schemes in your configuration, then reference them in your route documentation.
+WebFram supports all OpenAPI 3.2.0 security scheme types. Define security schemes in your configuration, then reference them in global or operation-level security requirements.
 
 ### Configuring Security Schemes
 
