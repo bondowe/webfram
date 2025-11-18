@@ -387,7 +387,7 @@ mux.HandleFunc("GET /data.xml", getXMLData).WithOperationConfig(&app.OperationCo
 | `application/xml`        | Set to struct/slice type - describes XML structure      |
 | `text/xml`               | Set to struct/slice type - describes XML structure      |
 
-See the [SSE documentation](sse.md) for more details on Server-Sent Events.
+See the [SSE documentation](sse) for more details on Server-Sent Events.
 
 ## Complete Example
 
@@ -897,6 +897,6 @@ app.Configure(&app.Config{
 
 ## See Also
 
-- [Data Binding](data-binding.md)
-- [Routing](routing.md)
-- [Configuration](configuration.md)
+- [Data Binding](data-binding)
+- [Routing](routing)
+- [Configuration](configuration)

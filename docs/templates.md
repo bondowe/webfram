@@ -221,7 +221,7 @@ Go's standard template functions are available:
 ```
 {% endraw %}
 
-See [Internationalization](i18n.md) for details.
+See [Internationalization](i18n) for details.
 
 ## Text Templates
 
@@ -362,6 +362,6 @@ func main() {
 
 ## See Also
 
-- [Internationalization](i18n.md)
-- [Request & Response](request-response.md)
-- [Configuration](configuration.md)
+- [Internationalization](i18n)
+- [Request & Response](request-response)
+- [Configuration](configuration)

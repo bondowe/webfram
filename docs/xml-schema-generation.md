@@ -470,4 +470,4 @@ Comprehensive tests for XML schema generation are available in `internal/bind/sc
 
 - [OpenAPI 3.2.0 XML Object Specification](https://spec.openapis.org/oas/v3.2.0.html#xml-object)
 - [Go xml Package Documentation](https://pkg.go.dev/encoding/xml)
-- [GenerateJSONSchema Documentation](./json-schema-generation.md)
+- [GenerateJSONSchema Documentation](./json-schema-generation)
