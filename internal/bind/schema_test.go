@@ -202,3 +202,99 @@ func TestGenerateJSONSchema_TopLevelSlice(t *testing.T) {
 		t.Fatalf("expected person component to be present in components")
 	}
 }
+
+func TestGenerateJSONSchema_UnsignedIntegers(t *testing.T) {
+	type UintFields struct {
+		DefaultUint uint     `json:"default_uint"`
+		TinyUint    uint8    `json:"tiny_uint"`
+		SmallUint   uint16   `json:"small_uint"`
+		MediumUint  uint32   `json:"medium_uint"`
+		LargeUint   uint64   `json:"large_uint"`
+		UintSlice   []uint   `json:"uint_slice"`
+		Uint8Slice  []uint8  `json:"uint8_slice"`
+		Uint16Slice []uint16 `json:"uint16_slice"`
+		Uint32Slice []uint32 `json:"uint32_slice"`
+		Uint64Slice []uint64 `json:"uint64_slice"`
+	}
+
+	components := &openapi.Components{}
+	var uf UintFields
+
+	schemaOrRef := GenerateJSONSchema(uf, components)
+	if schemaOrRef == nil || schemaOrRef.Ref == "" {
+		t.Fatalf("expected a reference schema for UintFields, got %v", schemaOrRef)
+	}
+
+	// Get the component schema
+	schema, ok := components.Schemas[reflect.TypeOf(uf).String()]
+	if !ok {
+		t.Fatalf("components does not contain schema for UintFields")
+	}
+
+	props := schema.Properties
+
+	// Test individual unsigned integer fields
+	tests := []struct {
+		name           string
+		expectedFormat string
+	}{
+		{"default_uint", "uint64"}, // uint maps to uint64 format
+		{"tiny_uint", "uint8"},
+		{"small_uint", "uint16"},
+		{"medium_uint", "uint32"},
+		{"large_uint", "uint64"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			propSchema := props[tt.name]
+			if propSchema.Schema == nil {
+				t.Fatalf("expected inline schema for %s", tt.name)
+			}
+			if propSchema.Type != "integer" {
+				t.Fatalf("expected type 'integer' for %s, got %s", tt.name, propSchema.Type)
+			}
+			if propSchema.Format != tt.expectedFormat {
+				t.Fatalf("expected format '%s' for %s, got %s", tt.expectedFormat, tt.name, propSchema.Format)
+			}
+		})
+	}
+
+	// Test unsigned integer slice fields
+	sliceTests := []struct {
+		name           string
+		expectedFormat string
+	}{
+		{"uint_slice", "uint64"},
+		{"uint8_slice", "uint8"},
+		{"uint16_slice", "uint16"},
+		{"uint32_slice", "uint32"},
+		{"uint64_slice", "uint64"},
+	}
+
+	for _, tt := range sliceTests {
+		t.Run(tt.name, func(t *testing.T) {
+			propSchema := props[tt.name]
+			if propSchema.Schema == nil {
+				t.Fatalf("expected inline schema for %s", tt.name)
+			}
+			if propSchema.Type != "array" {
+				t.Fatalf("expected type 'array' for %s, got %s", tt.name, propSchema.Type)
+			}
+			if propSchema.Items == nil || propSchema.Items.Schema == nil {
+				t.Fatalf("expected items schema for %s", tt.name)
+			}
+			if propSchema.Items.Type != "integer" {
+				t.Fatalf("expected items type 'integer' for %s, got %s", tt.name, propSchema.Items.Type)
+			}
+			if propSchema.Items.Format != tt.expectedFormat {
+				t.Fatalf(
+					"expected items format '%s' for %s, got %s",
+					tt.expectedFormat,
+					tt.name,
+					propSchema.Items.Format,
+				)
+			}
+		})
+	}
+}

@@ -28,7 +28,7 @@ var testTemplatesFS2 embed.FS
 // Test helper structs.
 type testUser struct {
 	Name  string `json:"name"  xml:"name"  form:"name"  validate:"required,minlength=2"`
-	Email string `json:"email" xml:"email" form:"email" validate:"required,email"`
+	Email string `json:"email" xml:"email" form:"email" validate:"required,format=email"`
 	Age   int    `json:"age"   xml:"age"   form:"age"   validate:"min=0,max=150"`
 }
 
@@ -1433,12 +1433,12 @@ func TestSSE_ServeHTTP_AllPayloadFieldsSet(t *testing.T) {
 }
 
 func TestSSE_ServeHTTP_WritesWithoutTimeout(t *testing.T) {
-	messageCount := 0
+	var messageCount atomic.Int32
 	payloadFunc := func() SSEPayload {
-		messageCount++
+		count := messageCount.Add(1)
 		return SSEPayload{
-			ID:   fmt.Sprintf("msg-%d", messageCount),
-			Data: fmt.Sprintf("Message %d", messageCount),
+			ID:   fmt.Sprintf("msg-%d", count),
+			Data: fmt.Sprintf("Message %d", count),
 		}
 	}
 
@@ -1460,8 +1460,11 @@ func TestSSE_ServeHTTP_WritesWithoutTimeout(t *testing.T) {
 
 	// Should have received at least 3 messages in 350ms with 100ms interval
 	// This verifies that write deadline is disabled and messages continue flowing
-	if messageCount < 3 {
-		t.Errorf("Expected at least 3 messages, got %d. Write deadline may not be disabled properly.", messageCount)
+	if messageCount.Load() < 3 {
+		t.Errorf(
+			"Expected at least 3 messages, got %d. Write deadline may not be disabled properly.",
+			messageCount.Load(),
+		)
 	}
 }
 

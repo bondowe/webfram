@@ -185,7 +185,10 @@ func generateSchemaForField(field *reflect.StructField, components *openapi.Comp
 
 	case fieldType.Kind() == reflect.Int, fieldType.Kind() == reflect.Int8,
 		fieldType.Kind() == reflect.Int16, fieldType.Kind() == reflect.Int32,
-		fieldType.Kind() == reflect.Int64:
+		fieldType.Kind() == reflect.Int64,
+		fieldType.Kind() == reflect.Uint, fieldType.Kind() == reflect.Uint8,
+		fieldType.Kind() == reflect.Uint16, fieldType.Kind() == reflect.Uint32,
+		fieldType.Kind() == reflect.Uint64:
 		schema := &openapi.Schema{
 			Type:   "integer",
 			Format: getIntegerFormat(field),
@@ -265,9 +268,16 @@ func generateSchemaForSliceElement(field *reflect.StructField, components *opena
 
 	case elemType.Kind() == reflect.Int, elemType.Kind() == reflect.Int8,
 		elemType.Kind() == reflect.Int16, elemType.Kind() == reflect.Int32,
-		elemType.Kind() == reflect.Int64:
+		elemType.Kind() == reflect.Int64,
+		elemType.Kind() == reflect.Uint, elemType.Kind() == reflect.Uint8,
+		elemType.Kind() == reflect.Uint16, elemType.Kind() == reflect.Uint32,
+		elemType.Kind() == reflect.Uint64:
+		format := getIntegerFormatFromType(elemType)
 		return &openapi.SchemaOrRef{
-			Schema: &openapi.Schema{Type: "integer"},
+			Schema: &openapi.Schema{
+				Type:   "integer",
+				Format: format,
+			},
 		}
 
 	case elemType.Kind() == reflect.Float32, elemType.Kind() == reflect.Float64:
@@ -289,14 +299,66 @@ func generateSchemaForSliceElement(field *reflect.StructField, components *opena
 
 func getIntegerFormat(field *reflect.StructField) string {
 	bitSize := field.Type.Bits()
+	kind := field.Type.Kind()
+
+	// Check if it's an unsigned integer
+	isUnsigned := kind == reflect.Uint || kind == reflect.Uint8 ||
+		kind == reflect.Uint16 || kind == reflect.Uint32 || kind == reflect.Uint64
+
 	switch bitSize {
-	case 8: //nolint:mnd // int8 bit size
+	case 8: //nolint:mnd // int8/uint8 bit size
+		if isUnsigned {
+			return "uint8"
+		}
 		return "int8"
-	case 16: //nolint:mnd // int16 bit size
+	case 16: //nolint:mnd // int16/uint16 bit size
+		if isUnsigned {
+			return "uint16"
+		}
 		return "int16"
-	case 32: //nolint:mnd // int32 bit size
+	case 32: //nolint:mnd // int32/uint32 bit size
+		if isUnsigned {
+			return "uint32"
+		}
 		return "int32"
-	case 64: //nolint:mnd // int64 bit size
+	case 64: //nolint:mnd // int64/uint64 bit size
+		if isUnsigned {
+			return "uint64"
+		}
+		return "int64"
+	default:
+		return ""
+	}
+}
+
+func getIntegerFormatFromType(t reflect.Type) string {
+	bitSize := t.Bits()
+	kind := t.Kind()
+
+	// Check if it's an unsigned integer
+	isUnsigned := kind == reflect.Uint || kind == reflect.Uint8 ||
+		kind == reflect.Uint16 || kind == reflect.Uint32 || kind == reflect.Uint64
+
+	switch bitSize {
+	case 8: //nolint:mnd // int8/uint8 bit size
+		if isUnsigned {
+			return "uint8"
+		}
+		return "int8"
+	case 16: //nolint:mnd // int16/uint16 bit size
+		if isUnsigned {
+			return "uint16"
+		}
+		return "int16"
+	case 32: //nolint:mnd // int32/uint32 bit size
+		if isUnsigned {
+			return "uint32"
+		}
+		return "int32"
+	case 64: //nolint:mnd // int64/uint64 bit size
+		if isUnsigned {
+			return "uint64"
+		}
 		return "int64"
 	default:
 		return ""
