@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"reflect"
 	textTemplate "text/template"
 
 	"github.com/bondowe/webfram/internal/i18n"
@@ -34,6 +35,10 @@ type (
 		Inline   bool   // If true, serves the file inline; otherwise as an attachment
 		Filename string // Optional filename for Content-Disposition header
 	}
+)
+
+const (
+	jsonSeqRecordSeparator = '\x1E'
 )
 
 func i18nPrinterFunc(messagePrinter *message.Printer) func(str string, args ...any) string {
@@ -152,6 +157,43 @@ func (w *ResponseWriter) JSON(ctx context.Context, v any) error {
 	w.Header().Set("Content-Type", "application/json")
 	encoder := json.NewEncoder(w)
 	return encoder.Encode(v)
+}
+
+// JSONSeq streams a sequence of JSON objects as per RFC 7464.
+// Each JSON object is prefixed with the ASCII Record Separator character.
+// Sets Content-Type header to "application/json-seq".
+// Returns an error if items is not a slice, marshaling fails, or writing fails.
+func (w *ResponseWriter) JSONSeq(_ context.Context, items any) error {
+	v := reflect.ValueOf(items)
+	if v.Kind() != reflect.Slice {
+		return errors.New("items must be a slice")
+	}
+
+	flusher, ok := w.ResponseWriter.(http.Flusher)
+	if !ok {
+		return errors.New("response writer does not support flushing")
+	}
+
+	w.Header().Set("Content-Type", "application/json-seq")
+
+	encoder := json.NewEncoder(w)
+
+	for i := range v.Len() {
+		item := v.Index(i).Interface()
+
+		_, writeErr := fmt.Fprintf(w, "%c", jsonSeqRecordSeparator)
+		if writeErr != nil {
+			return writeErr
+		}
+
+		if err := encoder.Encode(item); err != nil {
+			return err
+		}
+
+		flusher.Flush()
+	}
+
+	return nil
 }
 
 // HTMLString parses an HTML template string and executes it with the provided data.

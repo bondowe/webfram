@@ -81,15 +81,15 @@ type (
 	// SSEPayload represents a Server-Sent Events message payload.
 	SSEPayload struct {
 		// Data is the event data.
-		Data any
+		Data any `json:"data"               validate:"required"`
 		// ID is the event ID.
-		ID string
+		ID string `json:"id,omitempty"`
 		// Event is the event type.
-		Event string
+		Event string `json:"event,omitempty"`
 		// Comments are optional comments for the event.
-		Comments []string
+		Comments []string `json:"comments,omitempty"`
 		// Retry is the reconnection time in case of connection loss.
-		Retry time.Duration
+		Retry time.Duration `json:"retry,omitempty"`
 	}
 	// SSEPayloadFunc is a function that generates SSE payloads.
 	SSEPayloadFunc func() SSEPayload
@@ -861,16 +861,17 @@ func (m *SSEHandler) ServeHTTP(w ResponseWriter, r *Request) {
 	if m.writerFactory != nil {
 		sseW = m.writerFactory(w.ResponseWriter)
 	} else {
+		rc := http.NewResponseController(w.ResponseWriter)
+		// Disable write deadline for SSE to prevent timeouts on long-lived connections
+		_ = rc.SetWriteDeadline(time.Time{})
 		sseW = &defaultSSEWriter{
 			ResponseWriter: w.ResponseWriter,
-			rc:             http.NewResponseController(w.ResponseWriter),
+			rc:             rc,
 		}
 	}
 
 	t := time.NewTicker(m.interval)
 	defer t.Stop()
-
-	msgWritten := false
 
 	for {
 		select {
@@ -878,6 +879,7 @@ func (m *SSEHandler) ServeHTTP(w ResponseWriter, r *Request) {
 			m.disconnectFunc()
 			return
 		case <-t.C:
+			msgWritten := false
 			payload := m.payloadFunc()
 
 			if payload.ID != "" {
@@ -971,9 +973,11 @@ func configureOpenAPI(cfg *Config) {
 
 		openAPIConfig.internalConfig.Security = openAPIConfig.Config.Security
 
-		//nolint:golines // line length is acceptable for readability
 		if openAPIConfig.Config.Components != nil && len(openAPIConfig.Config.Components.SecuritySchemes) > 0 {
-			openAPIConfig.internalConfig.Components.SecuritySchemes = make(map[string]openapi.SecuritySchemeOrRef, len(openAPIConfig.Config.Components.SecuritySchemes))
+			openAPIConfig.internalConfig.Components.SecuritySchemes = make(
+				map[string]openapi.SecuritySchemeOrRef,
+				len(openAPIConfig.Config.Components.SecuritySchemes),
+			)
 
 			for key, scheme := range openAPIConfig.Config.Components.SecuritySchemes {
 				openAPIConfig.internalConfig.Components.SecuritySchemes[key] = openapi.SecuritySchemeOrRef{

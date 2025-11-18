@@ -17,6 +17,11 @@ import (
 	"golang.org/x/text/language"
 )
 
+const (
+	mediaTypeTextEventStream = "text/event-stream"
+	mediaTypeJSONSeq         = "application/json-seq"
+)
+
 type (
 	// Request wraps http.Request with additional framework functionality.
 	Request struct {
@@ -269,12 +274,21 @@ func mapContent(typeInfos map[string]TypeInfo) map[string]openapi.MediaType {
 	content := make(map[string]openapi.MediaType)
 	for mediaType, info := range typeInfos {
 		for _, mt := range strings.Split(mediaType, ",") {
+			if mt == mediaTypeTextEventStream {
+				info.TypeHint = &SSEPayload{}
+			}
+
 			schemaOrRef := bind.GenerateJSONSchema(info.TypeHint, openAPIConfig.internalConfig.Components)
 
 			mediaType := openapi.MediaType{
-				Schema:   schemaOrRef,
 				Example:  info.Example,
 				Examples: mapExampleOrRefs(info.Examples),
+			}
+
+			if mt == mediaTypeJSONSeq || mt == mediaTypeTextEventStream {
+				mediaType.ItemSchema = schemaOrRef
+			} else {
+				mediaType.Schema = schemaOrRef
 			}
 
 			content[mt] = mediaType

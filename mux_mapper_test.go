@@ -249,6 +249,322 @@ func TestMapContent_NilInput(t *testing.T) {
 	}
 }
 
+func TestMapContent_TextEventStream_AutoSSEPayload(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	// Test that text/event-stream automatically uses SSEPayload type
+	content := map[string]TypeInfo{
+		"text/event-stream": {
+			TypeHint: nil, // Should be auto-set to SSEPayload
+		},
+	}
+
+	result := mapContent(content)
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+
+	if len(result) != 1 {
+		t.Errorf("Expected 1 media type, got %d", len(result))
+	}
+
+	mediaType, ok := result["text/event-stream"]
+	if !ok {
+		t.Fatal("Expected 'text/event-stream' media type to exist")
+	}
+
+	// For SSE, ItemSchema should be set, not Schema
+	if mediaType.ItemSchema == nil {
+		t.Error("Expected ItemSchema to be set for text/event-stream")
+	}
+
+	if mediaType.Schema != nil {
+		t.Error("Expected Schema to be nil for text/event-stream (should use ItemSchema)")
+	}
+}
+
+func TestMapContent_TextEventStream_IgnoresCustomTypeHint(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	type CustomPayload struct {
+		CustomField string `json:"customField"`
+	}
+
+	// Even with custom TypeHint, should be overridden to SSEPayload
+	content := map[string]TypeInfo{
+		"text/event-stream": {
+			TypeHint: &CustomPayload{},
+		},
+	}
+
+	result := mapContent(content)
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+
+	mediaType, ok := result["text/event-stream"]
+	if !ok {
+		t.Fatal("Expected 'text/event-stream' media type to exist")
+	}
+
+	// Should still use ItemSchema (indicating SSEPayload was used)
+	if mediaType.ItemSchema == nil {
+		t.Error("Expected ItemSchema to be set (SSEPayload should be auto-applied)")
+	}
+
+	if mediaType.Schema != nil {
+		t.Error("Expected Schema to be nil for text/event-stream")
+	}
+}
+
+func TestMapContent_ApplicationJSONSeq_UsesItemSchema(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	type LogEntry struct {
+		Timestamp string `json:"timestamp"`
+		Level     string `json:"level"`
+		Message   string `json:"message"`
+	}
+
+	// For JSON-seq, TypeHint should point to the line item type
+	content := map[string]TypeInfo{
+		"application/json-seq": {
+			TypeHint: &LogEntry{},
+		},
+	}
+
+	result := mapContent(content)
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+
+	if len(result) != 1 {
+		t.Errorf("Expected 1 media type, got %d", len(result))
+	}
+
+	mediaType, ok := result["application/json-seq"]
+	if !ok {
+		t.Fatal("Expected 'application/json-seq' media type to exist")
+	}
+
+	// For JSON-seq, ItemSchema should be set, not Schema
+	if mediaType.ItemSchema == nil {
+		t.Error("Expected ItemSchema to be set for application/json-seq")
+	}
+
+	if mediaType.Schema != nil {
+		t.Error("Expected Schema to be nil for application/json-seq (should use ItemSchema)")
+	}
+}
+
+func TestMapContent_MixedStreamingAndRegular(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	type DataModel struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+
+	// Mix of regular, SSE, and JSON-seq media types
+	content := map[string]TypeInfo{
+		"application/json": {
+			TypeHint: &DataModel{},
+		},
+		"text/event-stream": {
+			TypeHint: nil, // Will be auto-set to SSEPayload
+		},
+		"application/json-seq": {
+			TypeHint: &DataModel{},
+		},
+	}
+
+	result := mapContent(content)
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+
+	if len(result) != 3 {
+		t.Errorf("Expected 3 media types, got %d", len(result))
+	}
+
+	// Check regular JSON uses Schema
+	jsonMedia, ok := result["application/json"]
+	if !ok {
+		t.Fatal("Expected 'application/json' media type to exist")
+	}
+
+	if jsonMedia.Schema == nil {
+		t.Error("Expected Schema to be set for application/json")
+	}
+
+	if jsonMedia.ItemSchema != nil {
+		t.Error("Expected ItemSchema to be nil for application/json")
+	}
+
+	// Check SSE uses ItemSchema
+	sseMedia, ok := result["text/event-stream"]
+	if !ok {
+		t.Fatal("Expected 'text/event-stream' media type to exist")
+	}
+
+	if sseMedia.ItemSchema == nil {
+		t.Error("Expected ItemSchema to be set for text/event-stream")
+	}
+
+	if sseMedia.Schema != nil {
+		t.Error("Expected Schema to be nil for text/event-stream")
+	}
+
+	// Check JSON-seq uses ItemSchema
+	jsonSeqMedia, ok := result["application/json-seq"]
+	if !ok {
+		t.Fatal("Expected 'application/json-seq' media type to exist")
+	}
+
+	if jsonSeqMedia.ItemSchema == nil {
+		t.Error("Expected ItemSchema to be set for application/json-seq")
+	}
+
+	if jsonSeqMedia.Schema != nil {
+		t.Error("Expected Schema to be nil for application/json-seq")
+	}
+}
+
+func TestMapContent_CommaSeparated_WithStreamingTypes(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	type Item struct {
+		Value string `json:"value"`
+	}
+
+	// Comma-separated string with streaming types
+	content := map[string]TypeInfo{
+		"application/json,text/event-stream,application/json-seq": {
+			TypeHint: &Item{},
+		},
+	}
+
+	result := mapContent(content)
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+
+	// Should split into 3 separate media types
+	if len(result) != 3 {
+		t.Errorf("Expected 3 media types after split, got %d", len(result))
+	}
+
+	// Regular JSON should use Schema
+	if jsonMedia, ok := result["application/json"]; ok {
+		if jsonMedia.Schema == nil {
+			t.Error("Expected Schema for application/json")
+		}
+		if jsonMedia.ItemSchema != nil {
+			t.Error("Expected ItemSchema to be nil for application/json")
+		}
+	} else {
+		t.Error("Expected 'application/json' to exist")
+	}
+
+	// SSE should use ItemSchema and auto-convert to SSEPayload
+	if sseMedia, ok := result["text/event-stream"]; ok {
+		if sseMedia.ItemSchema == nil {
+			t.Error("Expected ItemSchema for text/event-stream")
+		}
+		if sseMedia.Schema != nil {
+			t.Error("Expected Schema to be nil for text/event-stream")
+		}
+	} else {
+		t.Error("Expected 'text/event-stream' to exist")
+	}
+
+	// JSON-seq should use ItemSchema
+	if jsonSeqMedia, ok := result["application/json-seq"]; ok {
+		if jsonSeqMedia.ItemSchema == nil {
+			t.Error("Expected ItemSchema for application/json-seq")
+		}
+		if jsonSeqMedia.Schema != nil {
+			t.Error("Expected Schema to be nil for application/json-seq")
+		}
+	} else {
+		t.Error("Expected 'application/json-seq' to exist")
+	}
+}
+
+func TestMapContent_WithExamplesAndStreamingTypes(t *testing.T) {
+	setupMuxTestWithOpenAPI()
+
+	type Notification struct {
+		ID      string `json:"id"`
+		Message string `json:"message"`
+	}
+
+	examples := map[string]Example{
+		"info": {
+			Summary:   "Info notification",
+			DataValue: Notification{ID: "1", Message: "Info message"},
+		},
+		"warning": {
+			Summary:   "Warning notification",
+			DataValue: Notification{ID: "2", Message: "Warning message"},
+		},
+	}
+
+	exampleValue := Notification{ID: "0", Message: "Default"}
+
+	content := map[string]TypeInfo{
+		"text/event-stream": {
+			TypeHint: nil, // Auto SSEPayload
+			Example:  exampleValue,
+			Examples: examples,
+		},
+		"application/json-seq": {
+			TypeHint: &Notification{},
+			Example:  exampleValue,
+			Examples: examples,
+		},
+	}
+
+	result := mapContent(content)
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+
+	// Check SSE has examples
+	sseMedia := result["text/event-stream"]
+	if sseMedia.Example == nil {
+		t.Error("Expected Example to be set for text/event-stream")
+	}
+
+	if sseMedia.Examples == nil {
+		t.Fatal("Expected Examples to be set for text/event-stream")
+	}
+
+	if len(sseMedia.Examples) != 2 {
+		t.Errorf("Expected 2 examples for text/event-stream, got %d", len(sseMedia.Examples))
+	}
+
+	// Check JSON-seq has examples
+	jsonSeqMedia := result["application/json-seq"]
+	if jsonSeqMedia.Example == nil {
+		t.Error("Expected Example to be set for application/json-seq")
+	}
+
+	if jsonSeqMedia.Examples == nil {
+		t.Fatal("Expected Examples to be set for application/json-seq")
+	}
+
+	if len(jsonSeqMedia.Examples) != 2 {
+		t.Errorf("Expected 2 examples for application/json-seq, got %d", len(jsonSeqMedia.Examples))
+	}
+}
+
 // =============================================================================
 // mapHeaders Tests
 // =============================================================================

@@ -205,6 +205,84 @@ Generates OpenAPI schema with:
 - Array constraints (minItems, maxItems, uniqueItems)
 - Format specifications (email, uuid, date-time)
 
+## TypeHint Usage for Streaming Media Types
+
+When documenting endpoints that produce streaming media types, the `TypeHint` behavior varies:
+
+### Server-Sent Events (text/event-stream)
+
+For SSE endpoints, **do not set a TypeHint**. The framework automatically uses the `SSEPayload` type:
+
+```go
+// ✅ Correct - no TypeHint needed
+mux.Handle("GET /events", app.SSE(...)).WithOperationConfig(&app.OperationConfig{
+    OperationID: "streamEvents",
+    Summary:     "Stream server events",
+    Responses: map[string]app.Response{
+        "200": {
+            Description: "Server-sent events stream",
+            Content: map[string]app.TypeInfo{
+                "text/event-stream": {}, // SSEPayload is automatically used
+            },
+        },
+    },
+})
+
+// ❌ Incorrect - TypeHint is ignored for SSE
+mux.Handle("GET /events", app.SSE(...)).WithOperationConfig(&app.OperationConfig{
+    OperationID: "streamEvents",
+    Summary:     "Stream server events",
+    Responses: map[string]app.Response{
+        "200": {
+            Description: "Server-sent events stream",
+            Content: map[string]app.TypeInfo{
+                "text/event-stream": {TypeHint: &MyType{}}, // Will be ignored
+            },
+        },
+    },
+})
+```
+
+The `SSEPayload` structure is automatically documented with its `Data` field accepting `any` type.
+
+### JSON Sequence (application/json-seq)
+
+For JSON Sequence (RFC 7464) endpoints, **set the TypeHint to the line item type**:
+
+```go
+type Notification struct {
+    ID      string    `json:"id"`
+    Message string    `json:"message"`
+    Time    time.Time `json:"time"`
+}
+
+// ✅ Correct - TypeHint points to line item type
+mux.HandleFunc("GET /notifications", streamNotifications).WithOperationConfig(&app.OperationConfig{
+    OperationID: "streamNotifications",
+    Summary:     "Stream notifications",
+    Responses: map[string]app.Response{
+        "200": {
+            Description: "Stream of notifications",
+            Content: map[string]app.TypeInfo{
+                "application/json-seq": {TypeHint: &Notification{}}, // Each line is a Notification
+            },
+        },
+    },
+})
+```
+
+The TypeHint specifies the structure of each record in the sequence.
+
+### Summary
+
+| Media Type               | TypeHint Behavior                                        |
+|--------------------------|----------------------------------------------------------|
+| `text/event-stream`      | Don't set - automatically uses `SSEPayload`              |
+| `application/json-seq`   | Set to line item type - describes each record in stream |
+| `application/json`       | Set to response type - describes the entire response    |
+
+See the [SSE documentation](sse.html) for more details on Server-Sent Events.
+
 ## Complete Example
 
 ```go

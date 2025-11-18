@@ -108,6 +108,33 @@ func main() {
 		},
 	})
 
+	// JSON Sequence endpoint
+	mux.HandleFunc("GET /users/json-seq", func(w app.ResponseWriter, r *app.Request) {
+		users := []User{
+			{ID: uuid.New(), Name: "John Doe", Email: "john@example.com"},
+			{ID: uuid.New(), Name: "Jane Smith", Email: "jane@example.com"},
+			{ID: uuid.New(), Name: "Alice Johnson", Email: "alice@example.com"},
+			{ID: uuid.New(), Name: "Bob Brown", Email: "bob@example.com"},
+			{ID: uuid.New(), Name: "Charlie Davis", Email: "charlie@example.com"},
+			{ID: uuid.New(), Name: "Diana Evans", Email: "diana@example.com"},
+		}
+		if err := w.JSONSeq(r.Context(), users); err != nil {
+			w.Error(http.StatusInternalServerError, err.Error())
+		}
+	}).WithOperationConfig(&app.OperationConfig{
+		OperationID: "listUsersSeq",
+		Summary:     "List all users in JSON Sequence format",
+		Tags:        []string{"User Service"},
+		Responses: map[string]app.Response{
+			"200": {
+				Description: "List of users in JSON Sequence format",
+				Content: map[string]app.TypeInfo{
+					"application/json-seq": {TypeHint: &User{}},
+				},
+			},
+		},
+	})
+
 	// Create user with JSON
 	mux.HandleFunc("POST /api/users/json", func(w app.ResponseWriter, r *app.Request) {
 		user, valErrors, err := app.BindJSON[User](r, true)
@@ -219,7 +246,20 @@ func main() {
 		},
 		sseUpdateInterval,
 		nil,
-	))
+	)).WithOperationConfig(&app.OperationConfig{
+		OperationID: "timeEvents",
+		Summary:     "Stream server time updates via SSE",
+		Tags:        []string{"Time Service"},
+		Responses: map[string]app.Response{
+			"200": {
+				Description: "SSE stream of time updates",
+				Content: map[string]app.TypeInfo{
+					// No need to set TypeHint for SSE, this defaults to &app.SSEPayload{}
+					"text/event-stream": {},
+				},
+			},
+		},
+	})
 
 	// i18n example
 	mux.HandleFunc("GET /greeting", func(w app.ResponseWriter, r *app.Request) {
@@ -275,6 +315,11 @@ func getOpenAPIConfig() *app.OpenAPIConfig {
 				Name:        "ProductService",
 				Summary:     "Product Service",
 				Description: "Operations related to products",
+			},
+			{
+				Name:        "Time Service",
+				Summary:     "Time Service",
+				Description: "Operations related to time updates",
 			},
 		},
 		Security: []map[string][]string{

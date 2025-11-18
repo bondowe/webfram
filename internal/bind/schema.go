@@ -206,6 +206,12 @@ func generateSchemaForField(field *reflect.StructField, components *openapi.Comp
 			Schema: &openapi.Schema{Type: "boolean"},
 		}
 
+	case fieldType.Kind() == reflect.Interface:
+		// Handle interface{} / any type - accepts any JSON value
+		return &openapi.SchemaOrRef{
+			Schema: &openapi.Schema{},
+		}
+
 	default:
 		// Unsupported type
 		return &openapi.SchemaOrRef{}

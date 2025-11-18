@@ -297,6 +297,44 @@ mux.Handle("GET /events", app.SSE(
 6. **Add event IDs** - Enable clients to resume from last event
 7. **Use HTTPS** in production
 
+## OpenAPI Documentation
+
+When generating OpenAPI documentation for SSE endpoints, **do not set a TypeHint**. The framework automatically uses the `SSEPayload` type for `text/event-stream` media types.
+
+```go
+// ✅ Correct - no TypeHint needed for SSE
+mux.Handle("GET /events", app.SSE(...)).WithOperationConfig(&app.OperationConfig{
+    OperationID: "streamEvents",
+    Summary:     "Stream server events",
+    Responses: map[string]app.Response{
+        "200": {
+            Description: "SSE stream of events",
+            Content: map[string]app.TypeInfo{
+                "text/event-stream": {}, // SSEPayload is automatically used
+            },
+        },
+    },
+})
+
+// ❌ Incorrect - don't override TypeHint for SSE
+mux.Handle("GET /events", app.SSE(...)).WithOperationConfig(&app.OperationConfig{
+    OperationID: "streamEvents",
+    Summary:     "Stream server events",
+    Responses: map[string]app.Response{
+        "200": {
+            Description: "SSE stream of events",
+            Content: map[string]app.TypeInfo{
+                "text/event-stream": {TypeHint: &MyCustomType{}}, // Will be ignored
+            },
+        },
+    },
+})
+```
+
+The `SSEPayload.Data` field accepts `any` type, allowing flexible payloads while maintaining proper OpenAPI schema generation.
+
+See the [OpenAPI documentation](openapi.html) for more details on TypeHint usage with different media types.
+
 ## Browser Support
 
 SSE is supported in all modern browsers:

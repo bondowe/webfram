@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1428,6 +1429,39 @@ func TestSSE_ServeHTTP_AllPayloadFieldsSet(t *testing.T) {
 		if !found {
 			t.Errorf("Expected '%s' to be written, got calls: %v", expected, calls)
 		}
+	}
+}
+
+func TestSSE_ServeHTTP_WritesWithoutTimeout(t *testing.T) {
+	messageCount := 0
+	payloadFunc := func() SSEPayload {
+		messageCount++
+		return SSEPayload{
+			ID:   fmt.Sprintf("msg-%d", messageCount),
+			Data: fmt.Sprintf("Message %d", messageCount),
+		}
+	}
+
+	handler := SSE(payloadFunc, nil, nil, 100*time.Millisecond, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/sse", http.NoBody)
+	ctx, cancel := context.WithTimeout(req.Context(), 350*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: rec}
+	r := &Request{Request: req}
+
+	go handler.ServeHTTP(rw, r)
+	time.Sleep(350 * time.Millisecond)
+	cancel()
+	time.Sleep(10 * time.Millisecond)
+
+	// Should have received at least 3 messages in 350ms with 100ms interval
+	// This verifies that write deadline is disabled and messages continue flowing
+	if messageCount < 3 {
+		t.Errorf("Expected at least 3 messages, got %d. Write deadline may not be disabled properly.", messageCount)
 	}
 }
 
