@@ -392,6 +392,6 @@ func BenchmarkBindJSON(b *testing.B) {
 
 ## See Also
 
-- [Getting Started](getting-started.html)
-- [Data Binding](data-binding.html)
-- [Middleware](middleware.html)
+- [Getting Started](getting-started.md)
+- [Data Binding](data-binding.md)
+- [Middleware](middleware.md)

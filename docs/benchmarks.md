@@ -237,7 +237,7 @@ We continuously monitor and optimize WebFram's performance. If you notice perfor
 
 ## See Also
 
-- [Getting Started](getting-started.html) - Begin building with WebFram
-- [Configuration](configuration.html) - Optimize your application settings
-- [Deployment](deployment.html) - Production deployment best practices
-- [Testing](testing.html) - Performance testing strategies
+- [Getting Started](getting-started.md) - Begin building with WebFram
+- [Configuration](configuration.md) - Optimize your application settings
+- [Deployment](deployment.md) - Production deployment best practices
+- [Testing](testing.md) - Performance testing strategies

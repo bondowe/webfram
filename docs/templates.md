@@ -363,5 +363,5 @@ func main() {
 ## See Also
 
 - [Internationalization](i18n.md)
-- [Request & Response](request-response.html)
-- [Configuration](configuration.html)
+- [Request & Response](request-response.md)
+- [Configuration](configuration.md)

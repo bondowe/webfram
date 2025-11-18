@@ -210,6 +210,6 @@ func registerPublicRoutes(mux *app.ServeMux) {
 
 ## See Also
 
-- [Middleware](middleware.html)
-- [Request & Response](request-response.html)
-- [Data Binding](data-binding.html)
+- [Middleware](middleware.md)
+- [Request & Response](request-response.md)
+- [Data Binding](data-binding.md)

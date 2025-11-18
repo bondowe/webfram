@@ -235,7 +235,7 @@ XML schemas include:
 - Automatic example generation with mock data
 - Slice examples wrapped with xmlRootName for valid XML structure
 
-See the [XML Schema Generation documentation](xml-schema-generation.html) for complete details.
+See the [XML Schema Generation documentation](xml-schema-generation.md) for complete details.
 
 ## TypeHint Usage for Streaming Media Types
 
@@ -387,7 +387,7 @@ mux.HandleFunc("GET /data.xml", getXMLData).WithOperationConfig(&app.OperationCo
 | `application/xml`        | Set to struct/slice type - describes XML structure      |
 | `text/xml`               | Set to struct/slice type - describes XML structure      |
 
-See the [SSE documentation](sse.html) for more details on Server-Sent Events.
+See the [SSE documentation](sse.md) for more details on Server-Sent Events.
 
 ## Complete Example
 
@@ -897,6 +897,6 @@ app.Configure(&app.Config{
 
 ## See Also
 
-- [Data Binding](data-binding.html)
-- [Routing](routing.html)
-- [Configuration](configuration.html)
+- [Data Binding](data-binding.md)
+- [Routing](routing.md)
+- [Configuration](configuration.md)

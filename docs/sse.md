@@ -333,7 +333,7 @@ mux.Handle("GET /events", app.SSE(...)).WithOperationConfig(&app.OperationConfig
 
 The `SSEPayload.Data` field accepts `any` type, allowing flexible payloads while maintaining proper OpenAPI schema generation.
 
-See the [OpenAPI documentation](openapi.html) for more details on TypeHint usage with different media types.
+See the [OpenAPI documentation](openapi.md) for more details on TypeHint usage with different media types.
 
 ## Browser Support
 
@@ -353,6 +353,6 @@ For older browsers, consider:
 
 ## See Also
 
-- [Request & Response](request-response.html)
-- [Routing](routing.html)
-- [Middleware](middleware.html)
+- [Request & Response](request-response.md)
+- [Routing](routing.md)
+- [Middleware](middleware.md)
