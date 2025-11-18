@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/bondowe/webfram"
 )
 
 func TestBasicAuth_Success(t *testing.T) {
@@ -19,21 +17,19 @@ func TestBasicAuth_Success(t *testing.T) {
 
 	middleware := BasicAuth(config)
 
-	handler := middleware(webfram.HandlerFunc(func(w webfram.ResponseWriter, r *webfram.Request) {
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	}))
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("user:pass")))
 
 	w := httptest.NewRecorder()
-	statusCode := 0
-	rw := webfram.ResponseWriter{ResponseWriter: w, statusCode: &statusCode}
-	handler.ServeHTTP(rw, &webfram.Request{Request: req})
+	handler.ServeHTTP(w, req)
 
-	if statusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", statusCode)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
 	}
 }
 
@@ -47,25 +43,25 @@ func TestBasicAuth_InvalidCredentials(t *testing.T) {
 
 	middleware := BasicAuth(config)
 
-	handler := middleware(webfram.HandlerFunc(func(w webfram.ResponseWriter, r *webfram.Request) {
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	}))
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("user:wrong")))
 
-	w := &mockResponseWriter{}
-	handler.ServeHTTP(w, &webfram.Request{Request: req})
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
 
-	if w.statusCode != http.StatusUnauthorized {
-		t.Errorf("Expected status 401, got %d", w.statusCode)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status 401, got %d", w.Code)
 	}
 }
 
 func TestBasicAuth_NoAuth(t *testing.T) {
 	config := BasicAuthConfig{
-		Authenticator: func(username, password string) bool {
+		Authenticator: func(_ string, _ string) bool {
 			return false
 		},
 		Realm: "Test",
@@ -73,47 +69,43 @@ func TestBasicAuth_NoAuth(t *testing.T) {
 
 	middleware := BasicAuth(config)
 
-	handler := middleware(webfram.HandlerFunc(func(w webfram.ResponseWriter, r *webfram.Request) {
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	}))
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	w := &mockResponseWriter{}
-	handler.ServeHTTP(w, &webfram.Request{Request: req})
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
 
-	if w.statusCode != http.StatusUnauthorized {
-		t.Errorf("Expected status 401, got %d", w.statusCode)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status 401, got %d", w.Code)
 	}
 }
 
-type mockResponseWriter struct {
-	statusCode int
-	header     http.Header
-	body       []byte
-}
-
-func (m *mockResponseWriter) Header() http.Header {
-	if m.header == nil {
-		m.header = make(http.Header)
+func TestOAuth2TokenAuth_Success(t *testing.T) {
+	config := OAuth2TokenConfig{
+		TokenValidator: func(token string) bool {
+			return token == "valid-token"
+		},
+		UnauthorizedHandler: nil,
 	}
-	return m.header
-}
 
-func (m *mockResponseWriter) Write(data []byte) (int, error) {
-	m.body = append(m.body, data...)
-	return len(data), nil
-}
+	middleware := OAuth2TokenAuth(config)
 
-func (m *mockResponseWriter) WriteHeader(statusCode int) {
-	m.statusCode = statusCode
-}
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}))
 
-func (m *mockResponseWriter) StatusCode() (int, bool) {
-	return m.statusCode, true
-}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
 
-func (m *mockResponseWriter) ResponseWriter() http.ResponseWriter {
-	return nil
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
 }

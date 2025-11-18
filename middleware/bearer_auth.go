@@ -3,22 +3,20 @@ package middleware
 import (
 	"net/http"
 	"strings"
-
-	"github.com/bondowe/webfram"
 )
 
-// BearerAuthConfig holds configuration for bearer token authentication middleware
+// BearerAuthConfig holds configuration for bearer token authentication middleware.
 type BearerAuthConfig struct {
-	// Authenticator is called with the token, should return true if valid
-	Authenticator func(token string) bool
+	// TokenValidator is called with the bearer token, should return true if valid
+	TokenValidator func(token string) bool
 	// UnauthorizedHandler is called when authentication fails (optional)
-	UnauthorizedHandler webfram.Handler
+	UnauthorizedHandler http.Handler
 }
 
-// BearerAuth returns a middleware that enforces HTTP Bearer Token Authentication
-func BearerAuth(config BearerAuthConfig) func(webfram.Handler) webfram.Handler {
-	return func(next webfram.Handler) webfram.Handler {
-		return webfram.HandlerFunc(func(w webfram.ResponseWriter, r *webfram.Request) {
+// BearerAuth returns a middleware that enforces HTTP Bearer Token Authentication.
+func BearerAuth(config BearerAuthConfig) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth := r.Header.Get("Authorization")
 			if auth == "" {
 				unauthorizedBearer(w, config.UnauthorizedHandler)
@@ -31,7 +29,7 @@ func BearerAuth(config BearerAuthConfig) func(webfram.Handler) webfram.Handler {
 			}
 
 			token := strings.TrimPrefix(auth, "Bearer ")
-			if !config.Authenticator(token) {
+			if !config.TokenValidator(token) {
 				unauthorizedBearer(w, config.UnauthorizedHandler)
 				return
 			}
@@ -41,12 +39,12 @@ func BearerAuth(config BearerAuthConfig) func(webfram.Handler) webfram.Handler {
 	}
 }
 
-func unauthorizedBearer(w webfram.ResponseWriter, handler webfram.Handler) {
+func unauthorizedBearer(w http.ResponseWriter, handler http.Handler) {
 	if handler != nil {
 		handler.ServeHTTP(w, nil)
 		return
 	}
 
 	w.WriteHeader(http.StatusUnauthorized)
-	w.Write([]byte("Unauthorized"))
+	_, _ = w.Write([]byte("Unauthorized"))
 }

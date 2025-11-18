@@ -4,28 +4,26 @@ import (
 	"encoding/base64"
 	"net/http"
 	"strings"
-
-	"github.com/bondowe/webfram"
 )
 
-// BasicAuthConfig holds configuration for basic authentication middleware
+// BasicAuthConfig holds configuration for basic authentication middleware.
 type BasicAuthConfig struct {
 	// Authenticator is called with username and password, should return true if valid
 	Authenticator func(username, password string) bool
 	// Realm is the authentication realm (default: "Restricted")
 	Realm string
 	// UnauthorizedHandler is called when authentication fails (optional)
-	UnauthorizedHandler webfram.Handler
+	UnauthorizedHandler http.Handler
 }
 
-// BasicAuth returns a middleware that enforces HTTP Basic Authentication
-func BasicAuth(config BasicAuthConfig) func(webfram.Handler) webfram.Handler {
+// BasicAuth returns a middleware that enforces HTTP Basic Authentication.
+func BasicAuth(config BasicAuthConfig) func(http.Handler) http.Handler {
 	if config.Realm == "" {
 		config.Realm = "Restricted"
 	}
 
-	return func(next webfram.Handler) webfram.Handler {
-		return webfram.HandlerFunc(func(w webfram.ResponseWriter, r *webfram.Request) {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth := r.Header.Get("Authorization")
 			if auth == "" {
 				unauthorized(w, config.Realm, config.UnauthorizedHandler)
@@ -61,7 +59,7 @@ func BasicAuth(config BasicAuthConfig) func(webfram.Handler) webfram.Handler {
 	}
 }
 
-func unauthorized(w webfram.ResponseWriter, realm string, handler webfram.Handler) {
+func unauthorized(w http.ResponseWriter, realm string, handler http.Handler) {
 	if handler != nil {
 		handler.ServeHTTP(w, nil) // TODO: pass request?
 		return
@@ -69,5 +67,5 @@ func unauthorized(w webfram.ResponseWriter, realm string, handler webfram.Handle
 
 	w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
 	w.WriteHeader(http.StatusUnauthorized)
-	w.Write([]byte("Unauthorized"))
+	_, _ = w.Write([]byte("Unauthorized"))
 }

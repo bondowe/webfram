@@ -8,11 +8,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/bondowe/webfram"
 )
 
-// DigestAuthConfig holds configuration for digest authentication middleware
+// DigestAuthConfig holds configuration for digest authentication middleware.
 type DigestAuthConfig struct {
 	// Realm is the authentication realm
 	Realm string
@@ -21,11 +19,11 @@ type DigestAuthConfig struct {
 	// NonceTTL is the time-to-live for nonces (default 30 minutes)
 	NonceTTL time.Duration
 	// UnauthorizedHandler is called when authentication fails (optional)
-	UnauthorizedHandler webfram.Handler
+	UnauthorizedHandler http.Handler
 }
 
-// DigestAuth returns a middleware that enforces HTTP Digest Authentication
-func DigestAuth(config DigestAuthConfig) func(webfram.Handler) webfram.Handler {
+// DigestAuth returns a middleware that enforces HTTP Digest Authentication.
+func DigestAuth(config DigestAuthConfig) func(http.Handler) http.Handler {
 	if config.Realm == "" {
 		config.Realm = "Restricted"
 	}
@@ -33,8 +31,8 @@ func DigestAuth(config DigestAuthConfig) func(webfram.Handler) webfram.Handler {
 		config.NonceTTL = 30 * time.Minute
 	}
 
-	return func(next webfram.Handler) webfram.Handler {
-		return webfram.HandlerFunc(func(w webfram.ResponseWriter, r *webfram.Request) {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth := r.Header.Get("Authorization")
 			if auth == "" {
 				unauthorizedDigest(w, config.Realm, config.UnauthorizedHandler)
@@ -100,26 +98,27 @@ func validateDigest(params map[string]string, method, uri string, config DigestA
 	return hex.EncodeToString(expected[:]) == response
 }
 
-func isValidNonce(nonce string, ttl time.Duration) bool {
+func isValidNonce(_ string, _ time.Duration) bool {
 	// Simple check: nonce should be recent
 	// In production, store nonces and check expiry
 	return true // TODO: implement proper nonce validation
 }
 
-func unauthorizedDigest(w webfram.ResponseWriter, realm string, handler webfram.Handler) {
+func unauthorizedDigest(w http.ResponseWriter, realm string, handler http.Handler) {
 	if handler != nil {
 		handler.ServeHTTP(w, nil)
 		return
 	}
 
 	nonce := generateNonce()
-	w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Digest realm="%s", nonce="%s", algorithm=MD5, qop="auth"`, realm, nonce))
+	w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Digest realm="%s", nonce="%s", algorithm=MD5, qop="auth"`,
+		realm, nonce))
 	w.WriteHeader(http.StatusUnauthorized)
-	w.Write([]byte("Unauthorized"))
+	_, _ = w.Write([]byte("Unauthorized"))
 }
 
 func generateNonce() string {
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
+	_, _ = rand.Read(bytes)
 	return hex.EncodeToString(bytes)
 }

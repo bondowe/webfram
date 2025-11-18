@@ -2,30 +2,35 @@ package middleware
 
 import (
 	"net/http"
-
-	"github.com/bondowe/webfram"
 )
 
-// APIKeyAuthConfig holds configuration for API key authentication middleware
+// APIKeyAuthConfig holds configuration for API key authentication middleware.
 type APIKeyAuthConfig struct {
-	// KeyName is the name of the API key (e.g., "X-API-Key")
+	// KeyValidator is called with the API key, should return true if valid
+	KeyValidator func(key string) bool
+	// KeyName is the name of the API key parameter (default: "api_key")
 	KeyName string
-	// In specifies where to look for the key: "header", "query", or "cookie"
-	In string
-	// Authenticator is called with the key value, should return true if valid
-	Authenticator func(key string) bool
+	// KeyLocation specifies where to look for the API key: "header", "query", "cookie"
+	KeyLocation string
 	// UnauthorizedHandler is called when authentication fails (optional)
-	UnauthorizedHandler webfram.Handler
+	UnauthorizedHandler http.Handler
 }
 
-// APIKeyAuth returns a middleware that enforces API Key Authentication
-func APIKeyAuth(config APIKeyAuthConfig) func(webfram.Handler) webfram.Handler {
-	return func(next webfram.Handler) webfram.Handler {
-		return webfram.HandlerFunc(func(w webfram.ResponseWriter, r *webfram.Request) {
+// APIKeyAuth returns a middleware that enforces API Key Authentication.
+func APIKeyAuth(config APIKeyAuthConfig) func(http.Handler) http.Handler {
+	if config.KeyName == "" {
+		config.KeyName = "api_key"
+	}
+	if config.KeyLocation == "" {
+		config.KeyLocation = "header"
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var key string
 			var found bool
 
-			switch config.In {
+			switch config.KeyLocation {
 			case "header":
 				key = r.Header.Get(config.KeyName)
 				found = key != ""
@@ -43,7 +48,7 @@ func APIKeyAuth(config APIKeyAuthConfig) func(webfram.Handler) webfram.Handler {
 				return
 			}
 
-			if !found || !config.Authenticator(key) {
+			if !found || !config.KeyValidator(key) {
 				unauthorizedAPIKey(w, config.UnauthorizedHandler)
 				return
 			}
@@ -53,12 +58,12 @@ func APIKeyAuth(config APIKeyAuthConfig) func(webfram.Handler) webfram.Handler {
 	}
 }
 
-func unauthorizedAPIKey(w webfram.ResponseWriter, handler webfram.Handler) {
+func unauthorizedAPIKey(w http.ResponseWriter, handler http.Handler) {
 	if handler != nil {
 		handler.ServeHTTP(w, nil)
 		return
 	}
 
 	w.WriteHeader(http.StatusUnauthorized)
-	w.Write([]byte("Unauthorized"))
+	_, _ = w.Write([]byte("Unauthorized"))
 }
