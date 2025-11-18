@@ -325,11 +325,15 @@ The standard `XML()` method uses Go's `encoding/xml` package, which doesn't auto
 
 ### The Problem
 
+{% raw %}
+
 ```go
 users := []User{{Name: "Alice"}, {Name: "Bob"}}
 w.XML(users)  // Invalid: No root element!
 // Produces: <User><Name>Alice</Name></User><User><Name>Bob</Name></User>
 ```
+
+{% endraw %}
 
 ### Solution 1: Use XMLArray (Recommended)
 

@@ -222,6 +222,8 @@ func TestTemplateRendering(t *testing.T) {
 
 ## Testing with Table-Driven Tests
 
+{% raw %}
+
 ```go
 func TestUserValidation(t *testing.T) {
     tests := []struct {
@@ -264,7 +266,11 @@ func TestUserValidation(t *testing.T) {
 }
 ```
 
+{% endraw %}
+
 ## Mocking Dependencies
+
+{% raw %}
 
 ```go
 type UserRepository interface {
@@ -308,6 +314,8 @@ func TestGetUserHandler(t *testing.T) {
 }
 ```
 
+{% endraw %}
+
 ## Testing Error Cases
 
 ```go
@@ -343,6 +351,8 @@ go tool cover -html=coverage.out
 
 ## Benchmarks
 
+{% raw %}
+
 ```go
 func BenchmarkBindJSON(b *testing.B) {
     type User struct {
@@ -364,6 +374,8 @@ func BenchmarkBindJSON(b *testing.B) {
     }
 }
 ```
+
+{% endraw %}
 
 ## Best Practices
 

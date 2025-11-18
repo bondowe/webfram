@@ -109,6 +109,8 @@ With the above configuration:
 
 Use `WithOperationConfig()` to add OpenAPI documentation:
 
+{% raw %}
+
 ```go
 mux.HandleFunc("POST /users", createUserHandler).WithOperationConfig(&app.OperationConfig{
     OperationID: "createUser",
@@ -157,9 +159,13 @@ mux.HandleFunc("POST /users", createUserHandler).WithOperationConfig(&app.Operat
 })
 ```
 
+{% endraw %}
+
 ## Path-Level Configuration
 
 Configure documentation for entire paths:
+
+{% raw %}
 
 ```go
 app.SetOpenAPIPathInfo("/users/{id}", &app.PathInfo{
@@ -181,6 +187,8 @@ app.SetOpenAPIPathInfo("/users/{id}", &app.PathInfo{
     },
 })
 ```
+
+{% endraw %}
 
 ## Schema Generation
 
@@ -309,6 +317,8 @@ See the [SSE documentation](sse.html) for more details on Server-Sent Events.
 
 ## Complete Example
 
+{% raw %}
+
 ```go
 type User struct {
     ID    uuid.UUID `json:"id" xml:"id,attr"`
@@ -395,6 +405,8 @@ mux.HandleFunc("POST /users", createUser).WithOperationConfig(&app.OperationConf
     },
 })
 ```
+
+{% endraw %}
 
 ## Viewing Documentation
 

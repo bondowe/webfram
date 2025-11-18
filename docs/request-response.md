@@ -182,6 +182,7 @@ func (w *ResponseWriter) XMLArray(items any, rootName string) error
 
 The standard `XML()` method doesn't wrap slices in a root element, which creates invalid XML:
 
+{% raw %}
 ```go
 users := []User{{Name: "Alice"}, {Name: "Bob"}}
 // ❌ Invalid XML - no root element
@@ -189,13 +190,13 @@ w.XML(users)
 // Produces: <user><name>Alice</name></user><user><name>Bob</name></user>
 ```
 
-`XMLArray()` solves this by adding the required root element:
-
 ```go
 // ✅ Valid XML with root element
 w.XMLArray(users, "users")
 // Produces: <users><user><name>Alice</name></user><user><name>Bob</name></user></users>
 ```
+
+{% endraw %}
 
 ### YAML Response
 
