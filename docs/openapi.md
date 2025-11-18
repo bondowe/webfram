@@ -235,7 +235,7 @@ XML schemas include:
 - Automatic example generation with mock data
 - Slice examples wrapped with xmlRootName for valid XML structure
 
-See the [XML Schema Generation documentation](xml-schema-generation.md) for complete details.
+See the [XML Schema Generation documentation](xml-schema-generation) for complete details.
 
 ## TypeHint Usage for Streaming Media Types
 
