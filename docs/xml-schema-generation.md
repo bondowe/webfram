@@ -1,4 +1,9 @@
-# XML Schema Generation
+---
+layout: default
+title: XML Schema Generation
+nav_order: 11
+description: "Automatic XML schema generation for OpenAPI"
+---
 
 The `GenerateXMLSchema` function generates OpenAPI 3.2.0 compliant XML schemas from Go types, respecting custom `xml` struct tags to properly represent the XML structure in the OpenAPI specification.
 
