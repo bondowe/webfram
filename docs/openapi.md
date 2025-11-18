@@ -305,6 +305,78 @@ mux.HandleFunc("GET /notifications", streamNotifications).WithOperationConfig(&a
 
 The TypeHint specifies the structure of each record in the sequence.
 
+### XML Streaming (application/xml, text/xml)
+
+For XML streaming endpoints, **set the TypeHint to the struct or slice type**:
+
+#### Single Struct (application/xml)
+
+```go
+type User struct {
+    ID    uuid.UUID `xml:"id,attr"`
+    Name  string    `xml:"name"`
+    Email string    `xml:"email"`
+}
+
+// ✅ Correct - TypeHint points to struct type
+mux.HandleFunc("GET /user/stream", streamUser).WithOperationConfig(&app.OperationConfig{
+    OperationID: "streamUser",
+    Summary:     "Stream user data as XML",
+    Responses: map[string]app.Response{
+        "200": {
+            Description: "XML stream of user data",
+            Content: map[string]app.TypeInfo{
+                "application/xml": {TypeHint: &User{}}, // Describes the XML structure
+            },
+        },
+    },
+})
+```
+
+#### Slice/Array (application/xml)
+
+```go
+type User struct {
+    ID    uuid.UUID `xml:"id,attr"`
+    Name  string    `xml:"name"`
+    Email string    `xml:"email"`
+}
+
+// ✅ Correct - TypeHint points to slice type for XML arrays
+mux.HandleFunc("GET /users/stream", streamUsers).WithOperationConfig(&app.OperationConfig{
+    OperationID: "streamUsers",
+    Summary:     "Stream users as XML array",
+    Responses: map[string]app.Response{
+        "200": {
+            Description: "XML stream of user array",
+            Content: map[string]app.TypeInfo{
+                "application/xml": {TypeHint: []User{}}, // Describes array of users
+            },
+        },
+    },
+})
+```
+
+#### Text/XML Variant
+
+For `text/xml` media type, the TypeHint behavior is identical to `application/xml`:
+
+```go
+// ✅ Correct - text/xml uses same TypeHint rules as application/xml
+mux.HandleFunc("GET /data.xml", getXMLData).WithOperationConfig(&app.OperationConfig{
+    OperationID: "getXMLData",
+    Summary:     "Get data as text/xml",
+    Responses: map[string]app.Response{
+        "200": {
+            Description: "XML data in text format",
+            Content: map[string]app.TypeInfo{
+                "text/xml": {TypeHint: &User{}}, // Same as application/xml
+            },
+        },
+    },
+})
+```
+
 ### Summary
 
 | Media Type               | TypeHint Behavior                                        |
@@ -312,6 +384,8 @@ The TypeHint specifies the structure of each record in the sequence.
 | `text/event-stream`      | Don't set - automatically uses `SSEPayload`              |
 | `application/json-seq`   | Set to line item type - describes each record in stream |
 | `application/json`       | Set to response type - describes the entire response    |
+| `application/xml`        | Set to struct/slice type - describes XML structure      |
+| `text/xml`               | Set to struct/slice type - describes XML structure      |
 
 See the [SSE documentation](sse.html) for more details on Server-Sent Events.
 
