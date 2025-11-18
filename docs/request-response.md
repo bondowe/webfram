@@ -139,6 +139,64 @@ type User struct {
 err := w.XML(User{Name: "John"})
 ```
 
+### XML Array Response
+
+For serializing slices to valid XML, use `XMLArray` which wraps the slice with a root element:
+
+```go
+type User struct {
+    XMLName xml.Name `xml:"user"`
+    Name    string   `xml:"name"`
+    Email   string   `xml:"email"`
+}
+
+users := []User{
+    {Name: "Alice", Email: "alice@example.com"},
+    {Name: "Bob", Email: "bob@example.com"},
+}
+
+// Produces: <users><user><name>Alice</name><email>alice@example.com</email></user><user><name>Bob</name><email>bob@example.com</email></user></users>
+err := w.XMLArray(users, "users")
+```
+
+**XMLArray Method Signature:**
+
+```go
+func (w *ResponseWriter) XMLArray(items any, rootName string) error
+```
+
+**Parameters:**
+
+- `items`: Must be a slice (any element type)
+- `rootName`: The name of the wrapping root element
+
+**Features:**
+
+- Automatically adds XML declaration (`<?xml version="1.0"?>`)
+- Creates valid XML with proper root element wrapping
+- Each item uses its struct's `XMLName` or type name for element naming
+- Works with any slice type (structs, primitives, etc.)
+- Sets `Content-Type: application/xml` header
+
+**Why use XMLArray?**
+
+The standard `XML()` method doesn't wrap slices in a root element, which creates invalid XML:
+
+```go
+users := []User{{Name: "Alice"}, {Name: "Bob"}}
+// ❌ Invalid XML - no root element
+w.XML(users)
+// Produces: <user><name>Alice</name></user><user><name>Bob</name></user>
+```
+
+`XMLArray()` solves this by adding the required root element:
+
+```go
+// ✅ Valid XML with root element
+w.XMLArray(users, "users")
+// Produces: <users><user><name>Alice</name></user><user><name>Bob</name></user></users>
+```
+
 ### YAML Response
 
 ```go

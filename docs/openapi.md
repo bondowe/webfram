@@ -184,7 +184,9 @@ app.SetOpenAPIPathInfo("/users/{id}", &app.PathInfo{
 
 ## Schema Generation
 
-WebFram automatically generates JSON schemas from struct tags:
+WebFram automatically generates JSON and XML schemas from struct tags:
+
+### JSON Schema Generation
 
 ```go
 type User struct {
@@ -204,6 +206,28 @@ Generates OpenAPI schema with:
 - Enum values
 - Array constraints (minItems, maxItems, uniqueItems)
 - Format specifications (email, uuid, date-time)
+
+### XML Schema Generation
+
+For XML content types, WebFram generates XML-aware schemas with proper XML metadata:
+
+```go
+type User struct {
+    ID    uuid.UUID `xml:"id,attr" validate:"required"`
+    Name  string    `xml:"name" validate:"required,minlength=3"`
+    Email string    `xml:"email,attr" validate:"required,format=email"`
+    Age   int       `xml:"age" validate:"min=18,max=120"`
+}
+```
+
+XML schemas include:
+
+- XML element and attribute metadata
+- Proper XML namespace and prefix support
+- Automatic example generation with mock data
+- Slice examples wrapped with xmlRootName for valid XML structure
+
+See the [XML Schema Generation documentation](xml-schema-generation.html) for complete details.
 
 ## TypeHint Usage for Streaming Media Types
 
@@ -287,13 +311,13 @@ See the [SSE documentation](sse.html) for more details on Server-Sent Events.
 
 ```go
 type User struct {
-    ID    uuid.UUID `json:"id"`
-    Name  string    `json:"name" validate:"required,minlength=3"`
-    Email string    `json:"email" validate:"required,format=email"`
-    Role  string    `json:"role" validate:"enum=admin|user|guest"`
+    ID    uuid.UUID `json:"id" xml:"id,attr"`
+    Name  string    `json:"name" xml:"name" validate:"required,minlength=3"`
+    Email string    `json:"email" xml:"email,attr" validate:"required,format=email"`
+    Role  string    `json:"role" xml:"role" validate:"enum=admin|user|guest"`
 }
 
-// List users
+// List users (JSON response)
 mux.HandleFunc("GET /users", listUsers).WithOperationConfig(&app.OperationConfig{
     OperationID: "listUsers",
     Summary:     "List all users",
@@ -303,6 +327,21 @@ mux.HandleFunc("GET /users", listUsers).WithOperationConfig(&app.OperationConfig
             Description: "List of users",
             Content: map[string]app.TypeInfo{
                 "application/json": {TypeHint: &[]User{}},
+            },
+        },
+    },
+})
+
+// List users (XML response)
+mux.HandleFunc("GET /users.xml", listUsersXML).WithOperationConfig(&app.OperationConfig{
+    OperationID: "listUsersXML",
+    Summary:     "List all users (XML)",
+    Tags:        []string{"Users"},
+    Responses: map[string]app.Response{
+        "200": {
+            Description: "List of users in XML format",
+            Content: map[string]app.TypeInfo{
+                "application/xml": {TypeHint: &[]User{}},
             },
         },
     },

@@ -303,6 +303,55 @@ func (w *ResponseWriter) XML(v any) error {
 	return err
 }
 
+// XMLArray marshals a slice with a wrapping root element and writes it to the response.
+// This is a convenience method for properly serializing arrays to valid XML.
+// The rootName parameter specifies the name of the wrapping element.
+// Each item in the slice will use its struct's XMLName or type name for its element.
+// Sets Content-Type header to "application/xml".
+// Returns an error if items is not a slice, marshaling fails, or writing fails.
+//
+// Example:
+//
+//	type User struct {
+//	    XMLName xml.Name `xml:"user"`
+//	    Name string `xml:"name"`
+//	}
+//	users := []User{{Name: "Alice"}, {Name: "Bob"}}
+//	w.XMLArray(users, "users")
+//	// Produces: <users><user><name>Alice</name></user><user><name>Bob</name></user></users>
+func (w *ResponseWriter) XMLArray(items any, rootName string) error {
+	v := reflect.ValueOf(items)
+	if v.Kind() != reflect.Slice {
+		return errors.New("items must be a slice")
+	}
+
+	w.Header().Set("Content-Type", "application/xml")
+
+	// Write XML declaration and opening root tag
+	if _, err := w.Write([]byte(xml.Header)); err != nil {
+		return err
+	}
+	if _, err := w.Write([]byte("<" + rootName + ">")); err != nil {
+		return err
+	}
+
+	// Marshal and write each item directly
+	for i := range v.Len() {
+		item := v.Index(i).Interface()
+		bs, err := xml.Marshal(item)
+		if err != nil {
+			return err
+		}
+		if _, writeErr := w.Write(bs); writeErr != nil {
+			return writeErr
+		}
+	}
+
+	// Write closing root tag
+	_, err := w.Write([]byte("</" + rootName + ">"))
+	return err
+}
+
 // YAML marshals the provided data as YAML and writes it to the response.
 // Sets Content-Type header to "text/x-yaml".
 // Returns an error if marshaling or writing fails.
@@ -315,8 +364,8 @@ func (w *ResponseWriter) YAML(v any) error {
 		http.Error(w.ResponseWriter, err.Error(), http.StatusInternalServerError)
 		return err
 	}
-	_, err = w.Write(data)
-	return err
+	_, writeErr := w.Write(data)
+	return writeErr
 }
 
 // Bytes writes raw byte data to the response with the specified content type.

@@ -2,6 +2,7 @@ package bind
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -296,5 +297,319 @@ func TestGenerateJSONSchema_UnsignedIntegers(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+// TestGenerateXMLSchema_BasicTypes tests XML schema generation for basic types.
+func TestGenerateXMLSchema_BasicTypes(t *testing.T) {
+	type XMLPerson struct {
+		ID       int       `xml:"id,attr"`
+		Name     string    `xml:"name"`
+		Age      int       `xml:"age"`
+		Email    string    `xml:"email,attr"`
+		Active   bool      `xml:"active"`
+		Score    float64   `xml:"score"`
+		Created  time.Time `xml:"created"`
+		UniqueID uuid.UUID `xml:"unique_id"`
+	}
+
+	components := &openapi.Components{}
+	var p XMLPerson
+
+	schemaOrRef := GenerateXMLSchema(p, "", components)
+	if schemaOrRef == nil || schemaOrRef.Ref == "" {
+		t.Fatalf("expected a reference schema for XMLPerson, got %v", schemaOrRef)
+	}
+
+	// Check the component schema exists (should have .XML suffix)
+	personSchema, ok := components.Schemas[reflect.TypeOf(p).String()+".XML"]
+	if !ok {
+		t.Fatalf("components does not contain schema for XMLPerson")
+	}
+
+	if personSchema.Type != "object" {
+		t.Fatalf("expected type 'object', got %s", personSchema.Type)
+	}
+
+	// Test ID field (attribute)
+	idProp, ok := personSchema.Properties["id"]
+	if !ok {
+		t.Fatalf("expected 'id' property")
+	}
+	if idProp.Schema == nil {
+		t.Fatalf("expected inline schema for id")
+	}
+	if idProp.Schema.Type != "integer" {
+		t.Fatalf("expected type 'integer' for id, got %s", idProp.Schema.Type)
+	}
+	if idProp.Schema.XML == nil {
+		t.Fatalf("expected XML metadata for id")
+	}
+	if idProp.Schema.XML.NodeType != "attribute" {
+		t.Fatalf("expected nodeType 'attribute' for id, got %s", idProp.Schema.XML.NodeType)
+	}
+	if idProp.Schema.XML.Name != "id" {
+		t.Fatalf("expected XML name 'id', got %s", idProp.Schema.XML.Name)
+	}
+
+	// Test Name field (element)
+	nameProp, ok := personSchema.Properties["name"]
+	if !ok {
+		t.Fatalf("expected 'name' property")
+	}
+	if nameProp.Schema == nil {
+		t.Fatalf("expected inline schema for name")
+	}
+	if nameProp.Schema.Type != "string" {
+		t.Fatalf("expected type 'string' for name, got %s", nameProp.Schema.Type)
+	}
+	if nameProp.Schema.XML == nil {
+		t.Fatalf("expected XML metadata for name")
+	}
+	if nameProp.Schema.XML.NodeType != "element" {
+		t.Fatalf("expected nodeType 'element' for name, got %s", nameProp.Schema.XML.NodeType)
+	}
+
+	// Test Email field (attribute)
+	emailProp, ok := personSchema.Properties["email"]
+	if !ok {
+		t.Fatalf("expected 'email' property")
+	}
+	if emailProp.Schema == nil {
+		t.Fatalf("expected inline schema for email")
+	}
+	if emailProp.Schema.XML == nil {
+		t.Fatalf("expected XML metadata for email")
+	}
+	if emailProp.Schema.XML.NodeType != "attribute" {
+		t.Fatalf("expected nodeType 'attribute' for email, got %s", emailProp.Schema.XML.NodeType)
+	}
+}
+
+// TestGenerateXMLSchema_Arrays tests XML schema generation for array types.
+func TestGenerateXMLSchema_Arrays(t *testing.T) {
+	type XMLBook struct {
+		Title   string   `xml:"title"`
+		Authors []string `xml:"author"`
+		Ratings []int    `xml:"rating"`
+	}
+
+	components := &openapi.Components{}
+	var book XMLBook
+
+	schemaOrRef := GenerateXMLSchema(book, "", components)
+	if schemaOrRef == nil || schemaOrRef.Ref == "" {
+		t.Fatalf("expected a reference schema for XMLBook, got %v", schemaOrRef)
+	}
+
+	bookSchema, ok := components.Schemas[reflect.TypeOf(book).String()+".XML"]
+	if !ok {
+		t.Fatalf("components does not contain schema for XMLBook")
+	}
+
+	// Test Authors array
+	authorsProp, ok := bookSchema.Properties["author"]
+	if !ok {
+		t.Fatalf("expected 'author' property")
+	}
+	if authorsProp.Schema == nil {
+		t.Fatalf("expected inline schema for authors")
+	}
+	if authorsProp.Schema.Type != "array" {
+		t.Fatalf("expected type 'array' for authors, got %s", authorsProp.Schema.Type)
+	}
+	if authorsProp.Schema.Items == nil || authorsProp.Schema.Items.Schema == nil {
+		t.Fatalf("expected items schema for authors")
+	}
+	if authorsProp.Schema.Items.Schema.Type != "string" {
+		t.Fatalf("expected items type 'string' for authors, got %s", authorsProp.Schema.Items.Schema.Type)
+	}
+	if authorsProp.Schema.Items.Schema.XML == nil {
+		t.Fatalf("expected XML metadata for author items")
+	}
+	if authorsProp.Schema.Items.Schema.XML.Name != "author" {
+		t.Fatalf("expected XML name 'author' for items, got %s", authorsProp.Schema.Items.Schema.XML.Name)
+	}
+
+	// Test Ratings array
+	ratingsProp, ok := bookSchema.Properties["rating"]
+	if !ok {
+		t.Fatalf("expected 'rating' property")
+	}
+	if ratingsProp.Schema == nil {
+		t.Fatalf("expected inline schema for ratings")
+	}
+	if ratingsProp.Schema.Type != "array" {
+		t.Fatalf("expected type 'array' for ratings, got %s", ratingsProp.Schema.Type)
+	}
+	if ratingsProp.Schema.Items == nil || ratingsProp.Schema.Items.Schema == nil {
+		t.Fatalf("expected items schema for ratings")
+	}
+	if ratingsProp.Schema.Items.Schema.Type != "integer" {
+		t.Fatalf("expected items type 'integer' for ratings, got %s", ratingsProp.Schema.Items.Schema.Type)
+	}
+}
+
+// TestGenerateXMLSchema_NestedStructs tests XML schema generation for nested structures.
+func TestGenerateXMLSchema_NestedStructs(t *testing.T) {
+	type XMLAddress struct {
+		Street string `xml:"street"`
+		City   string `xml:"city"`
+		Zip    string `xml:"zip,attr"`
+	}
+
+	type XMLCompany struct {
+		Name    string     `xml:"name,attr"`
+		Address XMLAddress `xml:"address"`
+	}
+
+	components := &openapi.Components{}
+	var company XMLCompany
+
+	schemaOrRef := GenerateXMLSchema(company, "", components)
+	if schemaOrRef == nil || schemaOrRef.Ref == "" {
+		t.Fatalf("expected a reference schema for XMLCompany, got %v", schemaOrRef)
+	}
+
+	// Check XMLCompany schema
+	companySchema, ok := components.Schemas[reflect.TypeOf(company).String()+".XML"]
+	if !ok {
+		t.Fatalf("components does not contain schema for XMLCompany")
+	}
+
+	// Test Name attribute
+	nameProp, ok := companySchema.Properties["name"]
+	if !ok {
+		t.Fatalf("expected 'name' property")
+	}
+	if nameProp.Schema == nil {
+		t.Fatalf("expected inline schema for name")
+	}
+	if nameProp.Schema.XML == nil || nameProp.Schema.XML.NodeType != "attribute" {
+		t.Fatalf("expected name to be an attribute")
+	}
+
+	// Test nested Address
+	addressProp, ok := companySchema.Properties["address"]
+	if !ok {
+		t.Fatalf("expected 'address' property")
+	}
+	if addressProp.Ref == "" {
+		t.Fatalf("expected reference to XMLAddress schema, got inline schema")
+	}
+
+	// Check XMLAddress schema exists (should have .XML suffix)
+	addressSchema, ok := components.Schemas[reflect.TypeOf(XMLAddress{}).String()+".XML"]
+	if !ok {
+		t.Fatalf("components does not contain schema for XMLAddress")
+	}
+
+	// Test Zip attribute in nested struct
+	zipProp, ok := addressSchema.Properties["zip"]
+	if !ok {
+		t.Fatalf("expected 'zip' property in XMLAddress")
+	}
+	if zipProp.Schema == nil {
+		t.Fatalf("expected inline schema for zip")
+	}
+	if zipProp.Schema.XML == nil || zipProp.Schema.XML.NodeType != "attribute" {
+		t.Fatalf("expected zip to be an attribute")
+	}
+}
+
+// TestGenerateXMLSchema_UnsignedIntegers tests XML schema generation with unsigned integer types.
+func TestGenerateXMLSchema_UnsignedIntegers(t *testing.T) {
+	type XMLMetrics struct {
+		Count8  uint8  `xml:"count8"`
+		Count16 uint16 `xml:"count16"`
+		Count32 uint32 `xml:"count32"`
+		Count64 uint64 `xml:"count64"`
+		Count   uint   `xml:"count"`
+	}
+
+	components := &openapi.Components{}
+	var metrics XMLMetrics
+
+	schemaOrRef := GenerateXMLSchema(metrics, "", components)
+	if schemaOrRef == nil || schemaOrRef.Ref == "" {
+		t.Fatalf("expected a reference schema for XMLMetrics, got %v", schemaOrRef)
+	}
+
+	metricsSchema, ok := components.Schemas[reflect.TypeOf(metrics).String()+".XML"]
+	if !ok {
+		t.Fatalf("components does not contain schema for XMLMetrics")
+	}
+
+	tests := []struct {
+		name           string
+		expectedFormat string
+	}{
+		{"count8", "uint8"},
+		{"count16", "uint16"},
+		{"count32", "uint32"},
+		{"count64", "uint64"},
+		{"count", "uint64"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prop, propOk := metricsSchema.Properties[tt.name]
+			if !propOk {
+				t.Fatalf("expected '%s' property", tt.name)
+			}
+			if prop.Schema == nil {
+				t.Fatalf("expected inline schema for %s", tt.name)
+			}
+			if prop.Schema.Type != "integer" {
+				t.Fatalf("expected type 'integer' for %s, got %s", tt.name, prop.Schema.Type)
+			}
+			if prop.Schema.Format != tt.expectedFormat {
+				t.Fatalf("expected format '%s' for %s, got %s", tt.expectedFormat, tt.name, prop.Schema.Format)
+			}
+			if prop.Schema.XML == nil {
+				t.Fatalf("expected XML metadata for %s", tt.name)
+			}
+			if prop.Schema.XML.Name != tt.name {
+				t.Fatalf("expected XML name '%s', got %s", tt.name, prop.Schema.XML.Name)
+			}
+		})
+	}
+}
+
+// TestGenerateXMLSchema_SliceExamples tests that slice XML examples are properly wrapped with xmlRootName.
+func TestGenerateXMLSchema_SliceExamples(t *testing.T) {
+	type XMLUser struct {
+		Name  string `xml:"name"`
+		Email string `xml:"email"`
+	}
+
+	components := &openapi.Components{}
+	var users []XMLUser
+
+	schemaOrRef := GenerateXMLSchema(users, "users", components)
+	if schemaOrRef == nil || schemaOrRef.Schema == nil {
+		t.Fatalf("expected inline schema for []XMLUser, got %v", schemaOrRef)
+	}
+
+	usersSchema := schemaOrRef.Schema
+
+	// Check that the schema has an example
+	if usersSchema.Example == nil {
+		t.Fatalf("expected example for slice schema")
+	}
+
+	exampleStr, isString := usersSchema.Example.(string)
+	if !isString {
+		t.Fatalf("expected example to be a string, got %T", usersSchema.Example)
+	}
+
+	// The example should be wrapped with the xmlRootName "users"
+	if !strings.Contains(exampleStr, "<users>") || !strings.Contains(exampleStr, "</users>") {
+		t.Fatalf("expected example to be wrapped with <users> root element, got: %s", exampleStr)
+	}
+
+	// Should contain user elements inside
+	if !strings.Contains(exampleStr, "<XMLUser>") || !strings.Contains(exampleStr, "</XMLUser>") {
+		t.Fatalf("expected example to contain XMLUser elements, got: %s", exampleStr)
 	}
 }

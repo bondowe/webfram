@@ -22,6 +22,10 @@ const (
 	mediaTypeJSONSeq         = "application/json-seq"
 )
 
+var (
+	mediaTypesXML = []string{"application/xml", "text/xml"} //nolint:gochecknoglobals
+)
+
 type (
 	// Request wraps http.Request with additional framework functionality.
 	Request struct {
@@ -96,8 +100,11 @@ type (
 	TypeInfo struct {
 		// TypeHint provides a hint about the data type.
 		TypeHint any
-		Example  any
-		Examples map[string]Example
+		// XMLRootName specifies the root element name for XML serialization.
+		// Only applicable when using XML content type.
+		XMLRootName string
+		Example     any
+		Examples    map[string]Example
 	}
 	// Example represents an OpenAPI example value.
 	Example struct {
@@ -278,7 +285,17 @@ func mapContent(typeInfos map[string]TypeInfo) map[string]openapi.MediaType {
 				info.TypeHint = &SSEPayload{}
 			}
 
-			schemaOrRef := bind.GenerateJSONSchema(info.TypeHint, openAPIConfig.internalConfig.Components)
+			var schemaOrRef *openapi.SchemaOrRef
+
+			if slices.Contains(mediaTypesXML, mt) {
+				schemaOrRef = bind.GenerateXMLSchema(
+					info.TypeHint,
+					info.XMLRootName,
+					openAPIConfig.internalConfig.Components,
+				)
+			} else {
+				schemaOrRef = bind.GenerateJSONSchema(info.TypeHint, openAPIConfig.internalConfig.Components)
+			}
 
 			mediaType := openapi.MediaType{
 				Example:  info.Example,

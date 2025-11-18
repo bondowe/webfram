@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"log"
@@ -26,6 +27,7 @@ var assetsFS embed.FS
 
 //nolint:golines // struct tags require specific formatting
 type User struct {
+	XMLName   xml.Name  `json:"-" xml:"user"` // Root element name for XML serialization
 	ID        uuid.UUID `json:"id" xml:"id" form:"id"`
 	Name      string    `json:"name" xml:"name" form:"name" validate:"required,minlength=3" errmsg:"required=Name is required;minlength=Name must be at least 3 characters"` //nolint:lll // struct tags must be on one line
 	Email     string    `json:"email" xml:"email" form:"email" validate:"required,format=email" errmsg:"required=Email is required;format=Invalid email"`                    //nolint:lll // struct tags must be on one line
@@ -226,6 +228,37 @@ func main() {
 		if jsonErr := w.JSON(r.Context(), user); jsonErr != nil {
 			w.Error(http.StatusInternalServerError, jsonErr.Error())
 		}
+	})
+
+	// XML endpoint demonstrating XML schema generation with custom tags
+	mux.HandleFunc("GET /users/xml", func(w app.ResponseWriter, r *app.Request) {
+		users := []User{
+			{ID: uuid.New(), Name: "John Doe", Email: "john@example.com", Role: "admin"},
+			{ID: uuid.New(), Name: "Jane Smith", Email: "jane@example.com", Role: "user"},
+		}
+		// Use XMLArray to wrap the slice with a root element for valid XML
+		if err := w.XMLArray(users, "users"); err != nil {
+			w.Error(http.StatusInternalServerError, err.Error())
+		}
+	}).WithOperationConfig(&app.OperationConfig{
+		OperationID: "listUsersXML",
+		Summary:     "List all users in XML format",
+		Description: "Returns a list of users with XML serialization that respects custom xml tags (attributes vs elements). " +
+			"Uses XMLArray() to wrap the slice in a <users> root element. Each item uses its XMLName.",
+		Tags: []string{"User Service"},
+		Responses: map[string]app.Response{
+			"200": {
+				Description: "List of users in XML format. " +
+					"Note: id, email, and role are serialized as XML attributes, " +
+					"while name and birthdate are serialized as XML elements.",
+				Content: map[string]app.TypeInfo{
+					"application/xml": {
+						TypeHint:    []User{},
+						XMLRootName: "users",
+					},
+				},
+			},
+		},
 	})
 
 	// SSE endpoint for real-time updates

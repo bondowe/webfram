@@ -999,6 +999,172 @@ func BenchmarkResponseWriter_JSON(b *testing.B) {
 	}
 }
 
+func TestResponseWriter_XMLArray(t *testing.T) {
+	type User struct {
+		XMLName xml.Name `xml:"user"`
+		ID      int      `xml:"id,attr"`
+		Name    string   `xml:"name"`
+		Email   string   `xml:"email"`
+	}
+
+	tests := []struct {
+		name         string
+		items        any
+		rootName     string
+		wantError    bool
+		wantContains []string
+	}{
+		{
+			name: "slice of structs",
+			items: []User{
+				{ID: 1, Name: "Alice", Email: "alice@example.com"},
+				{ID: 2, Name: "Bob", Email: "bob@example.com"},
+			},
+			rootName: "users",
+			wantContains: []string{
+				"<?xml version=",
+				"<users>",
+				"<user id=\"1\">",
+				"<name>Alice</name>",
+				"<email>alice@example.com</email>",
+				"</user>",
+				"<user id=\"2\">",
+				"<name>Bob</name>",
+				"</user>",
+				"</users>",
+			},
+		},
+		{
+			name:     "single item",
+			items:    []User{{ID: 1, Name: "Alice", Email: "alice@example.com"}},
+			rootName: "users",
+			wantContains: []string{
+				"<?xml version=",
+				"<users>",
+				"<user id=\"1\">",
+				"<name>Alice</name>",
+				"</user>",
+				"</users>",
+			},
+		},
+		{
+			name:     "empty slice",
+			items:    []User{},
+			rootName: "users",
+			wantContains: []string{
+				"<?xml version=",
+				"<users></users>",
+			},
+		},
+		{
+			name:     "slice of primitives",
+			items:    []string{"apple", "banana", "cherry"},
+			rootName: "fruits",
+			wantContains: []string{
+				"<?xml version=",
+				"<fruits>",
+				"<string>apple</string>",
+				"<string>banana</string>",
+				"<string>cherry</string>",
+				"</fruits>",
+			},
+		},
+		{
+			name:      "non-slice input",
+			items:     User{ID: 1, Name: "Alice", Email: "alice@example.com"},
+			rootName:  "users",
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			rw := ResponseWriter{ResponseWriter: w}
+
+			err := rw.XMLArray(tt.items, tt.rootName)
+
+			if tt.wantError {
+				if err == nil {
+					t.Error("XMLArray() expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("XMLArray() returned error: %v", err)
+			}
+
+			contentType := w.Header().Get("Content-Type")
+			if contentType != "application/xml" {
+				t.Errorf("Expected Content-Type 'application/xml', got %q", contentType)
+			}
+
+			body := w.Body.String()
+			for _, want := range tt.wantContains {
+				if !strings.Contains(body, want) {
+					t.Errorf("Expected body to contain %q, got:\n%s", want, body)
+				}
+			}
+		})
+	}
+}
+
+func TestResponseWriter_XMLArray_Validation(t *testing.T) {
+	type Product struct {
+		XMLName xml.Name `xml:"product"`
+		ID      string   `xml:"id,attr"`
+		Name    string   `xml:"name"`
+		Price   float64  `xml:"price"`
+	}
+
+	w := httptest.NewRecorder()
+	rw := ResponseWriter{ResponseWriter: w}
+
+	products := []Product{
+		{ID: "p1", Name: "Laptop", Price: 999.99},
+		{ID: "p2", Name: "Mouse", Price: 29.99},
+	}
+
+	err := rw.XMLArray(products, "products")
+	if err != nil {
+		t.Fatalf("XMLArray() returned error: %v", err)
+	}
+
+	body := w.Body.String()
+
+	// Verify XML structure
+	if !strings.HasPrefix(body, "<?xml version=") {
+		t.Error("Expected XML declaration at the start")
+	}
+
+	if !strings.Contains(body, "<products>") {
+		t.Error("Expected opening root tag <products>")
+	}
+
+	if !strings.Contains(body, "</products>") {
+		t.Error("Expected closing root tag </products>")
+	}
+
+	// Verify items use their XMLName
+	if !strings.Contains(body, "<product") {
+		t.Error("Expected product element tags")
+	}
+
+	// Verify product data is present
+	if !strings.Contains(body, `id="p1"`) {
+		t.Error("Expected product ID as attribute")
+	}
+
+	if !strings.Contains(body, "<name>Laptop</name>") {
+		t.Error("Expected product name element")
+	}
+
+	if !strings.Contains(body, "<price>999.99</price>") {
+		t.Error("Expected product price element")
+	}
+}
+
 func BenchmarkResponseWriter_XML(b *testing.B) {
 	type Data struct {
 		XMLName xml.Name `xml:"data"`
@@ -1013,6 +1179,27 @@ func BenchmarkResponseWriter_XML(b *testing.B) {
 		w := httptest.NewRecorder()
 		rw := ResponseWriter{ResponseWriter: w}
 		_ = rw.XML(data)
+	}
+}
+
+func BenchmarkResponseWriter_XMLArray(b *testing.B) {
+	type User struct {
+		XMLName xml.Name `xml:"user"`
+		ID      int      `xml:"id,attr"`
+		Name    string   `xml:"name"`
+	}
+
+	users := []User{
+		{ID: 1, Name: "Alice"},
+		{ID: 2, Name: "Bob"},
+		{ID: 3, Name: "Charlie"},
+	}
+
+	b.ResetTimer()
+	for b.Loop() {
+		w := httptest.NewRecorder()
+		rw := ResponseWriter{ResponseWriter: w}
+		_ = rw.XMLArray(users, "users")
 	}
 }
 
