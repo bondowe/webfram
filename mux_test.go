@@ -1,6 +1,7 @@
 package webfram
 
 import (
+	"crypto/x509"
 	"embed"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/bondowe/webfram/internal/i18n"
 	"github.com/bondowe/webfram/internal/telemetry"
+	"github.com/bondowe/webfram/security"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"golang.org/x/text/language"
 )
@@ -1463,6 +1465,616 @@ func TestGetHandlerMiddlewares_PanicsOnUnsupportedType(t *testing.T) {
 	}()
 
 	getHandlerMiddlewares([]interface{}{"invalid-type"})
+}
+
+// =============================================================================
+// Security Configuration Tests
+// =============================================================================
+
+func TestServeMux_UseSecurity_SetsSecurityConfig(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	securityConfig := security.Config{
+		APIKeyAuth: &security.APIKeyAuthConfig{
+			KeyName:      "X-API-Key",
+			KeyLocation:  "header",
+			KeyValidator: func(key string) bool { return key == "valid-key" },
+		},
+	}
+
+	mux.UseSecurity(securityConfig)
+
+	if mux.securityConfig == nil {
+		t.Fatal("Expected security config to be set")
+	}
+
+	if mux.securityConfig.APIKeyAuth == nil {
+		t.Error("Expected APIKeyAuth config to be set")
+	}
+
+	if mux.securityConfig.APIKeyAuth.KeyName != "X-API-Key" {
+		t.Errorf("Expected API key name 'X-API-Key', got %q", mux.securityConfig.APIKeyAuth.KeyName)
+	}
+}
+
+func TestServeMux_UseSecurity_OverridesGlobalConfig(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	// Set mux-specific security config
+	muxConfig := security.Config{
+		BearerAuth: &security.BearerAuthConfig{
+			TokenValidator: func(token string) bool { return token == "valid-token" },
+		},
+	}
+	mux.UseSecurity(muxConfig)
+
+	// Verify the config was set correctly
+	if mux.securityConfig.BearerAuth == nil {
+		t.Error("Expected mux BearerAuth config to be set")
+	}
+
+	if mux.securityConfig.BasicAuth != nil {
+		t.Error("Expected no BasicAuth config when only BearerAuth is set")
+	}
+}
+
+func TestGetSecurityMiddlewares_AllowAnonymousAuth(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		AllowAnonymousAuth: true,
+		BasicAuth: &security.BasicAuthConfig{
+			Realm:         "test",
+			Authenticator: func(_, _ string) bool { return true },
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 0 {
+		t.Errorf("Expected no security middlewares when AllowAnonymousAuth is true, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_NoSecurityConfig(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 0 {
+		t.Errorf("Expected no security middlewares when no config is set, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_GlobalSecurityConfig(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	// Test that mux-level security config takes precedence over global config
+	// When no security is configured on the mux, it should return empty middlewares
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 0 {
+		t.Errorf("Expected 0 security middlewares when no mux security is configured, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_APIKeyAuth(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		APIKeyAuth: &security.APIKeyAuthConfig{
+			KeyName:      "X-API-Key",
+			KeyLocation:  "header",
+			KeyValidator: func(_ string) bool { return true },
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 1 {
+		t.Errorf("Expected 1 security middleware, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_BasicAuth(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		BasicAuth: &security.BasicAuthConfig{
+			Realm:         "test",
+			Authenticator: func(_, _ string) bool { return true },
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 1 {
+		t.Errorf("Expected 1 security middleware, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_DigestAuth(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		DigestAuth: &security.DigestAuthConfig{
+			Realm: "test",
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 1 {
+		t.Errorf("Expected 1 security middleware, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_BearerAuth(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		BearerAuth: &security.BearerAuthConfig{
+			TokenValidator: func(_ string) bool { return true },
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 1 {
+		t.Errorf("Expected 1 security middleware, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_MutualTLSAuth(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		MutualTLSAuth: &security.MutualTLSAuthConfig{
+			CertificateValidator: func(_ *x509.Certificate) bool { return true },
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 1 {
+		t.Errorf("Expected 1 security middleware, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_OAuth2AuthorizationCode(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		OAuth2AuthorizationCode: &security.OAuth2AuthorizationCodeConfig{
+			OAuth2BaseConfig: security.OAuth2BaseConfig{
+				ClientID:       "test-client",
+				TokenURL:       "https://example.com/token",
+				TokenValidator: func(_ string) bool { return true },
+			},
+			ClientSecret: "test-secret",
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 1 {
+		t.Errorf("Expected 1 security middleware, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_OAuth2ClientCredentials(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		OAuth2ClientCredentials: &security.OAuth2ClientCredentialsConfig{
+			OAuth2BaseConfig: security.OAuth2BaseConfig{
+				ClientID:       "test-client",
+				TokenURL:       "https://example.com/token",
+				TokenValidator: func(_ string) bool { return true },
+			},
+			ClientSecret: "test-secret",
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 1 {
+		t.Errorf("Expected 1 security middleware, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_OAuth2Device(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		OAuth2Device: &security.OAuth2DeviceConfig{
+			OAuth2BaseConfig: security.OAuth2BaseConfig{
+				ClientID:       "test-client",
+				TokenURL:       "https://example.com/token",
+				TokenValidator: func(_ string) bool { return true },
+			},
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 1 {
+		t.Errorf("Expected 1 security middleware, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_OAuth2Implicit(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		OAuth2Implicit: &security.OAuth2ImplicitConfig{
+			OAuth2BaseConfig: security.OAuth2BaseConfig{
+				ClientID:       "test-client",
+				TokenURL:       "https://example.com/token",
+				TokenValidator: func(_ string) bool { return true },
+			},
+			AuthorizationURL: "https://example.com/auth",
+			RedirectURL:      "https://example.com/callback",
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 1 {
+		t.Errorf("Expected 1 security middleware, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_OpenIDConnectAuth(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		OpenIDConnectAuth: &security.OpenIDConnectAuthConfig{
+			IssuerURL: "https://example.com",
+			ClientID:  "test-client",
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 1 {
+		t.Errorf("Expected 1 security middleware, got %d", len(middlewares))
+	}
+}
+
+func TestGetSecurityMiddlewares_MultipleAuthMethods(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		APIKeyAuth: &security.APIKeyAuthConfig{
+			KeyName:      "X-API-Key",
+			KeyLocation:  "header",
+			KeyValidator: func(_ string) bool { return true },
+		},
+		BasicAuth: &security.BasicAuthConfig{
+			Realm:         "test",
+			Authenticator: func(_, _ string) bool { return true },
+		},
+		BearerAuth: &security.BearerAuthConfig{
+			TokenValidator: func(_ string) bool { return true },
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	middlewares := getSecurityMiddlewares(mux)
+
+	if len(middlewares) != 3 {
+		t.Errorf("Expected 3 security middlewares, got %d", len(middlewares))
+	}
+}
+
+func TestServeMux_SecurityMiddlewareIntegration_APIKeyAuth(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		APIKeyAuth: &security.APIKeyAuthConfig{
+			KeyName:     "X-API-Key",
+			KeyLocation: "header",
+			KeyValidator: func(key string) bool {
+				return key == "valid-key"
+			},
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	handlerCalled := false
+	handler := func(w ResponseWriter, _ *Request) {
+		handlerCalled = true
+		w.WriteHeader(http.StatusOK)
+	}
+
+	mux.HandleFunc("GET /secure", handler)
+
+	// Test without API key - should fail
+	req1 := httptest.NewRequest(http.MethodGet, "/secure", http.NoBody)
+	rec1 := httptest.NewRecorder()
+	mux.ServeHTTP(rec1, req1)
+
+	if handlerCalled {
+		t.Error("Handler should not have been called without API key")
+	}
+
+	if rec1.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, rec1.Code)
+	}
+
+	// Reset for next test
+	handlerCalled = false
+
+	// Test with valid API key - should succeed
+	req2 := httptest.NewRequest(http.MethodGet, "/secure", http.NoBody)
+	req2.Header.Set("X-Api-Key", "valid-key")
+	rec2 := httptest.NewRecorder()
+	mux.ServeHTTP(rec2, req2)
+
+	if !handlerCalled {
+		t.Error("Handler should have been called with valid API key")
+	}
+
+	if rec2.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec2.Code)
+	}
+}
+
+func TestServeMux_SecurityMiddlewareIntegration_BearerAuth(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		BearerAuth: &security.BearerAuthConfig{
+			TokenValidator: func(token string) bool {
+				return token == "valid-token"
+			},
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	handlerCalled := false
+	handler := func(w ResponseWriter, _ *Request) {
+		handlerCalled = true
+		w.WriteHeader(http.StatusOK)
+	}
+
+	mux.HandleFunc("GET /secure", handler)
+
+	// Test without bearer token - should fail
+	req1 := httptest.NewRequest(http.MethodGet, "/secure", http.NoBody)
+	rec1 := httptest.NewRecorder()
+	mux.ServeHTTP(rec1, req1)
+
+	if handlerCalled {
+		t.Error("Handler should not have been called without bearer token")
+	}
+
+	if rec1.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, rec1.Code)
+	}
+
+	// Reset for next test
+	handlerCalled = false
+
+	// Test with invalid bearer token - should fail
+	req2 := httptest.NewRequest(http.MethodGet, "/secure", http.NoBody)
+	req2.Header.Set("Authorization", "Bearer invalid-token")
+	rec2 := httptest.NewRecorder()
+	mux.ServeHTTP(rec2, req2)
+
+	if handlerCalled {
+		t.Error("Handler should not have been called with invalid bearer token")
+	}
+
+	if rec2.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, rec2.Code)
+	}
+
+	// Reset for next test
+	handlerCalled = false
+
+	// Test with valid bearer token - should succeed
+	req3 := httptest.NewRequest(http.MethodGet, "/secure", http.NoBody)
+	req3.Header.Set("Authorization", "Bearer valid-token")
+	rec3 := httptest.NewRecorder()
+	mux.ServeHTTP(rec3, req3)
+
+	if !handlerCalled {
+		t.Error("Handler should have been called with valid bearer token")
+	}
+
+	if rec3.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec3.Code)
+	}
+}
+
+func TestServeMux_SecurityMiddlewareIntegration_BasicAuth(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	config := security.Config{
+		BasicAuth: &security.BasicAuthConfig{
+			Realm: "test",
+			Authenticator: func(username, password string) bool {
+				return username == "admin" && password == "secret"
+			},
+		},
+	}
+
+	mux.UseSecurity(config)
+
+	handlerCalled := false
+	handler := func(w ResponseWriter, _ *Request) {
+		handlerCalled = true
+		w.WriteHeader(http.StatusOK)
+	}
+
+	mux.HandleFunc("GET /secure", handler)
+
+	// Test without basic auth - should fail
+	req1 := httptest.NewRequest(http.MethodGet, "/secure", http.NoBody)
+	rec1 := httptest.NewRecorder()
+	mux.ServeHTTP(rec1, req1)
+
+	if handlerCalled {
+		t.Error("Handler should not have been called without basic auth")
+	}
+
+	if rec1.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, rec1.Code)
+	}
+
+	// Reset for next test
+	handlerCalled = false
+
+	// Test with invalid basic auth - should fail
+	req2 := httptest.NewRequest(http.MethodGet, "/secure", http.NoBody)
+	req2.Header.Set("Authorization", "Basic invalid")
+	rec2 := httptest.NewRecorder()
+	mux.ServeHTTP(rec2, req2)
+
+	if handlerCalled {
+		t.Error("Handler should not have been called with invalid basic auth")
+	}
+
+	if rec2.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, rec2.Code)
+	}
+
+	// Reset for next test
+	handlerCalled = false
+
+	// Test with valid basic auth - should succeed
+	req3 := httptest.NewRequest(http.MethodGet, "/secure", http.NoBody)
+	req3.SetBasicAuth("admin", "secret")
+	rec3 := httptest.NewRecorder()
+	mux.ServeHTTP(rec3, req3)
+
+	if !handlerCalled {
+		t.Error("Handler should have been called with valid basic auth")
+	}
+
+	if rec3.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec3.Code)
+	}
+}
+
+func TestServeMux_SecurityMiddlewareOrder(t *testing.T) {
+	setupMuxTest()
+
+	mux := NewServeMux()
+
+	// Add mux middleware
+	muxMiddlewareCalled := false
+	mux.Use(func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *Request) {
+			muxMiddlewareCalled = true
+			w.Header().Set("X-Mux-Middleware", "applied")
+			next.ServeHTTP(w, r)
+		})
+	})
+
+	// Add security config
+	config := security.Config{
+		APIKeyAuth: &security.APIKeyAuthConfig{
+			KeyName:      "X-API-Key",
+			KeyLocation:  "header",
+			KeyValidator: func(_ string) bool { return true },
+		},
+	}
+	mux.UseSecurity(config)
+
+	handlerCalled := false
+	handler := func(w ResponseWriter, _ *Request) {
+		handlerCalled = true
+		w.WriteHeader(http.StatusOK)
+	}
+
+	mux.HandleFunc("GET /secure", handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/secure", http.NoBody)
+	req.Header.Set("X-Api-Key", "valid-key")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if !muxMiddlewareCalled {
+		t.Error("Mux middleware should have been called")
+	}
+
+	if !handlerCalled {
+		t.Error("Handler should have been called")
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	if header := rec.Header().Get("X-Mux-Middleware"); header != "applied" {
+		t.Errorf("Expected mux middleware header 'applied', got %q", header)
+	}
 }
 
 // =============================================================================

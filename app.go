@@ -61,6 +61,7 @@ import (
 	"github.com/bondowe/webfram/internal/telemetry"
 	"github.com/bondowe/webfram/internal/template"
 	"github.com/bondowe/webfram/openapi"
+	"github.com/bondowe/webfram/security"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/text/language"
@@ -527,6 +528,8 @@ type (
 	Config struct {
 		// Telemetry configures telemetry settings for the framework.
 		Telemetry *Telemetry
+		// Security configures security settings for the framework.
+		Security *security.Config
 		// I18nMessages configures internationalization message settings.
 		I18nMessages *I18nMessages
 		// Assets configures static assets and their locations.
@@ -565,9 +568,11 @@ const (
 //nolint:gochecknoglobals // Package-level state for framework configuration and middleware
 var (
 	appConfigured            = false
+	telemetryConfig          *Telemetry
+	securityConfigs          = []security.Config{}
+	securityConfig           *security.Config
 	assetsFS                 fs.FS
 	appMiddlewares           []AppMiddleware
-	telemetryConfig          *Telemetry
 	openAPIConfig            *OpenAPI
 	jsonpCallbackParamName   string
 	jsonpCallbackNamePattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
@@ -957,6 +962,18 @@ func configureTelemetry(cfg *Config) {
 	}
 }
 
+func configureSecurity(cfg *Config) {
+	if cfg == nil || cfg.Security == nil {
+		return
+	}
+
+	securityConfig = cfg.Security
+
+	if securityConfig != nil {
+		securityConfigs = append(securityConfigs, *securityConfig)
+	}
+}
+
 func configureOpenAPI(cfg *Config) {
 	if cfg == nil || cfg.OpenAPI == nil || !cfg.OpenAPI.Enabled {
 		return
@@ -1272,6 +1289,7 @@ func Configure(cfg *Config) {
 	assetsFS = getAssetsFS(cfg)
 
 	configureTelemetry(cfg)
+	configureSecurity(cfg)
 	configureOpenAPI(cfg)
 	configureTemplate(cfg)
 	configureI18n(cfg)

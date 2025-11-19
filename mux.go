@@ -13,6 +13,7 @@ import (
 	"github.com/bondowe/webfram/internal/i18n"
 	"github.com/bondowe/webfram/internal/telemetry"
 	"github.com/bondowe/webfram/openapi"
+	"github.com/bondowe/webfram/security"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/text/language"
 )
@@ -35,7 +36,8 @@ type (
 	ServeMux struct {
 		http.ServeMux
 
-		middlewares []AppMiddleware
+		securityConfig *security.Config
+		middlewares    []AppMiddleware
 	}
 	// Handler responds to HTTP requests.
 	Handler interface {
@@ -727,6 +729,15 @@ func NewServeMux() *ServeMux {
 	}
 }
 
+// UseSecurity sets the security configuration for the ServeMux.
+// This configuration will be applied to all handlers registered on this ServeMux.
+// This overrides any global security configuration set via `Configure(*Config)`.
+func (m *ServeMux) UseSecurity(cfg security.Config) {
+	securityConfigs = append(securityConfigs, cfg)
+
+	m.securityConfig = &cfg
+}
+
 // Use registers middleware to be applied to all handlers registered on this ServeMux.
 // Accepts either AppMiddleware (func(Handler) Handler) or StandardMiddleware (func(http.Handler) http.Handler).
 // Panics if an unsupported middleware type is provided.
@@ -754,6 +765,14 @@ func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{})
 	wrappedHandler := wrapMiddlewares(handler, getHandlerMiddlewares(mdwrs))
 	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
 	wrappedHandler = wrapMiddlewares(wrappedHandler, appMiddlewares)
+
+	securityMiddlewares := getSecurityMiddlewares(m)
+
+	if len(securityMiddlewares) > 0 {
+		// Apply security middlewares after app and mux middlewares, but before handler-specific middlewares
+		wrappedHandler = wrapMiddlewares(wrappedHandler, securityMiddlewares)
+	}
+
 	wrappedHandler = telemetryMiddleware(wrappedHandler)
 
 	if i18nConfig, ok := i18n.Configuration(); ok && i18nConfig.FS != nil {
@@ -771,6 +790,72 @@ func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{})
 	}
 }
 
+func getSecurityMiddlewares(m *ServeMux) []AppMiddleware {
+	cfg := m.securityConfig
+
+	if cfg == nil {
+		cfg = securityConfig
+	}
+
+	if cfg == nil || cfg.AllowAnonymousAuth {
+		return nil
+	}
+
+	var mdwrs []AppMiddleware
+
+	if cfg.APIKeyAuth != nil {
+		mdwr := security.APIKeyAuth(*cfg.APIKeyAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.BasicAuth != nil {
+		mdwr := security.BasicAuth(*cfg.BasicAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.DigestAuth != nil {
+		mdwr := security.DigestAuth(*cfg.DigestAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.BearerAuth != nil {
+		mdwr := security.BearerAuth(*cfg.BearerAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.MutualTLSAuth != nil {
+		mdwr := security.MutualTLSAuth(*cfg.MutualTLSAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.OAuth2AuthorizationCode != nil {
+		mdwr := security.OAuth2AuthorizationCodeAuth(*cfg.OAuth2AuthorizationCode)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.OAuth2ClientCredentials != nil {
+		mdwr := security.OAuth2ClientCredentialsAuth(*cfg.OAuth2ClientCredentials)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.OAuth2Device != nil {
+		mdwr := security.OAuth2DeviceAuth(*cfg.OAuth2Device)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.OAuth2Implicit != nil {
+		mdwr := security.OAuth2ImplicitAuth(*cfg.OAuth2Implicit)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.OpenIDConnectAuth != nil {
+		mdwr := security.OpenIDConnectAuth(*cfg.OpenIDConnectAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	return mdwrs
+}
+
 // HandleFunc registers a handler function for the given pattern.
 // Convenience method that wraps a HandlerFunc and calls Handle.
 // Returns a handlerConfig that can be used to attach OpenAPI documentation via WithAPIConfig.
@@ -778,6 +863,14 @@ func (m *ServeMux) HandleFunc(pattern string, handler HandlerFunc, mdwrs ...inte
 	wrappedHandler := wrapMiddlewares(handler, getHandlerMiddlewares(mdwrs))
 	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
 	wrappedHandler = wrapMiddlewares(wrappedHandler, appMiddlewares)
+
+	securityMiddlewares := getSecurityMiddlewares(m)
+
+	if len(securityMiddlewares) > 0 {
+		// Apply security middlewares after app and mux middlewares, but before handler-specific middlewares
+		wrappedHandler = wrapMiddlewares(wrappedHandler, securityMiddlewares)
+	}
+
 	wrappedHandler = telemetryMiddleware(wrappedHandler)
 
 	if i18nConfig, ok := i18n.Configuration(); ok && i18nConfig.FS != nil {

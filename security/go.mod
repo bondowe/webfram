@@ -1,4 +1,4 @@
-module github.com/bondowe/webfram/middleware
+module github.com/bondowe/webfram/security
 
 go 1.25.1
 

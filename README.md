@@ -119,6 +119,109 @@ mux.HandleFunc("POST /users", func(w app.ResponseWriter, r *app.Request) {
 })
 ```
 
+### With Security Middleware
+
+WebFram provides comprehensive security middleware support through the `UseSecurity()` method. Configure authentication and authorization for your routes:
+
+```go
+package main
+
+import (
+    "github.com/bondowe/webfram"
+    "github.com/bondowe/webfram/security"
+)
+
+func main() {
+    mux := webfram.NewServeMux()
+
+    // Configure security middleware
+    config := security.Config{
+        APIKeyAuth: &security.APIKeyAuthConfig{
+            KeyName:      "X-API-Key",
+            KeyLocation:  "header",
+            KeyValidator: func(key string) bool {
+                return key == "your-secret-api-key"
+            },
+        },
+        BasicAuth: &security.BasicAuthConfig{
+            Realm: "MyApp",
+            Authenticator: func(username, password string) bool {
+                return username == "admin" && password == "secret"
+            },
+        },
+    }
+
+    // Apply security to the mux
+    mux.UseSecurity(config)
+
+    // Protected routes - automatically secured by the middleware
+    mux.HandleFunc("GET /api/users", func(w webfram.ResponseWriter, r *webfram.Request) {
+        w.JSON(r.Context(), map[string]interface{}{
+            "users": []string{"alice", "bob", "charlie"},
+        })
+    })
+
+    mux.HandleFunc("POST /api/users", func(w webfram.ResponseWriter, r *webfram.Request) {
+        // This route is also protected by the security config
+        w.JSON(r.Context(), map[string]string{"status": "user created"})
+    })
+
+    webfram.ListenAndServe(":8080", mux, nil)
+}
+```
+
+**Security Features Supported:**
+
+- HTTP Basic Authentication
+- HTTP Digest Authentication  
+- Bearer Token Authentication
+- API Key Authentication (header, query, cookie)
+- OAuth 2.0 (Authorization Code, Implicit, Device, Client Credentials flows)
+- OpenID Connect Authentication
+- Mutual TLS Authentication
+
+For comprehensive security documentation including all configuration options, advanced usage patterns, and security best practices, see the **[Security Package Documentation](security/README.md)**.
+
+### Alternative: Security via App Configuration
+
+You can also configure security globally using the `Security` field in `app.Configure()`:
+
+```go
+package main
+
+import (
+    "github.com/bondowe/webfram"
+    "github.com/bondowe/webfram/security"
+)
+
+func main() {
+    // Configure security globally
+    webfram.Configure(&webfram.Config{
+        Security: &security.Config{
+            BearerAuth: &security.BearerAuthConfig{
+                TokenValidator: func(token string) bool {
+                    return validateJWTToken(token)
+                },
+            },
+        },
+    })
+
+    mux := webfram.NewServeMux()
+    
+    // Routes are automatically secured by the global configuration
+    mux.HandleFunc("GET /api/protected", func(w webfram.ResponseWriter, r *webfram.Request) {
+        w.JSON(r.Context(), map[string]string{"message": "This is protected"})
+    })
+
+    webfram.ListenAndServe(":8080", mux, nil)
+}
+
+func validateJWTToken(token string) bool {
+    // Implement JWT validation logic
+    return true // or false
+}
+```
+
 ### With Templates
 
 ```go
@@ -192,4 +295,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built with ❤️ using Go's standard library**
+Built with ❤️ using Go's standard library

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bondowe/webfram/security"
 	"golang.org/x/text/language"
 )
 
@@ -37,6 +38,8 @@ func resetAppConfig() {
 	appConfigured = false
 	appMiddlewares = nil
 	openAPIConfig = nil
+	securityConfig = nil
+	securityConfigs = nil
 	jsonpCallbackParamName = ""
 }
 
@@ -411,6 +414,118 @@ func TestConfigureOpenAPI_WithEmptySecurity(t *testing.T) {
 
 	if len(openAPIConfig.internalConfig.Security) != 0 {
 		t.Errorf("Expected 0 security requirements, got %d", len(openAPIConfig.internalConfig.Security))
+	}
+}
+
+// =============================================================================
+// configureSecurity Tests
+// =============================================================================
+
+func TestConfigureSecurity_NilConfig(t *testing.T) {
+	resetAppConfig()
+	configureSecurity(nil)
+
+	if securityConfig != nil {
+		t.Error("Expected securityConfig to remain nil")
+	}
+
+	if len(securityConfigs) != 0 {
+		t.Errorf("Expected securityConfigs to be empty, got %d", len(securityConfigs))
+	}
+}
+
+func TestConfigureSecurity_NilSecurityConfig(t *testing.T) {
+	resetAppConfig()
+	cfg := &Config{}
+	configureSecurity(cfg)
+
+	if securityConfig != nil {
+		t.Error("Expected securityConfig to remain nil")
+	}
+
+	if len(securityConfigs) != 0 {
+		t.Errorf("Expected securityConfigs to be empty, got %d", len(securityConfigs))
+	}
+}
+
+func TestConfigureSecurity_WithSecurityConfig(t *testing.T) {
+	resetAppConfig()
+
+	cfg := &Config{
+		Security: &security.Config{
+			AllowAnonymousAuth: true,
+			APIKeyAuth: &security.APIKeyAuthConfig{
+				KeyName: "X-API-Key",
+			},
+		},
+	}
+
+	configureSecurity(cfg)
+
+	if securityConfig == nil {
+		t.Fatal("Expected securityConfig to be set")
+	}
+
+	if !securityConfig.AllowAnonymousAuth {
+		t.Error("Expected AllowAnonymousAuth to be true")
+	}
+
+	if securityConfig.APIKeyAuth == nil {
+		t.Error("Expected APIKeyAuth to be set")
+	} else if securityConfig.APIKeyAuth.KeyName != "X-API-Key" {
+		t.Errorf("Expected KeyName 'X-API-Key', got %q", securityConfig.APIKeyAuth.KeyName)
+	}
+
+	if len(securityConfigs) != 1 {
+		t.Errorf("Expected 1 config in securityConfigs, got %d", len(securityConfigs))
+	}
+
+	if securityConfigs[0].AllowAnonymousAuth != true {
+		t.Error("Expected first config to have AllowAnonymousAuth true")
+	}
+}
+
+func TestConfigureSecurity_MultipleCalls(t *testing.T) {
+	resetAppConfig()
+
+	// First call
+	cfg1 := &Config{
+		Security: &security.Config{
+			AllowAnonymousAuth: true,
+		},
+	}
+	configureSecurity(cfg1)
+
+	// Second call
+	cfg2 := &Config{
+		Security: &security.Config{
+			AllowAnonymousAuth: false,
+			APIKeyAuth: &security.APIKeyAuthConfig{
+				KeyName: "Authorization",
+			},
+		},
+	}
+	configureSecurity(cfg2)
+
+	if securityConfig == nil {
+		t.Fatal("Expected securityConfig to be set")
+	}
+
+	// Should be set to the last config
+	if securityConfig.AllowAnonymousAuth {
+		t.Error("Expected AllowAnonymousAuth to be false (from second call)")
+	}
+
+	if len(securityConfigs) != 2 {
+		t.Errorf("Expected 2 configs in securityConfigs, got %d", len(securityConfigs))
+	}
+
+	if securityConfigs[0].AllowAnonymousAuth != true {
+		t.Error("Expected first config to have AllowAnonymousAuth true")
+	}
+
+	if securityConfigs[1].AllowAnonymousAuth != false {
+		t.Error("Expected second config to have AllowAnonymousAuth false")
 	}
 }
 

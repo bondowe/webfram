@@ -9,7 +9,7 @@ This package provides configurable middleware for implementing various OpenAPI v
 Enforces HTTP Basic Authentication as defined in RFC 7617.
 
 ```go
-config := middleware.BasicAuthConfig{
+config := security.BasicAuthConfig{
     Authenticator: func(username, password string) bool {
         // Validate credentials
         return username == "admin" && password == "secret"
@@ -17,7 +17,7 @@ config := middleware.BasicAuthConfig{
     Realm: "MyApp",
 }
 
-mux.Use(middleware.BasicAuth(config))
+mux.Use(security.BasicAuth(config))
 ```
 
 ### HTTP Digest Authentication
@@ -25,7 +25,7 @@ mux.Use(middleware.BasicAuth(config))
 Enforces HTTP Digest Authentication as defined in RFC 7616.
 
 ```go
-config := middleware.DigestAuthConfig{
+config := security.DigestAuthConfig{
     Realm: "MyApp",
     PasswordGetter: func(username, realm string) (password string, ok bool) {
         // Return password for user
@@ -37,7 +37,7 @@ config := middleware.DigestAuthConfig{
     NonceTTL: 30 * time.Minute,
 }
 
-mux.Use(middleware.DigestAuth(config))
+mux.Use(security.DigestAuth(config))
 ```
 
 ### HTTP Bearer Token Authentication
@@ -45,14 +45,14 @@ mux.Use(middleware.DigestAuth(config))
 Enforces Bearer Token Authentication (commonly used for JWT).
 
 ```go
-config := middleware.BearerAuthConfig{
+config := security.BearerAuthConfig{
     Authenticator: func(token string) bool {
         // Validate JWT token
         return validateJWT(token)
     },
 }
 
-mux.Use(middleware.BearerAuth(config))
+mux.Use(security.BearerAuth(config))
 ```
 
 ### API Key Authentication
@@ -60,7 +60,7 @@ mux.Use(middleware.BearerAuth(config))
 Supports API keys in headers, query parameters, or cookies.
 
 ```go
-config := middleware.APIKeyAuthConfig{
+config := security.APIKeyAuthConfig{
     KeyName: "X-API-Key",
     In:      "header", // "header", "query", or "cookie"
     Authenticator: func(key string) bool {
@@ -69,7 +69,7 @@ config := middleware.APIKeyAuthConfig{
     },
 }
 
-mux.Use(middleware.APIKeyAuth(config))
+mux.Use(security.APIKeyAuth(config))
 ```
 
 ### OAuth 2.0 Authentication
@@ -81,8 +81,8 @@ The OAuth2 middlewares support all major OAuth2 flows as defined in RFC 6749.
 For web applications that can securely store client secrets.
 
 ```go
-config := middleware.OAuth2AuthorizationCodeConfig{
-    OAuth2BaseConfig: middleware.OAuth2BaseConfig{
+config := security.OAuth2AuthorizationCodeConfig{
+    OAuth2BaseConfig: security.OAuth2BaseConfig{
         ClientID:     "your-client-id",
         TokenURL:     "https://auth.example.com/oauth/token",
         Scopes:       []string{"read", "write"},
@@ -99,7 +99,7 @@ config := middleware.OAuth2AuthorizationCodeConfig{
         // Store/retrieve state for CSRF protection
         return "/", true
     },
-    TokenStore: func(sessionID string) (*middleware.OAuth2Token, bool) {
+    TokenStore: func(sessionID string) (*security.OAuth2Token, bool) {
         // Store/retrieve tokens by session
         return nil, false
     },
@@ -108,16 +108,16 @@ config := middleware.OAuth2AuthorizationCodeConfig{
         return "session-id"
     },
     // Optional: Enable PKCE for enhanced security (recommended for public clients)
-    PKCE: &middleware.OAuth2PKCEConfig{
+    PKCE: &security.OAuth2PKCEConfig{
         CodeVerifierStore: func(state string) (codeVerifier string, ok bool) {
             // Store/retrieve PKCE code verifier by state
             return getStoredVerifier(state)
         },
-        ChallengeMethod: middleware.PKCES256, // or middleware.PKCEPlain
+        ChallengeMethod: security.PKCES256, // or security.PKCEPlain
     },
 }
 
-mux.Use(middleware.OAuth2AuthorizationCodeAuth(config))
+mux.Use(security.OAuth2AuthorizationCodeAuth(config))
 ```
 
 **PKCE (Proof Key for Code Exchange)**: When enabled, PKCE protects against authorization code interception attacks by requiring a code verifier during token exchange. Use `PKCES256` for production (recommended) or `PKCEPlain` for compatibility.
@@ -129,8 +129,8 @@ mux.Use(middleware.OAuth2AuthorizationCodeAuth(config))
 For single-page applications (SPAs) where tokens are returned directly.
 
 ```go
-config := middleware.OAuth2ImplicitConfig{
-    OAuth2BaseConfig: middleware.OAuth2BaseConfig{
+config := security.OAuth2ImplicitConfig{
+    OAuth2BaseConfig: security.OAuth2BaseConfig{
         ClientID:     "your-client-id",
         TokenURL:     "https://auth.example.com/oauth/token",
         Scopes:       []string{"read"},
@@ -148,7 +148,7 @@ config := middleware.OAuth2ImplicitConfig{
     },
 }
 
-mux.Use(middleware.OAuth2ImplicitAuth(config))
+mux.Use(security.OAuth2ImplicitAuth(config))
 ```
 
 #### Device Authorization Grant Flow
@@ -156,8 +156,8 @@ mux.Use(middleware.OAuth2ImplicitAuth(config))
 For devices without browsers or keyboards (IoT, smart TVs, etc.).
 
 ```go
-config := middleware.OAuth2DeviceConfig{
-    OAuth2BaseConfig: middleware.OAuth2BaseConfig{
+config := security.OAuth2DeviceConfig{
+    OAuth2BaseConfig: security.OAuth2BaseConfig{
         ClientID:     "your-client-id",
         TokenURL:     "https://auth.example.com/oauth/token",
         Scopes:       []string{"read"},
@@ -169,7 +169,7 @@ config := middleware.OAuth2DeviceConfig{
     },
 }
 
-mux.Use(middleware.OAuth2DeviceAuth(config))
+mux.Use(security.OAuth2DeviceAuth(config))
 ```
 
 Device Flow Usage:
@@ -183,8 +183,8 @@ Device Flow Usage:
 For service-to-service authentication.
 
 ```go
-config := middleware.OAuth2ClientCredentialsConfig{
-    OAuth2BaseConfig: middleware.OAuth2BaseConfig{
+config := security.OAuth2ClientCredentialsConfig{
+    OAuth2BaseConfig: security.OAuth2BaseConfig{
         ClientID:     "your-client-id",
         TokenURL:     "https://auth.example.com/oauth/token",
         Scopes:       []string{"read"},
@@ -197,7 +197,7 @@ config := middleware.OAuth2ClientCredentialsConfig{
     ClientSecret: "your-client-secret",
 }
 
-mux.Use(middleware.OAuth2ClientCredentialsAuth(config))
+mux.Use(security.OAuth2ClientCredentialsAuth(config))
 ```
 
 #### OAuth2 Configuration Options
@@ -261,8 +261,8 @@ func hasAllScopes(tokenScopes, requiredScopes []string) bool {
 }
 
 // Usage with Authorization Code flow
-config := middleware.OAuth2AuthorizationCodeConfig{
-    OAuth2BaseConfig: middleware.OAuth2BaseConfig{
+config := security.OAuth2AuthorizationCodeConfig{
+    OAuth2BaseConfig: security.OAuth2BaseConfig{
         ClientID:     "your-client-id",
         TokenURL:     "https://auth.example.com/oauth/token",
         Scopes:       []string{"read", "write", "profile"},
@@ -280,7 +280,7 @@ config := middleware.OAuth2AuthorizationCodeConfig{
     RedirectURL:      "https://yourapp.com/oauth/callback",
 }
 
-mux.Use(middleware.OAuth2AuthorizationCodeAuth(config))
+mux.Use(security.OAuth2AuthorizationCodeAuth(config))
 ```
 
 #### JWT-Based Scope Validation
@@ -331,7 +331,7 @@ For granular access control, combine OAuth2 middleware with route-specific scope
 func RequireAllScopes(requiredScopes ...string) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            token, ok := r.Context().Value(middleware.OAuth2TokenKey{}).(*middleware.OAuth2Token)
+            token, ok := r.Context().Value(security.OAuth2TokenKey{}).(*security.OAuth2Token)
             if !ok {
                 http.Error(w, "No OAuth2 token in context", http.StatusUnauthorized)
                 return
@@ -352,7 +352,7 @@ func RequireAllScopes(requiredScopes ...string) func(http.Handler) http.Handler 
 func RequireAnyScopes(requiredScopes ...string) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            token, ok := r.Context().Value(middleware.OAuth2TokenKey{}).(*middleware.OAuth2Token)
+            token, ok := r.Context().Value(security.OAuth2TokenKey{}).(*security.OAuth2Token)
             if !ok {
                 http.Error(w, "No OAuth2 token in context", http.StatusUnauthorized)
                 return
@@ -370,16 +370,16 @@ func RequireAnyScopes(requiredScopes ...string) func(http.Handler) http.Handler 
 }
 
 // Usage with OAuth2 middleware
-mux.Use(middleware.OAuth2AuthorizationCodeAuth(oauthConfig))
+mux.Use(security.OAuth2AuthorizationCodeAuth(oauthConfig))
 
 // Require ALL scopes (user must have both "read" AND "users")
-readUsers := middleware.RequireAllScopes("read", "users")(http.HandlerFunc(listUsers))
+readUsers := security.RequireAllScopes("read", "users")(http.HandlerFunc(listUsers))
 
 // Require ANY scope (user must have either "write" OR "admin")
-writeUsers := middleware.RequireAnyScopes("write", "admin")(http.HandlerFunc(createUser))
+writeUsers := security.RequireAnyScopes("write", "admin")(http.HandlerFunc(createUser))
 
 // Require specific admin scope
-adminPanel := middleware.RequireAllScopes("admin")(http.HandlerFunc(adminDashboard))
+adminPanel := security.RequireAllScopes("admin")(http.HandlerFunc(adminDashboard))
 
 mux.HandleFunc("GET /users", readUsers.ServeHTTP)
 mux.HandleFunc("POST /users", writeUsers.ServeHTTP)
@@ -396,14 +396,14 @@ mux.HandleFunc("GET /admin", adminPanel.ServeHTTP)
 For validating Bearer tokens when OAuth2 flow is handled elsewhere.
 
 ```go
-config := middleware.OAuth2TokenConfig{
+config := security.OAuth2TokenConfig{
     TokenValidator: func(token string) bool {
         return validateOAuth2Token(token)
     },
     UnauthorizedHandler: nil,
 }
 
-mux.Use(middleware.OAuth2TokenAuth(config))
+mux.Use(security.OAuth2TokenAuth(config))
 ```
 
 ### OpenID Connect Authentication
@@ -415,14 +415,14 @@ Validates OpenID Connect **ID tokens** (JWTs containing user identity informatio
 For validating existing ID tokens (when authentication is handled elsewhere):
 
 ```go
-config := middleware.OpenIDConnectAuthConfig{
+config := security.OpenIDConnectAuthConfig{
     TokenValidator: func(token string) bool {
         // Validate OIDC ID token (JWT)
         return validateOIDCToken(token)
     },
 }
 
-mux.Use(middleware.OpenIDConnectAuth(config))
+mux.Use(security.OpenIDConnectAuth(config))
 ```
 
 #### Full Authentication Flow
@@ -430,7 +430,7 @@ mux.Use(middleware.OpenIDConnectAuth(config))
 For web applications that need to redirect users to authenticate:
 
 ```go
-config := middleware.OpenIDConnectAuthConfig{
+config := security.OpenIDConnectAuthConfig{
     IssuerURL:       "https://accounts.google.com",
     ClientID:        "your-client-id",
     ClientSecret:    "your-client-secret", 
@@ -445,7 +445,7 @@ config := middleware.OpenIDConnectAuthConfig{
     },
 }
 
-mux.Use(middleware.OpenIDConnectAuth(config))
+mux.Use(security.OpenIDConnectAuth(config))
 ```
 
 The middleware automatically detects which mode to use based on whether redirect fields are configured.
@@ -455,14 +455,14 @@ The middleware automatically detects which mode to use based on whether redirect
 Enforces client certificate authentication.
 
 ```go
-config := middleware.MutualTLSAuthConfig{
+config := security.MutualTLSAuthConfig{
     CertificateValidator: func(cert *x509.Certificate) bool {
         // Validate client certificate
         return cert.Subject.CommonName == "valid-client"
     },
 }
 
-mux.Use(middleware.MutualTLSAuth(config))
+mux.Use(security.MutualTLSAuth(config))
 ```
 
 ## Configuration Options
@@ -480,14 +480,14 @@ package main
 
 import (
     "github.com/bondowe/webfram"
-    "github.com/bondowe/webfram/middleware"
+    "github.com/bondowe/webfram/security"
 )
 
 func main() {
     app := webfram.NewServeMux()
 
     // Apply authentication middleware
-    app.Use(middleware.BasicAuth(middleware.BasicAuthConfig{
+    app.Use(security.BasicAuth(security.BasicAuthConfig{
         Authenticator: authenticateUser,
         Realm: "MyApp",
     }))
