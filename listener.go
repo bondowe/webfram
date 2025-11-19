@@ -210,10 +210,6 @@ func registerHandlers(mux *ServeMux) {
 			continue
 		}
 		registerHandlerFunc(hc)
-
-		if hc.operation != nil && openAPIConfig != nil && openAPIConfig.Enabled {
-			configureOpenAPIOperation(hc.pathPattern, hc.operation)
-		}
 	}
 }
 

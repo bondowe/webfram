@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,6 +23,10 @@ type DigestAuthConfig struct {
 	// UnauthorizedHandler is called when authentication fails (optional)
 	UnauthorizedHandler http.Handler
 }
+
+var (
+	nonceStore = sync.Map{} // map[[16]byte]time.Time
+)
 
 // DigestAuth returns a middleware that enforces HTTP Digest Authentication.
 func DigestAuth(config DigestAuthConfig) func(http.Handler) http.Handler {
@@ -73,6 +79,9 @@ func validateDigest(params map[string]string, method, uri string, config DigestA
 	username := params["username"]
 	realm := params["realm"]
 	nonce := params["nonce"]
+	qop := params["qop"]
+	nc := params["nc"]
+	cnonce := params["cnonce"]
 	uriParam := params["uri"]
 	response := params["response"]
 
@@ -82,26 +91,53 @@ func validateDigest(params map[string]string, method, uri string, config DigestA
 
 	password, ok := config.PasswordGetter(username, realm)
 	if !ok {
+		slog.Warn("Unknown user", "username", username)
 		return false
 	}
 
 	// Check nonce (simple check, in production should validate timestamp)
 	if !isValidNonce(nonce, config.NonceTTL) {
+		slog.Warn("Invalid nonce", "nonce", nonce)
 		return false
 	}
 
 	// Calculate expected response
 	ha1 := md5.Sum([]byte(fmt.Sprintf("%s:%s:%s", username, realm, password)))
 	ha2 := md5.Sum([]byte(fmt.Sprintf("%s:%s", method, uri)))
-	expected := md5.Sum([]byte(fmt.Sprintf("%s:%s:%s", hex.EncodeToString(ha1[:]), nonce, hex.EncodeToString(ha2[:]))))
 
+	var expected [16]byte
+
+	if qop != "" && nc != "" && cnonce != "" {
+		// RFC 2617 (modern) formula
+		expected = md5.Sum([]byte(fmt.Sprintf("%s:%s:%s:%s:%s:%s",
+			hex.EncodeToString(ha1[:]), nonce, nc, cnonce, qop, hex.EncodeToString(ha2[:]))))
+	} else {
+		// Legacy formula (no qop)
+		expected = md5.Sum([]byte(fmt.Sprintf("%s:%s:%s",
+			hex.EncodeToString(ha1[:]), nonce, hex.EncodeToString(ha2[:]))))
+	}
 	return hex.EncodeToString(expected[:]) == response
 }
 
-func isValidNonce(_ string, _ time.Duration) bool {
-	// Simple check: nonce should be recent
-	// In production, store nonces and check expiry
-	return true // TODO: implement proper nonce validation
+func isValidNonce(nonce string, nonceTTL time.Duration) bool {
+	// TODO: improve nonce validation (e.g., central store, housekeeping, timestamp, uniqueness)
+	t, ok := nonceStore.Load(nonce)
+
+	if !ok {
+		return false
+	}
+
+	createdAt, ok := t.(time.Time)
+	if !ok {
+		return false
+	}
+
+	if time.Since(createdAt) > nonceTTL {
+		nonceStore.Delete(nonce)
+		return false
+	}
+
+	return true
 }
 
 func unauthorizedDigest(w http.ResponseWriter, realm string, handler http.Handler) {
@@ -111,6 +147,8 @@ func unauthorizedDigest(w http.ResponseWriter, realm string, handler http.Handle
 	}
 
 	nonce := generateNonce()
+	nonceStore.Store(nonce, time.Now())
+
 	w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Digest realm="%s", nonce="%s", algorithm=MD5, qop="auth"`,
 		realm, nonce))
 	w.WriteHeader(http.StatusUnauthorized)

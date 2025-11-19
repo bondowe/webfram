@@ -10,7 +10,6 @@ import (
 	"time"
 
 	app "github.com/bondowe/webfram"
-	"github.com/bondowe/webfram/security"
 	"github.com/google/uuid"
 	"golang.org/x/text/language"
 )
@@ -94,12 +93,6 @@ func main() {
 		if err := w.JSON(r.Context(), users); err != nil {
 			w.Error(http.StatusInternalServerError, err.Error())
 		}
-	}).UseSecurity(security.Config{
-		BasicAuth: &security.BasicAuthConfig{
-			Authenticator: func(username, password string) bool {
-				return username == "admin" && password == "password"
-			},
-		},
 	}).OpenAPIOperation(app.OperationConfig{
 		OperationID: "listUsers",
 		Summary:     "List all users",
