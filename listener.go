@@ -54,6 +54,12 @@ func setupOpenAPIEndpoints(mux *ServeMux) {
 
 	openAPIConfig.internalConfig.Self = openAPIConfig.URLPath
 
+	for _, hc := range handlerConfigs {
+		if hc.mux == mux && hc.operation != nil {
+			configureOpenAPIOperation(hc.pathPattern, hc.operation)
+		}
+	}
+
 	doc, err := openAPIConfig.internalConfig.MarshalJSON()
 
 	if err != nil {
@@ -198,6 +204,19 @@ func shutdownServers(mainServer *http.Server, telemetryServer *http.Server, hasS
 	}
 }
 
+func registerHandlers(mux *ServeMux) {
+	for _, hc := range handlerConfigs {
+		if hc.mux != mux {
+			continue
+		}
+		registerHandlerFunc(hc)
+
+		if hc.operation != nil && openAPIConfig != nil && openAPIConfig.Enabled {
+			configureOpenAPIOperation(hc.pathPattern, hc.operation)
+		}
+	}
+}
+
 // ListenAndServe starts an HTTP server on the specified address with the given multiplexer.
 // It automatically sets up OpenAPI endpoint if configured, applies server configuration,
 // and handles graceful shutdown on SIGINT or SIGTERM signals.
@@ -205,6 +224,7 @@ func shutdownServers(mainServer *http.Server, telemetryServer *http.Server, hasS
 // Blocks until the server is shut down. Panics if server startup or shutdown fails.
 func ListenAndServe(addr string, mux *ServeMux, cfg *ServerConfig) {
 	setupOpenAPIEndpoints(mux)
+	registerHandlers(mux)
 	telemetryServer, hasSeparateTelemetry := setupTelemetry(addr, mux)
 	mainServer := createHTTPServer(addr, mux, cfg)
 

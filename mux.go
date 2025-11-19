@@ -1,6 +1,7 @@
 package webfram
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -24,7 +25,8 @@ const (
 )
 
 var (
-	mediaTypesXML = []string{"application/xml", "text/xml"} //nolint:gochecknoglobals
+	mediaTypesXML  = []string{"application/xml", "text/xml"} //nolint:gochecknoglobals
+	handlerConfigs []*HandlerConfig                          //nolint:gochecknoglobals
 )
 
 type (
@@ -169,56 +171,66 @@ type (
 	}
 	// HandlerConfig provides configuration for registered handlers, particularly for OpenAPI documentation.
 	HandlerConfig struct {
-		OperationConfig *OperationConfig
-		pathPattern     string
+		mux         *ServeMux
+		pathPattern string
+		handler     Handler
+		operation   *OperationConfig
+		security    *security.Config
+		middlewares []interface{}
 	}
 )
 
-// SetOpenAPIPathInfo adds or updates path-level information in the OpenAPI documentation.
-// This should be called before registering handlers to set common parameters and servers for a path.
+// registerHandlerFunc registers the handler with all applicable middlewares and telemetry.
+func registerHandlerFunc(hc *HandlerConfig) {
+	wrappedHandler := wrapMiddlewares(hc.handler, getHandlerMiddlewares(hc.middlewares))
+	wrappedHandler = wrapMiddlewares(wrappedHandler, hc.mux.middlewares)
+	wrappedHandler = wrapMiddlewares(wrappedHandler, appMiddlewares)
+
+	securityMiddlewares := getSecurityMiddlewares(hc.mux.securityConfig, hc.security)
+
+	if len(securityMiddlewares) > 0 {
+		// Apply security middlewares after app and mux middlewares, but before handler-specific middlewares
+		wrappedHandler = wrapMiddlewares(wrappedHandler, securityMiddlewares)
+	}
+
+	wrappedHandler = telemetryMiddleware(wrappedHandler)
+
+	if i18nConfig, ok := i18n.Configuration(); ok && i18nConfig.FS != nil {
+		i18nMdwr := I18nMiddleware(i18nConfig.FS)
+		wrappedHandler = i18nMdwr(wrappedHandler)
+	}
+
+	hc.mux.ServeMux.Handle(hc.pathPattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		statusCode := 0
+		wrappedHandler.ServeHTTP(ResponseWriter{w, &statusCode}, &Request{r})
+	}))
+}
+
+// configureOpenAPIOperation attaches OpenAPI configuration to a handler.
+// This generates OpenAPI documentation for the endpoint with request/response schemas, parameters, etc.
 // Only works if OpenAPI endpoint is enabled in configuration.
-func SetOpenAPIPathInfo(path string, info *PathInfo) {
+func configureOpenAPIOperation(pathPattern string, cfg *OperationConfig) {
 	if openAPIConfig == nil || !openAPIConfig.Enabled {
 		return
 	}
 
-	if !appConfigured {
-		Configure(nil)
-	}
-
-	parameters := mapParameters(info.Parameters)
-	servers := mapServers(info.Servers)
-
-	openAPIConfig.internalConfig.Paths.SetPathInfo(path, info.Summary, info.Description, parameters, servers)
-}
-
-// WithOperationConfig attaches OpenAPI configuration to a handler.
-// This generates OpenAPI documentation for the endpoint with request/response schemas, parameters, etc.
-// Only works if OpenAPI endpoint is enabled in configuration.
-func (c *HandlerConfig) WithOperationConfig(operationConfig *OperationConfig) {
-	if operationConfig == nil || openAPIConfig == nil || !openAPIConfig.Enabled {
-		return
-	}
-
-	c.OperationConfig = operationConfig
-
 	var requestBody *openapi.RequestBodyOrRef
 
-	if c.OperationConfig.RequestBody != nil {
+	if cfg.RequestBody != nil {
 		requestBody = &openapi.RequestBodyOrRef{
 			RequestBody: &openapi.RequestBody{
-				Description: c.OperationConfig.RequestBody.Description,
-				Required:    c.OperationConfig.RequestBody.Required,
-				Content:     mapContent(c.OperationConfig.RequestBody.Content),
+				Description: cfg.RequestBody.Description,
+				Required:    cfg.RequestBody.Required,
+				Content:     mapContent(cfg.RequestBody.Content),
 			},
 		}
 	}
 
 	var responses map[string]openapi.ResponseOrRef
 
-	if len(c.OperationConfig.Responses) > 0 {
-		responses = make(map[string]openapi.ResponseOrRef, len(c.OperationConfig.Responses))
-		for statusCode, resp := range c.OperationConfig.Responses {
+	if len(cfg.Responses) > 0 {
+		responses = make(map[string]openapi.ResponseOrRef, len(cfg.Responses))
+		for statusCode, resp := range cfg.Responses {
 			responses[statusCode] = openapi.ResponseOrRef{
 				Response: &openapi.Response{
 					Summary:     resp.Summary,
@@ -231,28 +243,29 @@ func (c *HandlerConfig) WithOperationConfig(operationConfig *OperationConfig) {
 		}
 	}
 
-	parameters := mapParameters(c.OperationConfig.Parameters)
+	parameters := mapParameters(cfg.Parameters)
 
-	parts := strings.Fields(c.pathPattern)
+	parts := strings.Fields(pathPattern)
 
 	if len(parts) != 2 { //nolint:mnd // expect METHOD and path
-		panic(fmt.Errorf("invalid path pattern: %q. Must be in format 'METHOD /path'", c.pathPattern))
+		panic(fmt.Errorf("invalid path pattern: %q. Must be in format 'METHOD /path'", pathPattern))
 	}
 
 	method := strings.ToLower(parts[0])
 	path := parts[1]
 
 	openAPIConfig.internalConfig.Paths.AddOperation(path, method, openapi.Operation{
-		Summary:     c.OperationConfig.Summary,
-		Description: c.OperationConfig.Description,
-		OperationID: c.OperationConfig.OperationID,
-		Tags:        c.OperationConfig.Tags,
-		Security:    c.OperationConfig.Security,
+		Summary:     cfg.Summary,
+		Description: cfg.Description,
+		OperationID: cfg.OperationID,
+		Tags:        cfg.Tags,
+		Security:    cfg.Security,
 		RequestBody: requestBody,
 		Parameters:  parameters,
-		Servers:     mapServers(c.OperationConfig.Servers),
+		Servers:     mapServers(cfg.Servers),
 		Responses:   responses,
 	})
+
 }
 
 func mapLinks(links map[string]Link) map[string]openapi.LinkOrRef {
@@ -630,6 +643,113 @@ func telemetryMiddleware(next Handler) Handler {
 	})
 }
 
+func getSecurityMiddlewares(msc *security.Config, sc *security.Config) []AppMiddleware {
+	cfg := cmp.Or(sc, msc, securityConfig)
+
+	if cfg == nil || cfg.AllowAnonymousAuth {
+		return nil
+	}
+
+	var mdwrs []AppMiddleware
+
+	if cfg.APIKeyAuth != nil {
+		mdwr := security.APIKeyAuth(*cfg.APIKeyAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.BasicAuth != nil {
+		mdwr := security.BasicAuth(*cfg.BasicAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.DigestAuth != nil {
+		mdwr := security.DigestAuth(*cfg.DigestAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.BearerAuth != nil {
+		mdwr := security.BearerAuth(*cfg.BearerAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.MutualTLSAuth != nil {
+		mdwr := security.MutualTLSAuth(*cfg.MutualTLSAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.OAuth2AuthorizationCode != nil {
+		mdwr := security.OAuth2AuthorizationCodeAuth(*cfg.OAuth2AuthorizationCode)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.OAuth2ClientCredentials != nil {
+		mdwr := security.OAuth2ClientCredentialsAuth(*cfg.OAuth2ClientCredentials)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.OAuth2Device != nil {
+		mdwr := security.OAuth2DeviceAuth(*cfg.OAuth2Device)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.OAuth2Implicit != nil {
+		mdwr := security.OAuth2ImplicitAuth(*cfg.OAuth2Implicit)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	if cfg.OpenIDConnectAuth != nil {
+		mdwr := security.OpenIDConnectAuth(*cfg.OpenIDConnectAuth)
+		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
+	}
+
+	return mdwrs
+}
+
+func parseAcceptLanguage(acceptLang string) language.Tag {
+	// Parse Accept-Language header (e.g., "en-US,en;q=0.9,fr;q=0.8")
+	tags, _, err := language.ParseAcceptLanguage(acceptLang)
+	if err != nil || len(tags) == 0 {
+		return language.Und
+	}
+
+	i18nConfig, ok := i18n.Configuration()
+
+	if !ok {
+		return language.Und
+	}
+
+	supportedLanguages := i18nConfig.SupportedLanguages
+
+	if len(supportedLanguages) == 0 {
+		return language.Und
+	}
+
+	// Create a matcher for supported languages
+	matcher := language.NewMatcher(supportedLanguages)
+
+	// Find the best match
+	tag, _, _ := matcher.Match(tags...)
+	return tag
+}
+
+// SetOpenAPIPathInfo adds or updates path-level information in the OpenAPI documentation.
+// This should be called before registering handlers to set common parameters and servers for a path.
+// Only works if OpenAPI endpoint is enabled in configuration.
+func SetOpenAPIPathInfo(path string, info *PathInfo) {
+	if openAPIConfig == nil || !openAPIConfig.Enabled {
+		return
+	}
+
+	if !appConfigured {
+		Configure(nil)
+	}
+
+	parameters := mapParameters(info.Parameters)
+	servers := mapServers(info.Servers)
+
+	openAPIConfig.internalConfig.Paths.SetPathInfo(path, info.Summary, info.Description, parameters, servers)
+}
+
 // I18nMiddleware creates middleware that adds internationalization support to handlers.
 // It parses the Accept-Language header and language cookie to determine the user's preferred language,
 // then injects an i18n printer into the request context for message translation.
@@ -670,33 +790,6 @@ func I18nMiddleware(_ fs.FS) func(Handler) Handler {
 			next.ServeHTTP(w, &req)
 		})
 	}
-}
-
-func parseAcceptLanguage(acceptLang string) language.Tag {
-	// Parse Accept-Language header (e.g., "en-US,en;q=0.9,fr;q=0.8")
-	tags, _, err := language.ParseAcceptLanguage(acceptLang)
-	if err != nil || len(tags) == 0 {
-		return language.Und
-	}
-
-	i18nConfig, ok := i18n.Configuration()
-
-	if !ok {
-		return language.Und
-	}
-
-	supportedLanguages := i18nConfig.SupportedLanguages
-
-	if len(supportedLanguages) == 0 {
-		return language.Und
-	}
-
-	// Create a matcher for supported languages
-	matcher := language.NewMatcher(supportedLanguages)
-
-	// Find the best match
-	tag, _, _ := matcher.Match(tags...)
-	return tag
 }
 
 // SetLanguageCookie sets a language preference cookie for the user.
@@ -760,138 +853,60 @@ func (m *ServeMux) Use(mw interface{}) {
 // Handle registers a handler for the given pattern.
 // The pattern can include HTTP method prefix (e.g., "GET /users").
 // Optional per-handler middlewares can be provided and will be applied only to this handler.
-// Returns a handlerConfig that can be used to attach OpenAPI documentation via WithAPIConfig.
-func (m *ServeMux) Handle(pattern string, handler Handler, mdwrs ...interface{}) *HandlerConfig {
-	wrappedHandler := wrapMiddlewares(handler, getHandlerMiddlewares(mdwrs))
-	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
-	wrappedHandler = wrapMiddlewares(wrappedHandler, appMiddlewares)
-
-	securityMiddlewares := getSecurityMiddlewares(m)
-
-	if len(securityMiddlewares) > 0 {
-		// Apply security middlewares after app and mux middlewares, but before handler-specific middlewares
-		wrappedHandler = wrapMiddlewares(wrappedHandler, securityMiddlewares)
-	}
-
-	wrappedHandler = telemetryMiddleware(wrappedHandler)
-
-	if i18nConfig, ok := i18n.Configuration(); ok && i18nConfig.FS != nil {
-		i18nMdwr := I18nMiddleware(i18nConfig.FS)
-		wrappedHandler = i18nMdwr(wrappedHandler)
-	}
-
-	m.ServeMux.Handle(pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		statusCode := 0
-		wrappedHandler.ServeHTTP(ResponseWriter{w, &statusCode}, &Request{r})
-	}))
-
-	return &HandlerConfig{
+// Returns a handlerConfig that can be used to further configure the handler,
+// such setting security options and attaching OpenAPI documentation.
+func (m *ServeMux) Handle(pattern string, handler Handler) *HandlerConfig {
+	hc := &HandlerConfig{
+		mux:         m,
 		pathPattern: pattern,
+		handler:     handler,
 	}
-}
+	handlerConfigs = append(handlerConfigs, hc)
 
-func getSecurityMiddlewares(m *ServeMux) []AppMiddleware {
-	cfg := m.securityConfig
-
-	if cfg == nil {
-		cfg = securityConfig
-	}
-
-	if cfg == nil || cfg.AllowAnonymousAuth {
-		return nil
-	}
-
-	var mdwrs []AppMiddleware
-
-	if cfg.APIKeyAuth != nil {
-		mdwr := security.APIKeyAuth(*cfg.APIKeyAuth)
-		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
-	}
-
-	if cfg.BasicAuth != nil {
-		mdwr := security.BasicAuth(*cfg.BasicAuth)
-		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
-	}
-
-	if cfg.DigestAuth != nil {
-		mdwr := security.DigestAuth(*cfg.DigestAuth)
-		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
-	}
-
-	if cfg.BearerAuth != nil {
-		mdwr := security.BearerAuth(*cfg.BearerAuth)
-		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
-	}
-
-	if cfg.MutualTLSAuth != nil {
-		mdwr := security.MutualTLSAuth(*cfg.MutualTLSAuth)
-		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
-	}
-
-	if cfg.OAuth2AuthorizationCode != nil {
-		mdwr := security.OAuth2AuthorizationCodeAuth(*cfg.OAuth2AuthorizationCode)
-		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
-	}
-
-	if cfg.OAuth2ClientCredentials != nil {
-		mdwr := security.OAuth2ClientCredentialsAuth(*cfg.OAuth2ClientCredentials)
-		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
-	}
-
-	if cfg.OAuth2Device != nil {
-		mdwr := security.OAuth2DeviceAuth(*cfg.OAuth2Device)
-		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
-	}
-
-	if cfg.OAuth2Implicit != nil {
-		mdwr := security.OAuth2ImplicitAuth(*cfg.OAuth2Implicit)
-		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
-	}
-
-	if cfg.OpenIDConnectAuth != nil {
-		mdwr := security.OpenIDConnectAuth(*cfg.OpenIDConnectAuth)
-		mdwrs = append(mdwrs, adaptHTTPMiddleware(mdwr))
-	}
-
-	return mdwrs
+	return hc
 }
 
 // HandleFunc registers a handler function for the given pattern.
 // Convenience method that wraps a HandlerFunc and calls Handle.
 // Returns a handlerConfig that can be used to attach OpenAPI documentation via WithAPIConfig.
-func (m *ServeMux) HandleFunc(pattern string, handler HandlerFunc, mdwrs ...interface{}) *HandlerConfig {
-	wrappedHandler := wrapMiddlewares(handler, getHandlerMiddlewares(mdwrs))
-	wrappedHandler = wrapMiddlewares(wrappedHandler, m.middlewares)
-	wrappedHandler = wrapMiddlewares(wrappedHandler, appMiddlewares)
-
-	securityMiddlewares := getSecurityMiddlewares(m)
-
-	if len(securityMiddlewares) > 0 {
-		// Apply security middlewares after app and mux middlewares, but before handler-specific middlewares
-		wrappedHandler = wrapMiddlewares(wrappedHandler, securityMiddlewares)
-	}
-
-	wrappedHandler = telemetryMiddleware(wrappedHandler)
-
-	if i18nConfig, ok := i18n.Configuration(); ok && i18nConfig.FS != nil {
-		i18nMdwr := I18nMiddleware(i18nConfig.FS)
-		wrappedHandler = i18nMdwr(wrappedHandler)
-	}
-
-	m.ServeMux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-		statusCode := 0
-		wrappedHandler.ServeHTTP(ResponseWriter{w, &statusCode}, &Request{r})
-	})
-
-	return &HandlerConfig{
+func (m *ServeMux) HandleFunc(pattern string, handler HandlerFunc) *HandlerConfig {
+	hc := &HandlerConfig{
+		mux:         m,
 		pathPattern: pattern,
+		handler:     handler,
 	}
+	handlerConfigs = append(handlerConfigs, hc)
+
+	return hc
 }
 
 // ServeHTTP implements the http.Handler interface.
 // It wraps the request, applies middlewares, and handles JSONP callbacks if configured.
 func (m *ServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m.ServeMux.ServeHTTP(w, r)
+}
+
+// UseSecurity sets the security configuration for this specific handler.
+// This configuration overrides both the ServeMux-level and global security configurations.
+func (h *HandlerConfig) UseSecurity(cfg security.Config) *HandlerConfig {
+	h.security = &cfg
+	return h
+}
+
+// Use registers middleware to be applied only to this specific handler.
+// Accepts either AppMiddleware (func(Handler) Handler) or StandardMiddleware (func(http.Handler) http.Handler).
+// Unsupported middleware type would cause a panic.
+func (h *HandlerConfig) Use(mdwrs ...interface{}) *HandlerConfig {
+	h.middlewares = mdwrs
+	return h
+}
+
+// OpenAPIOperation attaches OpenAPI operation configuration to this handler.
+// This generates OpenAPI documentation for the endpoint with request/response schemas, parameters, etc.
+// Only works if OpenAPI endpoint is enabled in configuration.
+func (h *HandlerConfig) OpenAPIOperation(cfg OperationConfig) *HandlerConfig {
+	h.operation = &cfg
+	return h
 }
 
 // ServeHTTP implements the Handler interface, allowing HandlerFunc to be used as a Handler.

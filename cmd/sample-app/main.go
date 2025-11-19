@@ -10,6 +10,7 @@ import (
 	"time"
 
 	app "github.com/bondowe/webfram"
+	"github.com/bondowe/webfram/security"
 	"github.com/google/uuid"
 	"golang.org/x/text/language"
 )
@@ -93,7 +94,13 @@ func main() {
 		if err := w.JSON(r.Context(), users); err != nil {
 			w.Error(http.StatusInternalServerError, err.Error())
 		}
-	}).WithOperationConfig(&app.OperationConfig{
+	}).UseSecurity(security.Config{
+		BasicAuth: &security.BasicAuthConfig{
+			Authenticator: func(username, password string) bool {
+				return username == "admin" && password == "password"
+			},
+		},
+	}).OpenAPIOperation(app.OperationConfig{
 		OperationID: "listUsers",
 		Summary:     "List all users",
 		Tags:        []string{"User Service"},
@@ -123,7 +130,7 @@ func main() {
 		if err := w.JSONSeq(r.Context(), users); err != nil {
 			w.Error(http.StatusInternalServerError, err.Error())
 		}
-	}).WithOperationConfig(&app.OperationConfig{
+	}).OpenAPIOperation(app.OperationConfig{
 		OperationID: "listUsersSeq",
 		Summary:     "List all users in JSON Sequence format",
 		Tags:        []string{"User Service"},
@@ -159,7 +166,7 @@ func main() {
 		if jsonErr := w.JSON(r.Context(), user); jsonErr != nil {
 			w.Error(http.StatusInternalServerError, jsonErr.Error())
 		}
-	}).WithOperationConfig(&app.OperationConfig{
+	}).OpenAPIOperation(app.OperationConfig{
 		OperationID: "createUser",
 		Summary:     "Create a new user",
 		Tags:        []string{"User Service"},
@@ -240,7 +247,7 @@ func main() {
 		if err := w.XMLArray(users, "users"); err != nil {
 			w.Error(http.StatusInternalServerError, err.Error())
 		}
-	}).WithOperationConfig(&app.OperationConfig{
+	}).OpenAPIOperation(app.OperationConfig{
 		OperationID: "listUsersXML",
 		Summary:     "List all users in XML format",
 		Description: "Returns a list of users with XML serialization that respects custom xml tags (attributes vs elements). " +
@@ -279,7 +286,7 @@ func main() {
 		},
 		sseUpdateInterval,
 		nil,
-	)).WithOperationConfig(&app.OperationConfig{
+	)).OpenAPIOperation(app.OperationConfig{
 		OperationID: "timeEvents",
 		Summary:     "Stream server time updates via SSE",
 		Tags:        []string{"Time Service"},
@@ -355,11 +362,11 @@ func getOpenAPIConfig() *app.OpenAPIConfig {
 				Description: "Operations related to time updates",
 			},
 		},
-		Security: []map[string][]string{
-			{
-				"BasicAuth": {},
-			},
-		},
+		// Security: []map[string][]string{
+		// 	{
+		// 		"BasicAuth": {},
+		// 	},
+		// },
 		Components: &app.Components{
 			SecuritySchemes: map[string]app.SecurityScheme{
 				"BasicAuth": app.NewHTTPBasicSecurityScheme(&app.HTTPBasicSecuritySchemeOptions{
