@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -91,13 +90,11 @@ func validateDigest(params map[string]string, method, uri string, config DigestA
 
 	password, ok := config.PasswordGetter(username, realm)
 	if !ok {
-		slog.Warn("Unknown user", "username", username)
 		return false
 	}
 
 	// Check nonce (simple check, in production should validate timestamp)
 	if !isValidNonce(nonce, config.NonceTTL) {
-		slog.Warn("Invalid nonce", "nonce", nonce)
 		return false
 	}
 
